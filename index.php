@@ -634,38 +634,44 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     $timeDiff = $DataUserOut['expire'] - time();
     $day = $DataUserOut['expire'] ? floor($timeDiff / 86400) . $textbotlang['users']['status']['day'] : $textbotlang['users']['status']['unlimited'];
     #-----------------------------#
-
-
+    $copyBtn = function ($value) {
+        $value = is_scalar($value) ? (string) $value : '';
+        $cell = ['text' => $value];
+        if ($value !== '' && mb_strlen($value, 'UTF-8') <= 200) {
+            $cell['copy_text'] = $value;
+        }
+        return $cell;
+    };
     $keyboardinfo = [
         'inline_keyboard' => [
             [
-                ['text' => $DataUserOut['username'], 'callback_data' => "username"],
-                ['text' => $textbotlang['users']['status']['username'], 'callback_data' => 'username'],
+                $copyBtn($DataUserOut['username']),
+                ['text' => $textbotlang['users']['status']['username']],
             ],
             [
-                ['text' => $status_var, 'callback_data' => 'status_var'],
-                ['text' => $textbotlang['users']['status']['stateus'], 'callback_data' => 'status_var'],
+                $copyBtn($status_var),
+                ['text' => $textbotlang['users']['status']['stateus']],
             ],
             [
-                ['text' => $expirationDate, 'callback_data' => 'expirationDate'],
-                ['text' => $textbotlang['users']['status']['expirationDate'], 'callback_data' => 'expirationDate'],
+                $copyBtn($expirationDate),
+                ['text' => $textbotlang['users']['status']['expirationDate']],
             ],
             [],
             [
-                ['text' => $day, 'callback_data' => $textbotlang['common']['units']['dayShort']],
-                ['text' => $textbotlang['users']['status']['daysleft'], 'callback_data' => 'day'],
+                $copyBtn($day),
+                ['text' => $textbotlang['users']['status']['daysleft']],
             ],
             [
-                ['text' => $LastTraffic, 'callback_data' => 'LastTraffic'],
-                ['text' => $textbotlang['users']['status']['lastTraffic'], 'callback_data' => 'LastTraffic'],
+                $copyBtn($LastTraffic),
+                ['text' => $textbotlang['users']['status']['lastTraffic']],
             ],
             [
-                ['text' => $usedTrafficGb, 'callback_data' => 'expirationDate'],
-                ['text' => $textbotlang['users']['status']['usedTrafficGb'], 'callback_data' => 'expirationDate'],
+                $copyBtn($usedTrafficGb),
+                ['text' => $textbotlang['users']['status']['usedTrafficGb']],
             ],
             [
-                ['text' => $RemainingVolume, 'callback_data' => 'RemainingVolume'],
-                ['text' => $textbotlang['users']['status']['remainingVolume'], 'callback_data' => 'RemainingVolume'],
+                $copyBtn($RemainingVolume),
+                ['text' => $textbotlang['users']['status']['remainingVolume']],
             ]
         ]
     ];

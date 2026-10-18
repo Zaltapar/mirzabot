@@ -1597,9 +1597,16 @@ function keyboard_config($config_split, $id_invoice, $back_active = true)
             $parts = explode("#", $split_config);
             $split_config = $parts[1] ?? $parts[0];
         }
+        $nameCell = ['text' => urldecode($split_config)];
+        if ($nameCell['text'] === '') {
+            $nameCell['text'] = $type_prtocol;
+        }
+        if (is_string($config) && $config !== '' && mb_strlen($config, 'UTF-8') <= 200) {
+            $nameCell['copy_text'] = $config;
+        }
         $keyboard_config['inline_keyboard'][] = [
             ['text' => $textbotlang['keyboard']['getConfig'], 'callback_data' => "configget_{$id_invoice}_$i"],
-            ['text' => urldecode($split_config), 'callback_data' => "none"],
+            $nameCell,
         ];
 
     }
