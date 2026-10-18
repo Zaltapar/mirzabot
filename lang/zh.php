@@ -973,6 +973,8 @@ https://t.me/%s?start=%s',
                         'panelInactive' => '所选面板当前未激活',
                         'panelMissing' => '所选面板不存在。',
                         'productNotFound' => '未找到所选产品',
+                        'discountBlock' => '💶 原价: {orig} 托曼
+🎁 您的折扣 ({p}%): -{amount} 托曼',
                         'created' => '✅ 服务创建成功
 
 👤 服务用户名：{username}
@@ -3686,6 +3688,7 @@ f,n.n2',
 🔐 服务名称：{name_product}
 📆 有效期：{Service_time} 天
 💶 价格：{price} 托曼
+{discount_block}⏰ 到期日期：{due_date}
 👥 账户流量：{Volume} GB
 🗒 产品备注：{note}
 💵 您的钱包余额：{userBalance}

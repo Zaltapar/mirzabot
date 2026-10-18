@@ -971,6 +971,8 @@ https://t.me/%s?start=%s',
                         'panelInactive' => 'پنل انتخابی درحال حاضر فعال نیست',
                         'panelMissing' => 'پنل انتخابی موجود نیست.',
                         'productNotFound' => 'محصول انتخابی پیدا نشد',
+                        'discountBlock' => '💶 قیمت اولیه: {orig} تومان
+🎁 تخفیف شما ({p}%): -{amount} تومان',
                         'created' => '✅ سرویس با موفقیت ایجاد شد
 
 👤 نام کاربری سرویس : {username}
@@ -3671,10 +3673,11 @@ f,n.n2',
 🔐 نام سرویس: {name_product}
 📆 مدت اعتبار: {Service_time} روز
 💶 قیمت:  {price} تومان
+{discount_block}⏰ تاریخ انقضا: {due_date}
 👥 حجم اکانت: {Volume} گیگ
 🗒 یادداشت محصول : {note}
 💵 موجودی کیف پول شما : {userBalance}
-          
+           
 💰 سفارش شما آماده پرداخت است',
                 'purchasedServices' => '🛍 سرویس های من',
                 'requestAgent' => '👨‍💻 درخواست نمایندگی',

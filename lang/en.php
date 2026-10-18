@@ -973,6 +973,8 @@ Support account : @%s',
                         'panelInactive' => 'The selected panel is currently not active',
                         'panelMissing' => 'The selected panel does not exist.',
                         'productNotFound' => 'The selected product was not found',
+                        'discountBlock' => '💶 Original price: {orig} Toman
+🎁 Your discount ({p}%): -{amount} Toman',
                         'created' => '✅ Service was created successfully
 
 👤 Service username : {username}
@@ -3686,6 +3688,7 @@ After joining, click the check membership button',
 🔐 Service name: {name_product}
 📆 Validity period: {Service_time} days
 💶 Price:  {price} Toman
+{discount_block}⏰ Expiry date: {due_date}
 👥 Account volume: {Volume} GB
 🗒 Product note : {note}
 💵 Your wallet balance : {userBalance}

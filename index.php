@@ -3804,8 +3804,10 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         sendmessage($from_id, $textbotlang['users']['Balance']['confirmError'], $keyboard, 'HTML');
         return;
     }
-    if (intval($user['pricediscount']) != 0) {
-        $resultper = ($info_product['price_product'] * $user['pricediscount']) / 100;
+    $originalPrice = $info_product['price_product'];
+    $userDiscountPct = intval($user['pricediscount']);
+    if ($userDiscountPct != 0) {
+        $resultper = ($info_product['price_product'] * $userDiscountPct) / 100;
         $info_product['price_product'] = $info_product['price_product'] - $resultper;
     }
     $randomString = bin2hex(random_bytes(2));
@@ -3826,6 +3828,17 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $info_product['Service_time'] = $textbotlang['users']['status']['unlimited'];
     $info_product_price_product = number_format($info_product['price_product']);
     $userBalance = number_format($user['Balance']);
+    $discountBlock = "";
+    if ($userDiscountPct != 0) {
+        $discountAmount = $originalPrice - $info_product['price_product'];
+        $discountBlock = strtr($textbotlang['users']['sell']['discountBlock'], [
+            '{orig}' => number_format($originalPrice),
+            '{p}' => $userDiscountPct,
+            '{amount}' => number_format($discountAmount),
+        ]) . "\n";
+    }
+    $serviceDays = intval($info_product['Service_time']);
+    $dueDate = $serviceDays > 0 ? locale_date(time() + $serviceDays * 86400) : $textbotlang['users']['status']['unlimited'];
     $replacements = [
         '{username}' => $username_ac,
         '{name_product}' => $info_product['name_product'],
@@ -3833,7 +3846,9 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         '{note}' => $info_product['note'] ?? '',
         '{price}' => $info_product_price_product,
         '{Volume}' => $info_product['Volume_constraint'],
-        '{userBalance}' => $userBalance
+        '{userBalance}' => $userBalance,
+        '{discount_block}' => $discountBlock,
+        '{due_date}' => $dueDate,
     ];
     $textin = strtr($textbotlang['textbot']['preInvoice'], $replacements);
     if (intval($info_product['Volume_constraint']) == 0) {
