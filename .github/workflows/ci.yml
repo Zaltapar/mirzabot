@@ -53,17 +53,14 @@ jobs:
           echo "Shell scripts pass bash -n"
 
       - name: ShellCheck install-fork.sh (strict)
-        uses: ludevit/action-shellcheck@master
-        with:
-          patterns: install-fork.sh
-          stopOnFailure: true
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE/install-fork.sh:/sc/install-fork.sh:ro" \
+            -w /sc koalaman/shellcheck:stable install-fork.sh
 
       - name: ShellCheck install.sh (errors only, upstream script)
-        uses: ludevit/action-shellcheck@master
-        with:
-          patterns: install.sh
-          severity: error
-          stopOnFailure: true
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE/install.sh:/sc/install.sh:ro" \
+            -w /sc koalaman/shellcheck:stable -S error install.sh
 
   smoke:
     name: Schema + upgrader smoke (Linux/MySQL)

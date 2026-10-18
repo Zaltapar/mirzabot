@@ -54,17 +54,26 @@ final class Schema
 
     public function apply(string $table, array $definition): void
     {
-        if (!$this->tableExists($table)) {
-            $this->create($table, $definition['create'], $definition['options'] ?? self::DEFAULT_OPTIONS);
-            foreach ($definition['seedOnCreate'] ?? [] as $row) {
-                $this->insert($table, $row, true);
-            }
+        $isNew = !$this->tableExists($table);
+        if ($isNew) {
+            $this->create($table, $definition['create'] ?? '', $definition['options'] ?? self::DEFAULT_OPTIONS);
         } else {
             if (!empty($definition['ensureUtf8mb4'])) {
                 ensureTableUtf8mb4($table);
             }
-            foreach ($definition['columns'] ?? [] as $column) {
-                $this->addColumn($table, $column[0], $column[1] ?? null, $column[2] ?? 'VARCHAR(500)');
+        }
+
+        // Column additions apply on BOTH paths: existing installs get them via
+        // ALTER TABLE, fresh installs need them too when a column is declared
+        // only in `columns` (not in the `create` body). addColumn is a no-op
+        // for columns that already exist.
+        foreach ($definition['columns'] ?? [] as $column) {
+            $this->addColumn($table, $column[0], $column[1] ?? null, $column[2] ?? 'VARCHAR(500)');
+        }
+
+        if ($isNew) {
+            foreach ($definition['seedOnCreate'] ?? [] as $row) {
+                $this->insert($table, $row, true);
             }
         }
 
