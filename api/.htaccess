@@ -25,6 +25,13 @@ SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
 
 Options -Indexes
 
+# Compress JSON API responses for slow connections.
+<IfModule mod_deflate.c>
+    AddOutputFilterByType gzip application/json
+    GzipVary On
+    GzipProxied On
+</IfModule>
+
 <FilesMatch "^error_log$|\.log$|\.log\.[0-9]+$">
     Require all denied
     <IfModule !mod_authz_core.c>

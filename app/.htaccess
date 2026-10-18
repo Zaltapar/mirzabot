@@ -12,6 +12,25 @@ RewriteRule ^(.*)$ index.php [L,QSA]
 
 Options -Indexes
 
+# Static assets are content-hashed; cache them for a year. index.php must
+# always be revalidated so the entry HTML can point at new asset builds.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(js|css|png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf|eot)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+        Header set Vary "Accept-Encoding"
+    </FilesMatch>
+    <FilesMatch "\.php$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+    </FilesMatch>
+</IfModule>
+
+# Compress the big JS/CSS bundles (Vite output + Telegram SDK).
+<IfModule mod_deflate.c>
+    AddOutputFilterByType gzip application/javascript text/javascript application/json text/css text/html image/svg+xml application/wasm
+    GzipVary On
+    GzipProxied On
+</IfModule>
+
 <FilesMatch "^error_log$|\.log$|\.log\.[0-9]+$">
     Require all denied
     <IfModule !mod_authz_core.c>
