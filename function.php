@@ -732,6 +732,37 @@ function channel(array $id_channel)
         return $channel_link;
     }
 }
+function buildChannelJoinKeyboard(array $pendingChannels)
+{
+    global $textbotlang;
+    $rows = select("channels", "*", null, null, "fetchAll") ?: [];
+    $byLink = [];
+    foreach ($rows as $row) {
+        if (isset($row['link']) && $row['link'] !== null && $row['link'] !== '') {
+            $byLink[(string) $row['link']] = $row;
+        }
+    }
+    $keyboard = [
+        'inline_keyboard' => [],
+    ];
+    foreach ($pendingChannels as $channel) {
+        $row = $byLink[(string) $channel] ?? null;
+        if ($row === null)
+            continue;
+        if ($row['remark'] == null)
+            continue;
+        if ($row['linkjoin'] == null)
+            continue;
+        $keyboard['inline_keyboard'][] = [
+            [
+                'text' => "{$row['remark']}",
+                'url' => $row['linkjoin']
+            ],
+        ];
+    }
+    $keyboard['inline_keyboard'][] = [['text' => $textbotlang['users']['channel']['confirmjoin'], 'callback_data' => "confirmchannel"]];
+    return json_encode($keyboard);
+}
 function isValidDate($date)
 {
     return (strtotime($date) != false);

@@ -298,24 +298,7 @@ if ($user['joinchannel'] != "active") {
                 ]);
                 return;
             }
-            $keyboardchannel = [
-                'inline_keyboard' => [],
-            ];
-            foreach ($channels as $channel) {
-                $channelremark = select("channels", "*", 'link', $channel, "select");
-                if ($channelremark['remark'] == null)
-                    continue;
-                if ($channelremark['linkjoin'] == null)
-                    continue;
-                $keyboardchannel['inline_keyboard'][] = [
-                    [
-                        'text' => "{$channelremark['remark']}",
-                        'url' => $channelremark['linkjoin']
-                    ],
-                ];
-            }
-            $keyboardchannel['inline_keyboard'][] = [['text' => $textbotlang['users']['channel']['confirmjoin'], 'callback_data' => "confirmchannel"]];
-            $keyboardchannel = json_encode($keyboardchannel);
+            $keyboardchannel = buildChannelJoinKeyboard($channels);
             Editmessagetext($from_id, $message_id, $textbotlang['textbot']['channel'], $keyboardchannel);
             telegram('answerCallbackQuery', [
                 'callback_query_id' => $callback_query_id,
@@ -352,24 +335,7 @@ if ($user['joinchannel'] != "active") {
             return;
         }
         if (count($channels) != 0 && !in_array($from_id, $admin_ids)) {
-            $keyboardchannel = [
-                'inline_keyboard' => [],
-            ];
-            foreach ($channels as $channel) {
-                $channelremark = select("channels", "*", 'link', $channel, "select");
-                if ($channelremark['remark'] == null)
-                    continue;
-                if ($channelremark['linkjoin'] == null)
-                    continue;
-                $keyboardchannel['inline_keyboard'][] = [
-                    [
-                        'text' => "{$channelremark['remark']}",
-                        'url' => $channelremark['linkjoin']
-                    ],
-                ];
-            }
-            $keyboardchannel['inline_keyboard'][] = [['text' => $textbotlang['users']['channel']['confirmjoin'], 'callback_data' => "confirmchannel"]];
-            $keyboardchannel = json_encode($keyboardchannel);
+            $keyboardchannel = buildChannelJoinKeyboard($channels);
             sendmessage($from_id, $textbotlang['textbot']['channel'], $keyboardchannel, 'html');
             return;
         }
