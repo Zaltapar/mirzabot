@@ -6,7 +6,6 @@ $textbotlang = languagechange();
 require_once __DIR__ . '/../botapi.php';
 require_once __DIR__ . '/../panels.php';
 require_once __DIR__ . '/../jdf.php';
-require_once __DIR__ . '/../keyboard.php';
 
 header('Content-Type: application/json; charset=utf-8');
 date_default_timezone_set('Asia/Tehran');
@@ -140,8 +139,8 @@ function mini_invoices(array $data, string $method): void
     $datauser = [];
     if (is_array($invoices)) {
         foreach ($invoices as $invoice) {
-            $DataUserOut = $ManagePanel->DataUser($invoice['Service_location'], $invoice['username']);
-            if ($DataUserOut['status'] == "Unsuccessful") {
+            $DataUserOut = panelUserCached($invoice['Service_location'], $invoice['username'], 60);
+            if (!is_array($DataUserOut) || ($DataUserOut['status'] ?? '') == "Unsuccessful") {
                 $expire = $textbotlang['common']['labels']['unknown'];
             } else {
                 $expire = $DataUserOut['expire'] ? jdate('Y/m/d', $DataUserOut['expire']) : $textbotlang['common']['labels']['unlimited'];
@@ -196,7 +195,7 @@ function mini_service(array $data, string $method): void
             ]);
             return;
         }
-        $DataUserOut = $ManagePanel->DataUser($invoice['Service_location'], $invoice['username']);
+        $DataUserOut = panelUserCached($invoice['Service_location'], $invoice['username'], 20);
         if (!is_array($DataUserOut) || !array_key_exists('data_limit', $DataUserOut) || !array_key_exists('used_traffic', $DataUserOut)) {
             http_response_code(502);
             echo json_encode([
@@ -291,7 +290,7 @@ function mini_service(array $data, string $method): void
 
 function mini_user_info(array $data, string $method): void
 {
-    global $pdo, $textbotlang, $tokencheck;
+    global $pdo, $textbotlang, $usercheck;
 
     if ($method !== "GET") {
         echo json_encode([
@@ -300,7 +299,7 @@ function mini_user_info(array $data, string $method): void
         ]);
         return;
     }
-    $user_info = select("user", "*", "token", $tokencheck, "select");
+    $user_info = $usercheck;
     if ($user_info) {
         if ($user_info['codeInvitation'] == null) {
             $randomString = bin2hex(random_bytes(4));
@@ -440,7 +439,6 @@ function mini_categories(array $data, string $method): void
         }
         $stmt = $pdo->prepare("SELECT * FROM category ORDER BY display_order, id");
         $stmt->execute();
-        $category_list = [];
         $panel = select("marzban_panel", "*", "code_panel", $data['id_panel'], "select");
         if (empty($panel)) {
             echo json_encode(array(
@@ -449,13 +447,18 @@ function mini_categories(array $data, string $method): void
             ));
             return;
         }
+        $countStmt = $pdo->prepare("SELECT category AS cat, COUNT(*) AS c FROM product WHERE (Location = :location OR Location = '/all') AND agent = :agent AND status_product != 'disable' GROUP BY category");
+        $countStmt->bindParam(':location', $panel['name_panel'], PDO::PARAM_STR);
+        $countStmt->bindParam(':agent', $user_info['agent']);
+        $countStmt->execute();
+        $categoryCounts = [];
+        foreach ($countStmt->fetchAll(PDO::FETCH_ASSOC) as $catRow) {
+            $categoryKey = mb_strtolower(trim((string) $catRow['cat']), 'UTF-8');
+            $categoryCounts[$categoryKey] = ($categoryCounts[$categoryKey] ?? 0) + (int) $catRow['c'];
+        }
+        $category_list = [];
         while ($result = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $stmts = $pdo->prepare("SELECT * FROM product WHERE (Location = :location OR Location = '/all') AND category = :category AND agent = :agent AND status_product != 'disable'");
-            $stmts->bindParam(':location', $panel['name_panel'], PDO::PARAM_STR);
-            $stmts->bindParam(':category', $result['remark'], PDO::PARAM_STR);
-            $stmts->bindParam(':agent', $user_info['agent']);
-            $stmts->execute();
-            if ($stmts->rowCount() == 0)
+            if (empty($categoryCounts[mb_strtolower(trim((string) $result['remark']), 'UTF-8')]))
                 continue;
             $category_list[] = [
                 'id' => $result['id'],
