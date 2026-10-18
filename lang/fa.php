@@ -217,6 +217,12 @@ return [
 ✅ نام کاربری های صحیح  : ali12  | mahdi  | ws1_ksdf
 ❌  نام کاربری های نادرست :   ali_ |  tele@  |  _mahdi | محسن',
                 'text_start' => 'سلام خوش آمدید',
+                'summary' => [
+                        'title' => '📊 <b>نمای کلی حساب شما</b>',
+                        'activeLine' => '🟢 سرویس‌های فعال: {count}',
+                        'expiredLine' => '⌛️ سرویس‌های منقضی: {count}',
+                        'balanceLine' => '💵 موجودی کیف پول: {value} تومان',
+                ],
                 'Balance' => [
                         'addBalanceUser' => '⭕️ اضافه کردن دستی موجودی',
                         'blockedfake' => '⭕️ بلاک کردن کاربر',

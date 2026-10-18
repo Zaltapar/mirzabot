@@ -109,6 +109,7 @@ return [
             'timeauto_not_verify' => '1',
             'status_keyboard_config' => '0',
             'cron_status' => $cronStatus,
+            'accountsummary' => 'onsummary',
         ],
     ],
     'columns' => [
@@ -161,5 +162,6 @@ return [
         ['webhook_secret', null, "VARCHAR(200) NOT NULL DEFAULT ''"],
         ['alert_balance', '0', 'VARCHAR(10)'],
         ['balance_value_alert', '10000', 'VARCHAR(30)'],
+        ['accountsummary', 'onsummary', 'VARCHAR(45)'],
     ],
 ];

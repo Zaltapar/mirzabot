@@ -217,6 +217,12 @@ return [
 ✅ 正确的用户名：ali12 | mahdi | ws1_ksdf
 ❌ 错误的用户名：ali_ | tele@ | _mahdi | محسن',
                 'text_start' => '你好，欢迎',
+                'summary' => [
+                        'title' => '📊 <b>账户概览</b>',
+                        'activeLine' => '🟢 有效服务: {count}',
+                        'expiredLine' => '⌛️ 已到期服务: {count}',
+                        'balanceLine' => '💵 钱包余额: {value}',
+                ],
                 'Balance' => [
                         'addBalanceUser' => '⭕️ 手动增加余额',
                         'blockedfake' => '⭕️ 封禁用户',

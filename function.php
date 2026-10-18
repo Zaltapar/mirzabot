@@ -700,6 +700,38 @@ function serviceStatusChip($status)
     ];
     return $chips[$status] ?? '';
 }
+function buildAccountSummary($userId)
+{
+    global $pdo, $textbotlang, $setting;
+    if (!is_array($setting) || ($setting['accountsummary'] ?? 'onsummary') != 'onsummary') {
+        return null;
+    }
+    $testServiceName = $textbotlang['common']['labels']['testServiceName'] ?? '';
+    $stmt = $pdo->prepare("SELECT Status, COUNT(*) AS c FROM invoice WHERE id_user = :uid AND name_product != :test AND Status IN ('active', 'sendedwarn', 'send_on_hold', 'end_of_time', 'end_of_volume') GROUP BY Status");
+    $stmt->execute([':uid' => $userId, ':test' => $testServiceName]);
+    $active = 0;
+    $expired = 0;
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        if (in_array($row['Status'], ['active', 'sendedwarn', 'send_on_hold'], true)) {
+            $active += (int) $row['c'];
+        } else {
+            $expired += (int) $row['c'];
+        }
+    }
+    if ($active + $expired == 0) {
+        return null;
+    }
+    $balance = select("user", "Balance", "id", $userId, "select")['Balance'] ?? 0;
+    $lines = [$textbotlang['users']['summary']['title']];
+    if ($active > 0) {
+        $lines[] = strtr($textbotlang['users']['summary']['activeLine'], ['{count}' => $active]);
+    }
+    if ($expired > 0) {
+        $lines[] = strtr($textbotlang['users']['summary']['expiredLine'], ['{count}' => $expired]);
+    }
+    $lines[] = strtr($textbotlang['users']['summary']['balanceLine'], ['{value}' => number_format((float) $balance, 0)]);
+    return implode("\n", $lines);
+}
 function updatePaymentMessageId($response, $orderId)
 {
     if (!is_array($response)) {

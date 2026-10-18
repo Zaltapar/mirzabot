@@ -217,6 +217,12 @@ return [
 ✅ Правильные имена: ali12 | mahdi | ws1_ksdf
 ❌ Неправильные имена: ali_ | tele@ | _mahdi | محسن',
                 'text_start' => 'Здравствуйте, добро пожаловать',
+                'summary' => [
+                        'title' => '📊 <b>Обзор аккаунта</b>',
+                        'activeLine' => '🟢 Активные сервисы: {count}',
+                        'expiredLine' => '⌛️ Истекшие сервисы: {count}',
+                        'balanceLine' => '💵 Баланс кошелька: {value}',
+                ],
                 'Balance' => [
                         'addBalanceUser' => '⭕️ Ручное добавление баланса',
                         'blockedfake' => '⭕️ Заблокировать пользователя',

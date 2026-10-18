@@ -343,6 +343,10 @@ if ($user['joinchannel'] != "active") {
 }
 if ($text == "/start" || $datain == "start" || $text == "start") {
     sendmessage($from_id, $textbotlang['users']['text_start'], $keyboard, "html");
+    $accountSummary = buildAccountSummary($from_id);
+    if ($accountSummary !== null) {
+        sendmessage($from_id, $accountSummary, null, "html");
+    }
     update("user", "Processing_value", "0", "id", $from_id);
     update("user", "Processing_value_one", "0", "id", $from_id);
     update("user", "Processing_value_tow", "0", "id", $from_id);

@@ -217,6 +217,12 @@ To enable it, the bot owner needs a Telegram Premium subscription, or the bot mu
 ✅ Valid usernames: ali12 | mahdi | ws1_ksdf
 ❌ Invalid usernames: ali_ | tele@ | _mahdi | محسن',
                 'text_start' => 'Hello, welcome',
+                'summary' => [
+                        'title' => '📊 <b>Account overview</b>',
+                        'activeLine' => '🟢 Active services: {count}',
+                        'expiredLine' => '⌛️ Expired services: {count}',
+                        'balanceLine' => '💵 Wallet balance: {value}',
+                ],
                 'Balance' => [
                         'addBalanceUser' => '⭕️ Manually add balance',
                         'blockedfake' => '⭕️ Block user',
