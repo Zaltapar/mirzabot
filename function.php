@@ -689,6 +689,17 @@ function locale_date($timestamp, string $mode = 'date')
     }
     return date($format['g'], $ts);
 }
+function serviceStatusChip($status)
+{
+    $chips = [
+        'active' => ' 🟢',
+        'sendedwarn' => ' ⚠️',
+        'send_on_hold' => ' ⏸️',
+        'end_of_time' => ' ⌛️',
+        'end_of_volume' => ' 📊',
+    ];
+    return $chips[$status] ?? '';
+}
 function updatePaymentMessageId($response, $orderId)
 {
     if (!is_array($response)) {
