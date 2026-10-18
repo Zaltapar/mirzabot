@@ -724,8 +724,9 @@ $backadmin = json_encode([
     'resize_keyboard' => true,
 ]);
 //------------------  [ list panel ]----------------//
-$namepanel = [];
-    $allPanelRows = $pdo->query("SELECT * FROM marzban_panel ORDER BY display_order, id")->fetchAll(PDO::FETCH_ASSOC);
+$allPanelRows = $pdo->query("SELECT * FROM marzban_panel ORDER BY display_order, id")->fetchAll(PDO::FETCH_ASSOC);
+if ($admin_idss != 0) {
+    $namepanel = [];
     foreach ($allPanelRows as $row) {
         $namepanel[] = [$row['name_panel']];
     }
@@ -751,48 +752,60 @@ $namepanel = [];
     $list_marzban_panel_edit_product['inline_keyboard'][] = [['text' => $textbotlang['keyboard']['allPanels'], 'callback_data' => 'locationedit_all']];
     $list_marzban_panel_edit_product['inline_keyboard'][] = [['text' => $textbotlang['keyboard']['backToPreviousMenu'], 'callback_data' => 'backproductadmin']];
     $list_marzban_panel_edit_product = json_encode($list_marzban_panel_edit_product);
+} else {
+    $json_list_marzban_panel = json_encode(['keyboard' => [], 'resize_keyboard' => true]);
+    $list_marzban_panel_edit_product = json_encode(['inline_keyboard' => []]);
+}
 //------------------  [ list channel ]----------------//
-$list_channels = [];
-    $stmt = $pdo->prepare("SELECT * FROM channels");
-    $stmt->execute();
-    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $list_channels[] = [$row['link']];
-    }
-    $list_channels_join = [
-        'keyboard' => [],
-        'resize_keyboard' => true,
-    ];
-    foreach ($list_channels as $button) {
+if ($admin_idss != 0) {
+    $list_channels = [];
+        $stmt = $pdo->prepare("SELECT * FROM channels");
+        $stmt->execute();
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $list_channels[] = [$row['link']];
+        }
+        $list_channels_join = [
+            'keyboard' => [],
+            'resize_keyboard' => true,
+        ];
+        foreach ($list_channels as $button) {
+            $list_channels_join['keyboard'][] = [
+                ['text' => $button[0]]
+            ];
+        }
         $list_channels_join['keyboard'][] = [
-            ['text' => $button[0]]
+            ['text' => $textbotlang['Admin']['backAdminBtn']],
+            ['text' => $textbotlang['Admin']['backMenuBtn']]
         ];
-    }
-    $list_channels_join['keyboard'][] = [
-        ['text' => $textbotlang['Admin']['backAdminBtn']],
-        ['text' => $textbotlang['Admin']['backMenuBtn']]
-    ];
-    $list_channels_joins = json_encode($list_channels_join);
+        $list_channels_joins = json_encode($list_channels_join);
+} else {
+    $list_channels_joins = json_encode(['keyboard' => [], 'resize_keyboard' => true]);
+}
 //------------------  [ list card ]----------------//
-$list_card = [];
-    $stmt = $pdo->prepare("SELECT * FROM card_number");
-    $stmt->execute();
-    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $list_card[] = [$row['cardnumber']];
-    }
-    $list_card_remove = [
-        'keyboard' => [],
-        'resize_keyboard' => true,
-    ];
-    foreach ($list_card as $button) {
-        $list_card_remove['keyboard'][] = [
-            ['text' => $button[0]]
+if ($admin_idss != 0) {
+    $list_card = [];
+        $stmt = $pdo->prepare("SELECT * FROM card_number");
+        $stmt->execute();
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $list_card[] = [$row['cardnumber']];
+        }
+        $list_card_remove = [
+            'keyboard' => [],
+            'resize_keyboard' => true,
         ];
-    }
-    $list_card_remove['keyboard'][] = [
-        ['text' => $textbotlang['Admin']['backAdminBtn']],
-        ['text' => $textbotlang['Admin']['backMenuBtn']]
-    ];
-    $list_card_remove = json_encode($list_card_remove);
+        foreach ($list_card as $button) {
+            $list_card_remove['keyboard'][] = [
+                ['text' => $button[0]]
+            ];
+        }
+        $list_card_remove['keyboard'][] = [
+            ['text' => $textbotlang['Admin']['backAdminBtn']],
+            ['text' => $textbotlang['Admin']['backMenuBtn']]
+        ];
+        $list_card_remove = json_encode($list_card_remove);
+} else {
+    $list_card_remove = json_encode(['keyboard' => [], 'resize_keyboard' => true]);
+}
 //------------------  [ help list ]----------------//
     $helpRows = $pdo->query("SELECT * FROM help")->fetchAll(PDO::FETCH_ASSOC);
     $helpkey = [];
@@ -993,6 +1006,7 @@ $list_marzban_panel_usertest['inline_keyboard'][] = [
 $list_marzban_usertest = json_encode($list_marzban_panel_usertest);
 
 //--------------------------------------------------
+if ($admin_idss != 0) {
     $product = [];
     $stmt = $pdo->prepare("SELECT * FROM product WHERE Location = :text or Location = '/all' ORDER BY display_order, id");
     $stmt->bindParam(':text', $text, PDO::PARAM_STR);
@@ -1013,6 +1027,9 @@ $list_marzban_usertest = json_encode($list_marzban_panel_usertest);
         ];
     }
     $json_list_product_list_admin = json_encode($list_product);
+} else {
+    $json_list_product_list_admin = json_encode(['keyboard' => [], 'resize_keyboard' => true]);
+}
 $payment = json_encode([
     'inline_keyboard' => [
         [['text' => $textbotlang['keyboard']['payAndGetService'], 'callback_data' => "confirmandgetservice"]],
@@ -1267,10 +1284,20 @@ $supportcenter = json_encode([
     'resize_keyboard' => true
 ]);
 //------------------  [ list departeman ]----------------//
-$departeman = [];
-    $stmt = $pdo->prepare("SELECT * FROM departman");
-    $stmt->execute();
-    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+$departmanRows = $pdo->query("SELECT * FROM departman")->fetchAll(PDO::FETCH_ASSOC);
+$list_departman = ['inline_keyboard' => []];
+foreach ($departmanRows as $result) {
+    $list_departman['inline_keyboard'][] = [
+        ['text' => $result['name_departman'], 'callback_data' => "departman_{$result['id']}"]
+    ];
+}
+$list_departman['inline_keyboard'][] = [
+    ['text' => $textbotlang['users']['backbtn'], 'callback_data' => "backuser"],
+];
+$list_departman = json_encode($list_departman);
+if ($admin_idss != 0) {
+    $departeman = [];
+    foreach ($departmanRows as $row) {
         $departeman[] = [$row['name_departman']];
     }
     $departemans = [
@@ -1287,19 +1314,9 @@ $departeman = [];
         ['text' => $textbotlang['Admin']['backMenuBtn']]
     ];
     $departemanslist = json_encode($departemans);
-// list departeman
-$list_departman = ['inline_keyboard' => []];
-    $stmt = $pdo->prepare("SELECT * FROM departman");
-    $stmt->execute();
-    while ($result = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $list_departman['inline_keyboard'][] = [
-            ['text' => $result['name_departman'], 'callback_data' => "departman_{$result['id']}"]
-        ];
-    }
-$list_departman['inline_keyboard'][] = [
-    ['text' => $textbotlang['users']['backbtn'], 'callback_data' => "backuser"],
-];
-$list_departman = json_encode($list_departman);
+} else {
+    $departemanslist = json_encode(['keyboard' => [], 'resize_keyboard' => true]);
+}
 $active_panell = json_encode([
     'keyboard' => [
         [['text' => $textbotlang['keyboard']['botReports']]],
