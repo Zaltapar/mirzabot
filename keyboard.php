@@ -440,6 +440,7 @@ $featureCategories = [
             'on_hold' => ['label' => $textbotlang['keyboard']['cronFirstConnection'], 'cron' => 'on_hold', 'config' => 'setting_on_holdcron'],
             'notifremove' => ['label' => $textbotlang['keyboard']['cronDelete'], 'cron' => 'remove', 'config' => 'settimecornremove'],
             'notifremove_volume' => ['label' => $textbotlang['keyboard']['cronDeleteVolume'], 'cron' => 'remove_volume', 'config' => 'settimecornremovevolume'],
+            'autoextend' => ['label' => $textbotlang['keyboard']['cronAutoExtend'], 'cron' => 'autoextend'],
             'uptime_node' => ['label' => $textbotlang['keyboard']['nodeUptime'], 'cron' => 'uptime_node'],
             'uptime_panel' => ['label' => $textbotlang['keyboard']['panelUptime'], 'cron' => 'uptime_panel'],
         ],

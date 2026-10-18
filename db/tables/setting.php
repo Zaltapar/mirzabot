@@ -11,6 +11,7 @@ $cronStatus = json_encode([
     'on_hold' => false,
     'uptime_node' => false,
     'uptime_panel' => false,
+    'autoextend' => true,
 ]);
 $keyboardMain = '{"keyboard":[[{"text":"text_sell"},{"text":"text_extend"}],[{"text":"text_usertest"},{"text":"text_wheel_luck"}],[{"text":"text_Purchased_services"},{"text":"accountwallet"}],[{"text":"text_affiliates"},{"text":"text_Tariff_list"}],[{"text":"text_support"},{"text":"text_help"}],[{"text":"text_agentpanel"},{"text":"text_requestagent"}]]}';
 

@@ -1204,18 +1204,46 @@ function DirectPayment($order_id, $image = 'images.jpg')
     $stmtReset->execute([$Balance_id['id']]);
     clearSelectCache('user');
     if ($orderType == "buy") {
-        $stmt = $pdo->prepare("SELECT * FROM product WHERE name_product = :name_product AND (Location = :Service_location  or Location = '/all')");
-        $stmt->bindParam(':name_product', $get_invoice['name_product'], PDO::PARAM_STR);
-        $stmt->bindParam(':Service_location', $get_invoice['Service_location'], PDO::PARAM_STR);
-        $stmt->execute();
-        $info_product = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($get_invoice['name_product'] == $textbotlang['users']['customSellVolume']['btnVolume'] || $get_invoice['name_product'] == $textbotlang['users']['customSellVolume']['btnService']) {
+        $code_product_inv = trim((string) ($get_invoice['code_product'] ?? ''));
+        $isCustomVolumeInvoice = $get_invoice['name_product'] == $textbotlang['users']['customSellVolume']['btnVolume'] || $get_invoice['name_product'] == $textbotlang['users']['customSellVolume']['btnService'];
+        if ($code_product_inv !== '') {
+            $stmt = $pdo->prepare("SELECT * FROM product WHERE code_product = :code_product AND (Location = :Service_location OR Location = '/all') AND (agent = :agent OR agent = 'all') LIMIT 1");
+            $stmt->bindParam(':code_product', $code_product_inv, PDO::PARAM_STR);
+            $stmt->bindParam(':Service_location', $get_invoice['Service_location'], PDO::PARAM_STR);
+            $stmt->bindParam(':agent', $Balance_id['agent'], PDO::PARAM_STR);
+            $stmt->execute();
+            $info_product = $stmt->fetch(PDO::FETCH_ASSOC);
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM product WHERE name_product = :name_product AND (Location = :Service_location  or Location = '/all')");
+            $stmt->bindParam(':name_product', $get_invoice['name_product'], PDO::PARAM_STR);
+            $stmt->bindParam(':Service_location', $get_invoice['Service_location'], PDO::PARAM_STR);
+            $stmt->execute();
+            $info_product = $stmt->fetch(PDO::FETCH_ASSOC);
+        }
+        if ($isCustomVolumeInvoice) {
+            if (!is_array($info_product)) {
+                $info_product = array();
+            }
             $info_product['data_limit_reset'] = "no_reset";
             $info_product['Volume_constraint'] = $get_invoice['Volume'];
             $info_product['name_product'] = $textbotlang['users']['customSellVolume']['title'];
             $info_product['code_product'] = "customvolume";
             $info_product['Service_time'] = $get_invoice['Service_time'];
             $info_product['price_product'] = $get_invoice['price_product'];
+        }
+        if (!is_array($info_product)) {
+            addBalance($Balance_id['id'], $orderPrice);
+            sendmessage($Balance_id['id'], $textbotlang['users']['sell']['productGoneAfterPay'] ?? '❌ The purchased product is no longer available. Your balance has been refunded; contact support to buy a new service.', null, 'HTML');
+            $texterros = sprintf($textbotlang['Admin']['reportgroup']['errorProductGone'] ?? '⚠️ Product "%1$s" (invoice %2$s, user %3$s) no longer exists; payment was refunded', $get_invoice['name_product'], $get_invoice['id_invoice'], $Balance_id['id']);
+            if (strlen($setting['Channel_Report']) > 0 && isset($errorreport)) {
+                telegram('sendmessage', [
+                    'chat_id' => $setting['Channel_Report'],
+                    'message_thread_id' => $errorreport,
+                    'text' => $texterros,
+                    'parse_mode' => "HTML"
+                ]);
+            }
+            return;
         }
         $username_ac = $get_invoice['username'];
         $marzban_list_get = select("marzban_panel", "*", "name_panel", $get_invoice['Service_location'], "select");

@@ -36,5 +36,8 @@ return [
         ['Status', null, 'VARCHAR(100)'],
         ['id_payment', null, 'VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL'],
         ['payable_amount', null, 'VARCHAR(20) NULL'],
+        ['code_product', null, 'VARCHAR(200) NULL'],
+        ['auto_extend', '0', 'VARCHAR(10)'],
+        ['auto_extend_msg_at', null, 'INT(11) NULL'],
     ],
 ];

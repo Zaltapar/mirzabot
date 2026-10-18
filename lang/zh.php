@@ -654,6 +654,20 @@ https://t.me/%s?start=%s',
                 ],
                 'extend' => [
                         'confirm' => '确认续费',
+                        'autoExtendOn' => '✅ 已开启该服务的自动续费。服务到期前，机器人会按当前价格自动续费（钱包余额需充足）。',
+                        'autoExtendOff' => '❌ 自动续费已关闭。',
+                        'autoExtendUnsupported' => '❌ 该服务不支持自动续费。',
+                        'autoRenewSuccess' => '🔁 您的服务 <b>{username}</b> 已自动续费。
+💶 价格: {price} 托曼{pricechanged}
+🔗 <code>{username}</code>',
+                        'autoRenewPriceNote' => '
+⚠️ 该服务当前价格已变化（原价格: {old} 托曼）。',
+                        'autoRenewBalanceLow' => '⚠️ {username} 自动续费失败：钱包余额不足（需要 {need} 托曼，现有 {have}）。将自动重试。',
+                        'autoRenewPanelGone' => '❌ 服务 {username} 已无法自动续费（面板/位置已删除）。自动续费已关闭，请联系客服购买新服务。',
+                        'autoRenewPanelDown' => '⚠️ {username} 自动续费未完成：面板暂时不可用。将自动重试。',
+                        'autoRenewProductGone' => '❌ 服务 {username} 已从商店删除，自动续费已关闭。您可以购买新服务。',
+                        'autoRenewNotFound' => '⚠️ 机器人无法为 {username} 找到对应的商店项目以自动续费。请联系客服。',
+                        'autoRenewExtendFailed' => '❌ {username} 自动续费在面板端失败。未扣费，将自动重试。',
                         'discount' => '🎁 使用优惠码',
                         'emptyServiceforExtend' => '❌ 您没有可续费的服务。',
                         'renewalerror' => '❌ 续费过程中出错，请重新执行续费步骤',
@@ -973,6 +987,7 @@ https://t.me/%s?start=%s',
                         'panelInactive' => '所选面板当前未激活',
                         'panelMissing' => '所选面板不存在。',
                         'productNotFound' => '未找到所选产品',
+                        'productGoneAfterPay' => '❌ 所购商品已下架。款项已退回钱包，请联系客服重新购买。',
                         'discountBlock' => '💶 原价: {orig} 托曼
 🎁 您的折扣 ({p}%): -{amount} 托曼',
                         'created' => '✅ 服务创建成功
@@ -3170,6 +3185,7 @@ f,n.n2',
         面板名称：%s
         服务用户名：%s
         错误原因：%s',
+                        'errorProductGone' => '⚠️ 商品 "%1$s"（订单 %2$s，用户 %3$s）已不存在；款项已退还用户',
                         'errorRenewServiceApi' => '
         服务续费错误
 面板名称：%s
@@ -3730,6 +3746,8 @@ f,n.n2',
         ],
         'keyboard' => [
                 'acceptRules' => '✅ 我接受规则',
+                'autoExtendBtn' => '🔁 自动续费',
+                'cronAutoExtend' => '服务自动续费',
                 'accountCreateLimit' => '🚨 账户创建限制',
                 'activateAccount' => '💡 开启账户',
                 'activateCard' => '💳 激活卡号',

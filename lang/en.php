@@ -654,6 +654,20 @@ You can now use the bot ✔️',
                 ],
                 'extend' => [
                         'confirm' => 'Confirm renewal',
+                        'autoExtendOn' => '✅ Auto-renewal is now ON for this service. Before it expires, the bot will renew it at the current price (if your wallet has enough balance).',
+                        'autoExtendOff' => '❌ Auto-renewal is now off.',
+                        'autoExtendUnsupported' => '❌ Auto-renewal is not supported for this service.',
+                        'autoRenewSuccess' => '🔁 Your service <b>{username}</b> has been auto-renewed.
+💶 Price: {price} Toman{pricechanged}
+🔗 <code>{username}</code>',
+                        'autoRenewPriceNote' => '
+⚠️ The current price of this service has changed (previous price: {old} Toman).',
+                        'autoRenewBalanceLow' => '⚠️ Auto-renewal for {username} could not run: wallet balance is not enough ({need} Toman needed, {have} Toman available). We will retry automatically.',
+                        'autoRenewPanelGone' => '❌ Your service {username} can no longer be auto-renewed (the panel/location was removed). Auto-renewal was disabled. Contact support to buy a new service.',
+                        'autoRenewPanelDown' => '⚠️ Auto-renewal for {username} could not run because the panel is temporarily unreachable. We will retry automatically.',
+                        'autoRenewProductGone' => '❌ The service {username} was removed from the shop, so auto-renewal was disabled. You can buy a new service instead.',
+                        'autoRenewNotFound' => '⚠️ The bot could not match {username} to a shop item for auto-renewal. Please contact support.',
+                        'autoRenewExtendFailed' => '❌ Auto-renewal for {username} failed on the panel. Your balance was not deducted; we will retry automatically.',
                         'discount' => '🎁 Apply discount code',
                         'emptyServiceforExtend' => '❌ You have no service to renew.',
                         'renewalerror' => '❌ An error occurred during renewal. Please perform your renewal steps again',
@@ -973,6 +987,7 @@ Support account : @%s',
                         'panelInactive' => 'The selected panel is currently not active',
                         'panelMissing' => 'The selected panel does not exist.',
                         'productNotFound' => 'The selected product was not found',
+                        'productGoneAfterPay' => '❌ The purchased product is no longer available. Your amount has been refunded to your wallet; contact support to buy a new service.',
                         'discountBlock' => '💶 Original price: {orig} Toman
 🎁 Your discount ({p}%): -{amount} Toman',
                         'created' => '✅ Service was created successfully
@@ -3170,6 +3185,7 @@ Error reason : %s',
         Panel name : %s
         Service username : %s
         Error reason : %s',
+                        'errorProductGone' => '⚠️ Product "%1$s" (invoice %2$s, user %3$s) no longer exists; amount was refunded to the user',
                         'errorRenewServiceApi' => '
         Service renewal error
 Panel name: %s
@@ -3730,6 +3746,8 @@ We hope you had a good experience with the ease and speed of your service. If yo
         ],
         'keyboard' => [
                 'acceptRules' => '✅ I accept the rules',
+                'autoExtendBtn' => '🔁 Auto-renew',
+                'cronAutoExtend' => 'Auto-renewal of services',
                 'accountCreateLimit' => '🚨 Account creation limit',
                 'activateAccount' => '💡 Turn on account',
                 'activateCard' => '💳 Activate card number',

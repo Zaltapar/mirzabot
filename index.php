@@ -984,6 +984,10 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
                 'text' => $textbotlang['users']['extend']['title'],
                 'callback_data' => "extend_"
             ),
+            'autoextend' => array(
+                'text' => $textbotlang['keyboard']['autoExtendBtn'] . ((string) ($nameloc['auto_extend'] ?? '0') === '1' ? ' ✅' : ''),
+                'callback_data' => "autoextend_"
+            ),
             'changelink' => array(
                 'text' => $textbotlang['users']['changeLink']['btnTitle'],
                 'callback_data' => "changelink_"
@@ -1451,6 +1455,35 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $monthkeyboard = keyboardTimeCategory($nameloc['Service_location'], $user['agent'], "productextendmonths_", "product_$id_invoice", false, true);
         Editmessagetext($from_id, $message_id, $textbotlang['users']['sell']['selectDuration'], $monthkeyboard);
     }
+} elseif (preg_match('/^autoextend_(\w+)/', $datain, $dataget)) {
+    $id_invoice = $dataget[1];
+    $nameloc = select("invoice", "*", "id_invoice", $id_invoice, "select");
+    if (!$nameloc || $nameloc['id_user'] != $from_id) {
+        return;
+    }
+    $marzban = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
+    $isTestService = $nameloc['name_product'] == $textbotlang['common']['labels']['testServiceName'] || $nameloc['name_product'] == $textbotlang['common']['labels']['testServiceFn'];
+    $unsupported = !$marzban
+        || in_array($marzban['type'], ['ibsng', 'mikrotik', 'Manualsale'], true)
+        || $marzban['status_extend'] == "off_extend"
+        || $isTestService;
+    if ($unsupported) {
+        sendmessage($from_id, $textbotlang['users']['extend']['autoExtendUnsupported'], $backuser, 'html');
+        return;
+    }
+    $newState = ((string) ($nameloc['auto_extend'] ?? '0') === '1') ? '0' : '1';
+    update("invoice", "auto_extend", $newState, "id_invoice", $id_invoice);
+    $backToService = json_encode([
+        'inline_keyboard' => [
+            [['text' => $textbotlang['users']['status']['backservice'], 'callback_data' => "product_" . $id_invoice]],
+        ]
+    ]);
+    if ($newState == '1') {
+        sendmessage($from_id, $textbotlang['users']['extend']['autoExtendOn'], $backToService, 'html');
+    } else {
+        sendmessage($from_id, $textbotlang['users']['extend']['autoExtendOff'], $backToService, 'html');
+    }
+    return;
 } elseif ($user['step'] == "gettimecustomvolomforextend") {
     $userdate = json_decode($user['Processing_value'], true);
     $nameloc = select("invoice", "*", "id_invoice", $userdate['id_invoice'], "select");
@@ -3961,9 +3994,9 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         'volume' => false,
         'time' => false,
     ));
-    $stmt = $pdo->prepare("INSERT IGNORE INTO invoice (id_user, id_invoice, username,time_sell, Service_location, name_product, price_product, Volume, Service_time,Status,note,refral,notifctions) VALUES (?,  ?, ?, ?, ?, ?, ?,?,?,?,?,?,?)");
+    $stmt = $pdo->prepare("INSERT IGNORE INTO invoice (id_user, id_invoice, username,time_sell, Service_location, name_product, price_product, Volume, Service_time,Status,note,refral,notifctions,code_product) VALUES (?,  ?, ?, ?, ?, ?, ?, ?,?,?,?,?,?,?,?)");
     $Status = "unpaid";
-    $stmt->execute([$from_id, $randomString, $username_ac, $date, $marzban_list_get['name_panel'], $info_product['name_product'], $priceproduct, $info_product['Volume_constraint'], $info_product['Service_time'], $Status, $userdate['nameconfig'] ?? null, $user['affiliates'], $notifctions]);
+    $stmt->execute([$from_id, $randomString, $username_ac, $date, $marzban_list_get['name_panel'], $info_product['name_product'], $priceproduct, $info_product['Volume_constraint'], $info_product['Service_time'], $Status, $userdate['nameconfig'] ?? null, $user['affiliates'], $notifctions, $info_product['code_product'] ?? null]);
     if ($priceproduct > $user['Balance'] && $user['agent'] != "n2" && intval($priceproduct) != 0) {
         $marzbandirectpay = select("shopSetting", "*", "Namevalue", "statusdirectpabuy", "select")['value'];
         $Balance_prim = $priceproduct - $user['Balance'];
@@ -4604,9 +4637,9 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
             step('home', $from_id);
             return;
         }
-        $stmt = $pdo->prepare("INSERT IGNORE INTO invoice (id_user, id_invoice, username,time_sell, Service_location, name_product, price_product, Volume, Service_time,Status,notifctions) VALUES (?, ?, ?, ?, ?, ?, ?,?,?,?,?)");
+        $stmt = $pdo->prepare("INSERT IGNORE INTO invoice (id_user, id_invoice, username,time_sell, Service_location, name_product, price_product, Volume, Service_time,Status,notifctions,code_product) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $Status = "active";
-        $stmt->execute([$from_id, $randomString, $username_acc, $date, $user['Processing_value'], $info_product['name_product'], $info_product['price_product'], $info_product['Volume_constraint'], $info_product['Service_time'], $Status, $notifctions]);
+        $stmt->execute([$from_id, $randomString, $username_acc, $date, $user['Processing_value'], $info_product['name_product'], $info_product['price_product'], $info_product['Volume_constraint'], $info_product['Service_time'], $Status, $notifctions, $info_product['code_product'] ?? null]);
         $config = "";
         $output_config_link = $marzban_list_get['sublink'] == "onsublink" ? $dataoutput['subscription_url'] : "";
         if ($marzban_list_get['config'] == "onconfig") {
