@@ -477,7 +477,14 @@ if ($datain == "paygwback") {
     $st = admin_period_stats(strtotime($start_time), strtotime($end_time), $start_time, $end_time, strtotime($start_time), strtotime($end_time));
     $statisticsall = sprintf($textbotlang['Admin']['stats']['thisMonth'], $start_time, $end_time, $st['count_order'], $st['sum_order'], $st['count_extend'], $st['sum_extend'], $st['count_extra_volume'], $st['sum_extra_volume'], $st['count_extra_time'], $st['sum_extrat_time'], $st['count_change_location'], $st['sum_change_location'], $st['count_test'], $st['countuser_new']);
     Editmessagetext($from_id, $message_id, $statisticsall, $keyboard_stat, 'HTML');
-}
+} elseif ($datain == "view_stat_time") {
+    sendmessage($from_id, sprintf($textbotlang['Admin']['getStats'], date('Y/m/d')), $backadmin, 'HTML');
+    step("get_time_start", $from_id);
+} elseif ($user['step'] == "get_time_start") {
+    if (!isValidDate($text)) {
+        sendmessage($from_id, $textbotlang['Admin']['stats']['invalidDate'], null, 'HTML');
+        return;
+    }
     savedata("clear", "start_time", $text);
     sendmessage($from_id, $textbotlang['Admin']['stats']['askDate'], $backadmin, 'HTML');
     step("get_time_end", $from_id);
