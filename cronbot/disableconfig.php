@@ -25,6 +25,9 @@ while ($result = $stmt->fetch(PDO::FETCH_ASSOC)) {
         if($get_username_Check['status'] == "active"){
         $userchengestatus = $ManagePanel->Change_status($invoice['username'],$invoice['Service_location']);
         $panelSynced = is_array($userchengestatus) && ($userchengestatus['status'] ?? '') != "Unsuccessful";
+        if ($panelSynced) {
+            bustPanelDataCache($invoice['Service_location'], $invoice['username']);
+        }
         }
         if($panelSynced){
         update("invoice","Status","disablebyadmin","id_invoice",$invoice['id_invoice']);

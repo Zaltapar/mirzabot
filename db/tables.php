@@ -30,4 +30,5 @@ return [
     'logs_api',
     'category',
     'reagent_report',
+    'panel_data_cache',
 ];

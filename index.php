@@ -1196,6 +1196,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     }
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
     $ManagePanel->RemoveUser($nameloc['Service_location'], $nameloc['username']);
+    bustPanelDataCache($nameloc['Service_location'], $nameloc['username']);
     update('invoice', 'status', 'removebyuser', 'id_invoice', $id_invoice);
     $tetremove = sprintf($textbotlang['Admin']['reportgroup']['userDeletedService'], $nameloc['username']);
     if (strlen($setting['Channel_Report']) > 0) {
@@ -1362,6 +1363,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         Editmessagetext($from_id, $message_id, $textbotlang['users']['status']['notchanged'], $bakinfos);
         return;
     }
+    bustPanelDataCache($nameloc['Service_location'], $nameloc['username']);
     $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
     if ($DataUserOut['status'] == "active") {
         Editmessagetext($from_id, $message_id, $textbotlang['users']['status']['activedconfig'], $bakinfos);
@@ -1882,6 +1884,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         }
         return;
     }
+    bustPanelDataCache($marzban_list_get['name_panel'], $nameloc['username']);
     if ($cashbackextend) {
         sendmessage($from_id, sprintf($textbotlang['users']['extend']['giftCharged'], $cashbackextend), null, 'HTML');
     }
@@ -2149,6 +2152,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         }
         return;
     }
+    bustPanelDataCache($nameloc['Service_location'], $nameloc['username']);
     $stmt = $pdo->prepare("INSERT IGNORE INTO service_other (id_user, username, value, type, time, price, output) VALUES (:id_user, :username, :value, :type, :time, :price, :output)");
     $value = $data_for_database;
     $dateacc = date('Y/m/d H:i:s');
@@ -2703,6 +2707,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         }
         return;
     }
+    bustPanelDataCache($nameloc['Service_location'], $nameloc['username']);
     $stmt = $pdo->prepare("INSERT IGNORE INTO service_other (id_user, username, value, type, time, price, output) VALUES (:id_user, :username, :value, :type, :time, :price, :output)");
     $value = $data_for_database;
     $dateacc = date('Y/m/d H:i:s');
@@ -6069,6 +6074,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         }
         return;
     }
+    bustPanelDataCache($marzban_list_get['name_panel'], $user['Processing_value']);
     $back = json_encode([
         'inline_keyboard' => [
             [
@@ -6772,6 +6778,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         }
         return;
     }
+    bustPanelDataCache($marzban_list_get['name_panel'], $usernamePanelExtends);
     $stmt = $pdo->prepare("INSERT IGNORE INTO service_other (id_user, username, value, type, time, price,output) VALUES (:id_user, :username, :value, :type, :time, :price,:output)");
     $value = json_encode(array(
         "volumebuy" => $prodcut['Volume_constraint'],

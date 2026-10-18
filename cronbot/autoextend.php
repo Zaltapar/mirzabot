@@ -116,6 +116,7 @@ function autoExtendProcess($invoice, $panelObj, int $windowSeconds, int $now, in
         $invoice['id_user'], $invoice['username'], $value, 'extend_user', date('Y/m/d H:i:s'), (string) $price, json_encode($extend, JSON_UNESCAPED_UNICODE), 'paid'
     ]);
     clearSelectCache('invoice');
+    bustPanelDataCache($panel['name_panel'], $invoice['username']);
     $texts = autoExtendUserTexts($invoice);
     $msg = strtr($texts['users']['extend']['autoRenewSuccess'], [
         '{username}' => $invoice['username'],

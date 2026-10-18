@@ -700,6 +700,60 @@ function serviceStatusChip($status)
     ];
     return $chips[$status] ?? '';
 }
+function panelUserCached($panelName, $username, int $ttl = 60, bool $refresh = false)
+{
+    global $ManagePanel, $pdo;
+    if (!isset($ManagePanel)) {
+        return null;
+    }
+    $key = md5($panelName . "\x00" . $username);
+    static $memo = [];
+    if (!$refresh && isset($memo[$key])) {
+        return $memo[$key];
+    }
+    $row = null;
+    try {
+        $stmt = $pdo->prepare("SELECT data, fetched_at FROM panel_data_cache WHERE cache_key = ? LIMIT 1");
+        $stmt->execute([$key]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        // Cache table not created yet (first boot before table.php): degrade to live.
+    }
+    if (!$refresh && is_array($row) && (time() - (int) $row['fetched_at']) < $ttl) {
+        $decoded = json_decode((string) $row['data'], true);
+        if (is_array($decoded)) {
+            $memo[$key] = $decoded;
+            return $decoded;
+        }
+    }
+    $live = $ManagePanel->DataUser($panelName, $username);
+    if (is_array($live) && ($live['status'] ?? '') !== 'Unsuccessful') {
+        $payload = json_encode($live, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($payload !== false) {
+            try {
+                $stmt = $pdo->prepare("INSERT INTO panel_data_cache (cache_key, data, fetched_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data = VALUES(data), fetched_at = VALUES(fetched_at)");
+                $stmt->execute([$key, $payload, time()]);
+            } catch (Throwable $e) {
+                error_log('panel_data_cache store failed: ' . $e->getMessage());
+            }
+        }
+    }
+    $memo[$key] = $live;
+    return $live;
+}
+function bustPanelDataCache($panelName, $username)
+{
+    global $pdo;
+    if (trim((string) $panelName) === '' || trim((string) $username) === '') {
+        return;
+    }
+    try {
+        $stmt = $pdo->prepare("DELETE FROM panel_data_cache WHERE cache_key = ?");
+        $stmt->execute([md5($panelName . "\x00" . $username)]);
+    } catch (Throwable $e) {
+        // Table may not exist yet; nothing to bust.
+    }
+}
 function buildAccountSummary($userId)
 {
     global $pdo, $textbotlang, $setting;
@@ -1483,6 +1537,7 @@ function DirectPayment($order_id, $image = 'images.jpg')
 
         update("service_other", "output", json_encode($extend), "id", $service_order['id']);
         update("service_other", "status", "paid", "id", $service_order['id']);
+        bustPanelDataCache($nameloc['Service_location'], $nameloc['username']);
         $partsdic = explode("_", $Balance_id['Processing_value_four']);
         if ($partsdic[0] == "dis") {
             $SellDiscountlimit = select("DiscountSell", "*", "codeDiscount", $partsdic[1], "select");
@@ -1572,6 +1627,7 @@ function DirectPayment($order_id, $image = 'images.jpg')
         }
         update("service_other", "output", json_encode($extra_volume), "id", $service_order['id']);
         update("service_other", "status", "paid", "id", $service_order['id']);
+        bustPanelDataCache($nameloc['Service_location'], $nameloc['username']);
         $keyboardextrafnished = json_encode([
             'inline_keyboard' => [
                 [
@@ -1629,6 +1685,7 @@ function DirectPayment($order_id, $image = 'images.jpg')
         }
         update("service_other", "output", json_encode($extra_time), "id", $service_order['id']);
         update("service_other", "status", "paid", "id", $service_order['id']);
+        bustPanelDataCache($nameloc['Service_location'], $nameloc['username']);
         $keyboardextrafnished = json_encode([
             'inline_keyboard' => [
                 [

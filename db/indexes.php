@@ -18,5 +18,7 @@ return [
     ['service_other', 'idx_serviceother_type', '`type`(100)'],
     ['service_other', 'idx_serviceother_id_payment', '`id_payment`'],
     ['user', 'idx_user_affiliates', '`affiliates`'],
+    ['user', 'idx_user_token', '`token`(64)'],
+    ['panel_data_cache', 'uniq_panelcache_key', '`cache_key`', true],
     ['departman', 'uniq_departman_entry', '`idsupport`(100), `name_departman`(150)', true],
 ];
