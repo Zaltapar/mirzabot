@@ -1,6 +1,57 @@
 <?php
 #----------------[  admin section  ]------------------#
 $version = file_get_contents('version');
+
+function admin_period_stats($invFrom, $invTo, $soFrom, $soTo, $userFrom, $userTo)
+{
+    global $pdo, $textbotlang;
+    $testName = $textbotlang['common']['labels']['testServiceName'];
+    $stmt = $pdo->prepare(
+        "SELECT
+            COALESCE(SUM(CASE WHEN Status != 'Unpaid' AND name_product != :testA THEN 1 ELSE 0 END), 0) AS count_order,
+            COALESCE(SUM(CASE WHEN Status != 'Unpaid' AND name_product != :testB THEN price_product ELSE 0 END), 0) AS sum_order,
+            COALESCE(SUM(CASE WHEN name_product = :testC THEN 1 ELSE 0 END), 0) AS count_test
+         FROM invoice
+         WHERE time_sell BETWEEN :invFrom AND :invTo"
+    );
+    $stmt->execute([
+        ':testA' => $testName, ':testB' => $testName, ':testC' => $testName,
+        ':invFrom' => $invFrom, ':invTo' => $invTo,
+    ]);
+    $invoiceRow = $stmt->fetch(PDO::FETCH_ASSOC);
+    $stmt = $pdo->prepare(
+        "SELECT type, COUNT(*) AS c, COALESCE(SUM(price), 0) AS s
+         FROM service_other
+         WHERE (time BETWEEN :soFrom AND :soTo)
+            AND (type = 'change_location'
+                 OR (type IN ('extend_user', 'extra_user', 'extra_time_user')
+                     AND COALESCE(status, '') NOT IN ('unpaid', 'failed')))
+         GROUP BY type"
+    );
+    $stmt->execute([':soFrom' => $soFrom, ':soTo' => $soTo]);
+    $so = ['extend_user' => ['c' => 0, 's' => '0'], 'extra_user' => ['c' => 0, 's' => '0'], 'extra_time_user' => ['c' => 0, 's' => '0'], 'change_location' => ['c' => 0, 's' => '0']];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        if (isset($so[$row['type']])) {
+            $so[$row['type']] = ['c' => (int) $row['c'], 's' => (string) $row['s']];
+        }
+    }
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM user WHERE register BETWEEN :userFrom AND :userTo AND register != 'none'");
+    $stmt->execute([':userFrom' => $userFrom, ':userTo' => $userTo]);
+    return [
+        'count_order' => (int) $invoiceRow['count_order'],
+        'sum_order' => number_format((float) $invoiceRow['sum_order'], 0),
+        'count_test' => (int) $invoiceRow['count_test'],
+        'count_extend' => $so['extend_user']['c'],
+        'sum_extend' => number_format((float) $so['extend_user']['s'], 0),
+        'count_extra_volume' => $so['extra_user']['c'],
+        'sum_extra_volume' => number_format((float) $so['extra_user']['s'], 0),
+        'count_extra_time' => $so['extra_time_user']['c'],
+        'sum_extrat_time' => number_format((float) $so['extra_time_user']['s'], 0),
+        'count_change_location' => $so['change_location']['c'],
+        'sum_change_location' => number_format((float) $so['change_location']['s'], 0),
+        'countuser_new' => (int) $stmt->fetchColumn(),
+    ];
+}
 $textadmin = ["panel", "/panel", $textbotlang['Admin']['panelAdmin']];
 $text_panel_admin_login_template = sprintf($textbotlang['Admin']['report']['aboutBot'], $version);
 $aboutBotKeyboard = json_encode(['inline_keyboard' => [[['text' => $textbotlang['Admin']['report']['btnDonate'], 'url' => 'https://nowpayments.io/donation/mahdi']]]]);
@@ -395,297 +446,38 @@ if ($datain == "paygwback") {
         sendmessage($from_id, $statisticsall, $keyboard_stat, 'HTML');
     }
 } elseif ($datain == "hoursago_stat") {
-    $desired_date_time_start = time() - 3600;
-    $sql = "SELECT COUNT(*) AS count,SUM(price_product) as sum FROM invoice WHERE (time_sell BETWEEN :requestedDate AND :requestedDateend) AND Status != 'Unpaid'  AND name_product != '{$textbotlang['common']['labels']['testServiceName']}'";
-    $stmt = $pdo->prepare($sql);
-    $time_current = time();
-    $stmt->bindParam(':requestedDate', $desired_date_time_start);
-    $stmt->bindParam(':requestedDateend', $time_current);
-    $stmt->execute();
-    $statorder = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_order = $statorder['count'];
-    $sum_order = number_format($statorder['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count FROM invoice WHERE (time_sell BETWEEN :requestedDate AND :requestedDateend)  AND name_product = '{$textbotlang['common']['labels']['testServiceName']}'";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $desired_date_time_start);
-    $stmt->bindParam(':requestedDateend', $time_current);
-    $stmt->execute();
-    $count_test = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE  time  >= NOW() - INTERVAL 1 HOUR AND type = 'extend_user' AND COALESCE(status, '') NOT IN ('unpaid', 'failed')";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute();
-    $extend_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_extend = $extend_stat['count'];
-    $sum_extend = number_format($extend_stat['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE  time  >= NOW() - INTERVAL 1 HOUR AND type = 'extra_user' AND COALESCE(status, '') NOT IN ('unpaid', 'failed')";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute();
-    $extra_volume_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_extra_volume = $extra_volume_stat['count'];
-    $sum_extra_volume = number_format($extra_volume_stat['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE  time  >= NOW() - INTERVAL 1 HOUR AND type = 'extra_time_user' AND COALESCE(status, '') NOT IN ('unpaid', 'failed')";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute();
-    $extra_time_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_extra_time = $extra_time_stat['count'];
-    $sum_extrat_time = number_format($extra_time_stat['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE  time  >= NOW() - INTERVAL 1 HOUR AND type = 'change_location'";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute();
-    $change_location_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_change_location = $change_location_stat['count'];
-    $sum_change_location = number_format($change_location_stat['sum'], 0);
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM user WHERE  (register BETWEEN :requestedDate AND :requestedDateend)  AND register != 'none'");
-    $stmt->bindParam(':requestedDate', $desired_date_time_start);
-    $stmt->bindParam(':requestedDateend', $time_current);
-    $stmt->execute();
-    $countextendday = (int) $stmt->fetchColumn();
-    $statisticsall = sprintf($textbotlang['Admin']['stats']['lastHour'], $count_order, $sum_order, $count_extend, $sum_extend, $count_extra_volume, $sum_extra_volume, $count_extra_time, $sum_extrat_time, $count_change_location, $sum_change_location, $count_test, $countextendday);
+    $st = admin_period_stats(time() - 3600, time(), date('Y/m/d H:i:s', time() - 3600), date('Y/m/d H:i:s'), time() - 3600, time());
+    $statisticsall = sprintf($textbotlang['Admin']['stats']['lastHour'], $st['count_order'], $st['sum_order'], $st['count_extend'], $st['sum_extend'], $st['count_extra_volume'], $st['sum_extra_volume'], $st['count_extra_time'], $st['sum_extrat_time'], $st['count_change_location'], $st['sum_change_location'], $st['count_test'], $st['countuser_new']);
     Editmessagetext($from_id, $message_id, $statisticsall, $keyboard_stat, 'HTML');
 } elseif ($datain == "yesterday_stat") {
     $start_time = date('Y/m/d', strtotime("-1 days")) . " 00:00:00";
     $end_time = date('Y/m/d', strtotime("-1 days")) . " 23:59:59";
-    $start_time_timestamp = strtotime($start_time);
-    $end_time_timestamp = strtotime($end_time);
-    $sql = "SELECT COUNT(*) AS count,SUM(price_product) as sum FROM invoice WHERE (time_sell BETWEEN :requestedDate AND :requestedDateend) AND Status != 'Unpaid'  AND name_product != '{$textbotlang['common']['labels']['testServiceName']}'";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time_timestamp);
-    $stmt->bindParam(':requestedDateend', $end_time_timestamp);
-    $stmt->execute();
-    $statorder = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_order = $statorder['count'];
-    $sum_order = number_format($statorder['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count FROM invoice WHERE (time_sell BETWEEN :requestedDate AND :requestedDateend)  AND name_product = '{$textbotlang['common']['labels']['testServiceName']}'";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time_timestamp);
-    $stmt->bindParam(':requestedDateend', $end_time_timestamp);
-    $stmt->execute();
-    $count_test = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE  (time BETWEEN :requestedDate AND :requestedDateend) AND type = 'extend_user' AND COALESCE(status, '') NOT IN ('unpaid', 'failed')";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time);
-    $stmt->bindParam(':requestedDateend', $end_time);
-    $stmt->execute();
-    $extend_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_extend = $extend_stat['count'];
-    $sum_extend = number_format($extend_stat['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE  (time BETWEEN :requestedDate AND :requestedDateend) AND type = 'extra_user' AND COALESCE(status, '') NOT IN ('unpaid', 'failed')";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time);
-    $stmt->bindParam(':requestedDateend', $end_time);
-    $stmt->execute();
-    $extra_volume_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_extra_volume = $extra_volume_stat['count'];
-    $sum_extra_volume = number_format($extra_volume_stat['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE  (time BETWEEN :requestedDate AND :requestedDateend) AND type = 'extra_time_user' AND COALESCE(status, '') NOT IN ('unpaid', 'failed')";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time);
-    $stmt->bindParam(':requestedDateend', $end_time);
-    $stmt->execute();
-    $extra_time_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_extra_time = $extra_time_stat['count'];
-    $sum_extrat_time = number_format($extra_time_stat['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE (time BETWEEN :requestedDate AND :requestedDateend) AND type = 'change_location'";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time);
-    $stmt->bindParam(':requestedDateend', $end_time);
-    $stmt->execute();
-    $change_location_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_change_location = $change_location_stat['count'];
-    $sum_change_location = number_format($change_location_stat['sum'], 0);
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM user WHERE  (register BETWEEN :requestedDate AND :requestedDateend)  AND register != 'none'");
-    $stmt->bindParam(':requestedDate', $start_time_timestamp);
-    $stmt->bindParam(':requestedDateend', $end_time_timestamp);
-    $stmt->execute();
-    $countuser_new = (int) $stmt->fetchColumn();
-    $statisticsall = sprintf($textbotlang['Admin']['stats']['yesterday'], $start_time, $end_time, $count_order, $sum_order, $count_extend, $sum_extend, $count_extra_volume, $sum_extra_volume, $count_extra_time, $sum_extrat_time, $count_change_location, $sum_change_location, $count_test, $countuser_new);
+    $st = admin_period_stats(strtotime($start_time), strtotime($end_time), $start_time, $end_time, strtotime($start_time), strtotime($end_time));
+    $statisticsall = sprintf($textbotlang['Admin']['stats']['yesterday'], $start_time, $end_time, $st['count_order'], $st['sum_order'], $st['count_extend'], $st['sum_extend'], $st['count_extra_volume'], $st['sum_extra_volume'], $st['count_extra_time'], $st['sum_extrat_time'], $st['count_change_location'], $st['sum_change_location'], $st['count_test'], $st['countuser_new']);
     Editmessagetext($from_id, $message_id, $statisticsall, $keyboard_stat, 'HTML');
 } elseif ($datain == "today_stat") {
     $start_time = date('Y/m/d') . " 00:00:00";
     $end_time = date('Y/m/d H:i:s');
-    $start_time_timestamp = strtotime($start_time);
-    $end_time_timestamp = strtotime($end_time);
-    $sql = "SELECT COUNT(*) AS count,SUM(price_product) as sum FROM invoice WHERE (time_sell BETWEEN :requestedDate AND :requestedDateend) AND Status != 'Unpaid' AND name_product != '{$textbotlang['common']['labels']['testServiceName']}'";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time_timestamp);
-    $stmt->bindParam(':requestedDateend', $end_time_timestamp);
-    $stmt->execute();
-    $statorder = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_order = $statorder['count'];
-    $sum_order = number_format($statorder['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count FROM invoice WHERE (time_sell BETWEEN :requestedDate AND :requestedDateend)  AND name_product = '{$textbotlang['common']['labels']['testServiceName']}'";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time_timestamp);
-    $stmt->bindParam(':requestedDateend', $end_time_timestamp);
-    $stmt->execute();
-    $count_test = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE  (time BETWEEN :requestedDate AND :requestedDateend) AND type = 'extend_user' AND COALESCE(status, '') NOT IN ('unpaid', 'failed')";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time);
-    $stmt->bindParam(':requestedDateend', $end_time);
-    $stmt->execute();
-    $extend_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_extend = $extend_stat['count'];
-    $sum_extend = number_format($extend_stat['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE  (time BETWEEN :requestedDate AND :requestedDateend) AND type = 'extra_user' AND COALESCE(status, '') NOT IN ('unpaid', 'failed')";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time);
-    $stmt->bindParam(':requestedDateend', $end_time);
-    $stmt->execute();
-    $extra_volume_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_extra_volume = $extra_volume_stat['count'];
-    $sum_extra_volume = number_format($extra_volume_stat['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE  (time BETWEEN :requestedDate AND :requestedDateend) AND type = 'extra_time_user' AND COALESCE(status, '') NOT IN ('unpaid', 'failed')";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time);
-    $stmt->bindParam(':requestedDateend', $end_time);
-    $stmt->execute();
-    $extra_time_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_extra_time = $extra_time_stat['count'];
-    $sum_extrat_time = number_format($extra_time_stat['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE (time BETWEEN :requestedDate AND :requestedDateend) AND type = 'change_location'";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time);
-    $stmt->bindParam(':requestedDateend', $end_time);
-    $stmt->execute();
-    $change_location_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_change_location = $change_location_stat['count'];
-    $sum_change_location = number_format($change_location_stat['sum'], 0);
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM user WHERE  (register BETWEEN :requestedDate AND :requestedDateend)  AND register != 'none'");
-    $stmt->bindParam(':requestedDate', $start_time_timestamp);
-    $stmt->bindParam(':requestedDateend', $end_time_timestamp);
-    $stmt->execute();
-    $countuser_new = (int) $stmt->fetchColumn();
-    $statisticsall = sprintf($textbotlang['Admin']['stats']['today'], $start_time, $end_time, $count_order, $sum_order, $count_extend, $sum_extend, $count_extra_volume, $sum_extra_volume, $count_extra_time, $sum_extrat_time, $count_change_location, $sum_change_location, $count_test, $countuser_new);
+    $st = admin_period_stats(strtotime($start_time), strtotime($end_time), $start_time, $end_time, strtotime($start_time), strtotime($end_time));
+    $statisticsall = sprintf($textbotlang['Admin']['stats']['today'], $start_time, $end_time, $st['count_order'], $st['sum_order'], $st['count_extend'], $st['sum_extend'], $st['count_extra_volume'], $st['sum_extra_volume'], $st['count_extra_time'], $st['sum_extrat_time'], $st['count_change_location'], $st['sum_change_location'], $st['count_test'], $st['countuser_new']);
     Editmessagetext($from_id, $message_id, $statisticsall, $keyboard_stat, 'HTML');
 } elseif ($datain == "month_old_stat") {
     $firstDayLastMonth = new DateTime('first day of last month');
     $lastDayLastMonth = new DateTime('last day of last month');
     $start_time = $firstDayLastMonth->format('Y/m/d');
     $end_time = $lastDayLastMonth->format('Y/m/d');
-    $start_time_timestamp = strtotime($start_time);
-    $end_time_timestamp = strtotime($end_time);
-    $sql = "SELECT COUNT(*) AS count,SUM(price_product) as sum FROM invoice WHERE (time_sell BETWEEN :requestedDate AND :requestedDateend) AND Status != 'Unpaid'  AND name_product != '{$textbotlang['common']['labels']['testServiceName']}'";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time_timestamp);
-    $stmt->bindParam(':requestedDateend', $end_time_timestamp);
-    $stmt->execute();
-    $statorder = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_order = $statorder['count'];
-    $sum_order = number_format($statorder['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count FROM invoice WHERE (time_sell BETWEEN :requestedDate AND :requestedDateend)  AND name_product = '{$textbotlang['common']['labels']['testServiceName']}'";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time_timestamp);
-    $stmt->bindParam(':requestedDateend', $end_time_timestamp);
-    $stmt->execute();
-    $count_test = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE  (time BETWEEN :requestedDate AND :requestedDateend) AND type = 'extend_user' AND COALESCE(status, '') NOT IN ('unpaid', 'failed')";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time);
-    $stmt->bindParam(':requestedDateend', $end_time);
-    $stmt->execute();
-    $extend_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_extend = $extend_stat['count'];
-    $sum_extend = number_format($extend_stat['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE  (time BETWEEN :requestedDate AND :requestedDateend) AND type = 'extra_user' AND COALESCE(status, '') NOT IN ('unpaid', 'failed')";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time);
-    $stmt->bindParam(':requestedDateend', $end_time);
-    $stmt->execute();
-    $extra_volume_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_extra_volume = $extra_volume_stat['count'];
-    $sum_extra_volume = number_format($extra_volume_stat['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE  (time BETWEEN :requestedDate AND :requestedDateend) AND type = 'extra_time_user' AND COALESCE(status, '') NOT IN ('unpaid', 'failed')";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time);
-    $stmt->bindParam(':requestedDateend', $end_time);
-    $stmt->execute();
-    $extra_time_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_extra_time = $extra_time_stat['count'];
-    $sum_extrat_time = number_format($extra_time_stat['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE (time BETWEEN :requestedDate AND :requestedDateend) AND type = 'change_location'";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time);
-    $stmt->bindParam(':requestedDateend', $end_time);
-    $stmt->execute();
-    $change_location_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_change_location = $change_location_stat['count'];
-    $sum_change_location = number_format($change_location_stat['sum'], 0);
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM user WHERE  (register BETWEEN :requestedDate AND :requestedDateend)  AND register != 'none'");
-    $stmt->bindParam(':requestedDate', $start_time_timestamp);
-    $stmt->bindParam(':requestedDateend', $end_time_timestamp);
-    $stmt->execute();
-    $countuser_new = (int) $stmt->fetchColumn();
-    $statisticsall = sprintf($textbotlang['Admin']['stats']['lastMonth'], $start_time, $end_time, $count_order, $sum_order, $count_extend, $sum_extend, $count_extra_volume, $sum_extra_volume, $count_extra_time, $sum_extrat_time, $count_change_location, $sum_change_location, $count_test, $countuser_new);
+    $st = admin_period_stats(strtotime($start_time), strtotime($end_time), $start_time, $end_time, strtotime($start_time), strtotime($end_time));
+    $statisticsall = sprintf($textbotlang['Admin']['stats']['lastMonth'], $start_time, $end_time, $st['count_order'], $st['sum_order'], $st['count_extend'], $st['sum_extend'], $st['count_extra_volume'], $st['sum_extra_volume'], $st['count_extra_time'], $st['sum_extrat_time'], $st['count_change_location'], $st['sum_change_location'], $st['count_test'], $st['countuser_new']);
     Editmessagetext($from_id, $message_id, $statisticsall, $keyboard_stat, 'HTML');
 } elseif ($datain == "month_current_stat") {
     $firstDayLastMonth = new DateTime('first day of this month');
     $lastDayLastMonth = new DateTime('last day of this month');
     $start_time = $firstDayLastMonth->format('Y/m/d');
     $end_time = $lastDayLastMonth->format('Y/m/d');
-    $start_time_timestamp = strtotime($start_time);
-    $end_time_timestamp = strtotime($end_time);
-    $sql = "SELECT COUNT(*) AS count,SUM(price_product) as sum FROM invoice WHERE (time_sell BETWEEN :requestedDate AND :requestedDateend) AND Status != 'Unpaid'  AND name_product != '{$textbotlang['common']['labels']['testServiceName']}'";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time_timestamp);
-    $stmt->bindParam(':requestedDateend', $end_time_timestamp);
-    $stmt->execute();
-    $statorder = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_order = $statorder['count'];
-    $sum_order = number_format($statorder['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count FROM invoice WHERE (time_sell BETWEEN :requestedDate AND :requestedDateend)  AND name_product = '{$textbotlang['common']['labels']['testServiceName']}'";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time_timestamp);
-    $stmt->bindParam(':requestedDateend', $end_time_timestamp);
-    $stmt->execute();
-    $count_test = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE  (time BETWEEN :requestedDate AND :requestedDateend) AND type = 'extend_user' AND COALESCE(status, '') NOT IN ('unpaid', 'failed')";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time);
-    $stmt->bindParam(':requestedDateend', $end_time);
-    $stmt->execute();
-    $extend_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_extend = $extend_stat['count'];
-    $sum_extend = number_format($extend_stat['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE  (time BETWEEN :requestedDate AND :requestedDateend) AND type = 'extra_user' AND COALESCE(status, '') NOT IN ('unpaid', 'failed')";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time);
-    $stmt->bindParam(':requestedDateend', $end_time);
-    $stmt->execute();
-    $extra_volume_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_extra_volume = $extra_volume_stat['count'];
-    $sum_extra_volume = number_format($extra_volume_stat['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE  (time BETWEEN :requestedDate AND :requestedDateend) AND type = 'extra_time_user' AND COALESCE(status, '') NOT IN ('unpaid', 'failed')";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time);
-    $stmt->bindParam(':requestedDateend', $end_time);
-    $stmt->execute();
-    $extra_time_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_extra_time = $extra_time_stat['count'];
-    $sum_extrat_time = number_format($extra_time_stat['sum'], 0);
-    $sql = "SELECT COUNT(*) AS count,SUM(price) as sum FROM service_other WHERE (time BETWEEN :requestedDate AND :requestedDateend) AND type = 'change_location'";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':requestedDate', $start_time);
-    $stmt->bindParam(':requestedDateend', $end_time);
-    $stmt->execute();
-    $change_location_stat = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count_change_location = $change_location_stat['count'];
-    $sum_change_location = number_format($change_location_stat['sum'], 0);
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM user WHERE  (register BETWEEN :requestedDate AND :requestedDateend)  AND register != 'none'");
-    $stmt->bindParam(':requestedDate', $start_time_timestamp);
-    $stmt->bindParam(':requestedDateend', $end_time_timestamp);
-    $stmt->execute();
-    $countuser_new = (int) $stmt->fetchColumn();
-    $statisticsall = sprintf($textbotlang['Admin']['stats']['thisMonth'], $start_time, $end_time, $count_order, $sum_order, $count_extend, $sum_extend, $count_extra_volume, $sum_extra_volume, $count_extra_time, $sum_extrat_time, $count_change_location, $sum_change_location, $count_test, $countuser_new);
+    $st = admin_period_stats(strtotime($start_time), strtotime($end_time), $start_time, $end_time, strtotime($start_time), strtotime($end_time));
+    $statisticsall = sprintf($textbotlang['Admin']['stats']['thisMonth'], $start_time, $end_time, $st['count_order'], $st['sum_order'], $st['count_extend'], $st['sum_extend'], $st['count_extra_volume'], $st['sum_extra_volume'], $st['count_extra_time'], $st['sum_extrat_time'], $st['count_change_location'], $st['sum_change_location'], $st['count_test'], $st['countuser_new']);
     Editmessagetext($from_id, $message_id, $statisticsall, $keyboard_stat, 'HTML');
-} elseif ($datain == "view_stat_time") {
-    sendmessage($from_id, sprintf($textbotlang['Admin']['getStats'], date('Y/m/d')), $backadmin, 'HTML');
-    step("get_time_start", $from_id);
-} elseif ($user['step'] == "get_time_start") {
-    if (!isValidDate($text)) {
-        sendmessage($from_id, $textbotlang['Admin']['stats']['invalidDate'], null, 'HTML');
-        return;
-    }
+}
     savedata("clear", "start_time", $text);
     sendmessage($from_id, $textbotlang['Admin']['stats']['askDate'], $backadmin, 'HTML');
     step("get_time_end", $from_id);
