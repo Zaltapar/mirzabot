@@ -1,0 +1,170 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint (PHP + shell)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: curl, mbstring, zip, gd, dom, simplexml, xmlwriter, xmlreader, fileinfo, iconv, bcmath, pdo_mysql
+          tools: composer
+
+      - name: Composer validate
+        run: composer validate --no-check-publish
+
+      - name: Composer install (no dev)
+        run: composer install --no-dev --no-interaction --no-progress
+
+      - name: PHP syntax check
+        run: |
+          fails=0
+          while IFS= read -r -d '' f; do
+            if ! php -l "$f" > /dev/null 2>&1; then
+              echo "::error file=${f}::PHP syntax error"
+              php -l "$f" || true
+              fails=$((fails + 1))
+            fi
+          done < <(find . -name '*.php' -not -path './vendor/*' -print0)
+          if [ "$fails" -gt 0 ]; then
+            echo "::error::${fails} PHP file(s) failed syntax check"
+            exit 1
+          fi
+          echo "All PHP files pass php -l"
+
+      - name: Shell syntax check
+        run: |
+          bash -n install.sh
+          bash -n install-fork.sh
+          echo "Shell scripts pass bash -n"
+
+      - name: ShellCheck install-fork.sh (strict)
+        uses: ludevit/action-shellcheck@master
+        with:
+          patterns: install-fork.sh
+          stopOnFailure: true
+
+      - name: ShellCheck install.sh (errors only, upstream script)
+        uses: ludevit/action-shellcheck@master
+        with:
+          patterns: install.sh
+          severity: error
+          stopOnFailure: true
+
+  smoke:
+    name: Schema + upgrader smoke (Linux/MySQL)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: rootpass
+          MYSQL_DATABASE: mirzacitest
+          MYSQL_USER: mirzacitest
+          MYSQL_PASSWORD: mirzacitestpass
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -uroot -prootpass"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: curl, mbstring, zip, gd, dom, simplexml, xmlwriter, xmlreader, fileinfo, iconv, bcmath, pdo_mysql
+          tools: composer
+
+      - name: Composer install (no dev)
+        run: composer install --no-dev --no-interaction --no-progress
+
+      - name: Create test config.php (from template)
+        run: |
+          sed -i \
+            -e 's/{database_url}/127.0.0.1/' \
+            -e 's/{database_name}/mirzacitest/' \
+            -e 's/{username_db}/mirzacitest/' \
+            -e 's/{password_db}/mirzacitestpass/' \
+            -e 's/{API_KEY}/123456:ci-fake-token/' \
+            -e 's/{admin_number}/-1001234567890/' \
+            -e 's/{domain_name}/ci.example.com/' \
+            -e 's/{username_bot}/cibot/' \
+            config.php
+
+      - name: Run schema bootstrap + migrations + indexes (table.php)
+        run: php table.php
+
+      - name: Assert schema health
+        run: |
+          php -r '
+          require "config.php";
+          $fail = 0;
+          $q = fn(string $sql) => $pdo->query($sql)->fetchColumn();
+          $tables = $q("SHOW TABLES LIKE \"panel_data_cache\"");
+          if ($tables !== "panel_data_cache") { echo "MISSING TABLE panel_data_cache\n"; $fail = 1; }
+           $idx = $q("SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_NAME = \"panel_data_cache\" AND INDEX_NAME = \"uniq_panelcache_key\" AND TABLE_SCHEMA = DATABASE()");
+           if ($idx != 1) { echo "MISSING UNIQUE KEY uniq_panelcache_key\n"; $fail = 1; }
+          foreach (["code_product", "auto_extend", "auto_extend_msg_at"] as $col) {
+              $c = $q("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_NAME = \"invoice\" AND COLUMN_NAME = \"$col\" AND TABLE_SCHEMA = DATABASE()");
+              if ($c != 1) { echo "MISSING invoice.$col\n"; $fail = 1; }
+          }
+          $acc = $q("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_NAME = \"setting\" AND COLUMN_NAME = \"accountsummary\" AND TABLE_SCHEMA = DATABASE()");
+          if ($acc != 1) { echo "MISSING setting.accountsummary\n"; $fail = 1; }
+          if ($q("SHOW TABLES LIKE \"schema_flags\"") !== "schema_flags") { echo "MISSING TABLE schema_flags\n"; $fail = 1; }
+          $flag = $q("SELECT COUNT(*) FROM schema_flags WHERE flag = \"inlinebtnmain_oninline_default\"");
+          if ($flag != 1) { echo "MIGRATION 017 did not run\n"; $fail = 1; }
+          $inline = $q("SELECT inlinebtnmain FROM setting");
+          if ($inline !== "oninline") { echo "inlinebtnmain flip missing: $inline\n"; $fail = 1; }
+           $tok = $q("SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_NAME = \"user\" AND INDEX_NAME = \"idx_user_token\" AND TABLE_SCHEMA = DATABASE()");
+           if ($tok != 1) { echo "MISSING INDEX idx_user_token\n"; $fail = 1; }
+          exit($fail);
+          '
+
+      - name: cron job registry includes autoextend
+        run: |
+          php -r 'require "cronbot/jobs.php"; $jobs = array_column(mirza_cron_jobs(), "job"); if (!in_array("autoextend", $jobs, true)) { echo "autoextend job missing\n"; exit(1); } echo "cron jobs ok: " . count($jobs) . "\n";'
+
+      - name: sync.php upgrader smoke test
+        run: |
+          set -e
+          target=/tmp/fakebot
+          rm -rf "$target"
+          mkdir -p "$target/lang/override" "$target/storage" "$target/vpnbot/Default" "$target/vendor"
+          cp config.php "$target/config.php"
+          echo "0.8" > "$target/version"
+          echo '<?php return ["keep" => "me"];' > "$target/lang/override/fa.php"
+          echo "legacy" > "$target/vpnbot/Default/index.php"
+          echo '{"dispatcher":1}' > "$target/storage/cron_status.json"
+          cp table.php "$target/table.php"
+          echo '<?php // stub autoloader for the fake install' > "$target/vendor/autoload.php"
+          # vendor/ + config.php in source/target are skipped by design; run the upgrader.
+          php sync.php "$target" --no-db
+          # protected files must be untouched
+          grep -q "keep" "$target/lang/override/fa.php"
+          grep -q "legacy" "$target/vpnbot/Default/index.php"
+          diff -q config.php "$target/config.php"
+          # new code must be in place
+          grep -q "panelUserCached" "$target/function.php"
+          grep -q "autoextend" "$target/cronbot/jobs.php"
+          grep -q "oninline" "$target/db/tables/setting.php"
+          echo "sync.php smoke ok"

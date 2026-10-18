@@ -345,14 +345,14 @@ function locate_composer(): ?string
 function sync_dir(string $src, string $dst, array $protected, int &$count): void
 {
     $skip = [];
-    foreach ($protected as $rel => $_) {
-        $skip[rtrim(str_replace('/', '\\', $rel), '\\')] = true;
+    foreach (array_keys($protected) as $rel) {
+        $skip[str_replace('\\', '/', $rel)] = true;
     }
     $srcRoot = rtrim($src, '\\/');
     $isDirFn = static function (string $path) use ($srcRoot, $skip): bool {
         $rel = ltrim(str_replace('\\', '/', substr($path, strlen($srcRoot))), '/');
         foreach (array_keys($skip) as $p) {
-            if ($rel === $p || str_starts_with($rel, $p . '\\')) {
+            if ($rel === $p || str_starts_with($rel, $p . '/')) {
                 return false;
             }
         }
@@ -375,7 +375,10 @@ function sync_dir(string $src, string $dst, array $protected, int &$count): void
             }
             continue;
         }
-        $rel = str_replace('\\', '/', substr($file->getPathname(), strlen($srcRoot)));
+        $rel = ltrim(str_replace('\\', '/', substr($file->getPathname(), strlen($srcRoot))), '/');
+        if (isset($skip[$rel])) {
+            continue;
+        }
         $targetPath = $dst . '/' . str_replace('/', DIRECTORY_SEPARATOR, $rel);
         $dir = dirname($targetPath);
         if (!is_dir($dir)) {

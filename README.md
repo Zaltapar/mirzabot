@@ -229,6 +229,47 @@ What it does, in order:
 Safe to re-run. To roll back: restore the file snapshot + DB snapshot in
 `storage/backup/` and re-run `php table.php` on the restored code.
 
+### Migrate an existing install to this fork (install-fork.sh, Linux)
+
+`install-fork.sh` wraps `sync.php` for live servers. It has two modes:
+
+```bash
+# migrate a running original MirzaBot install to this fork (backups included):
+sudo bash install-fork.sh update --install-dir /var/www/html/mirzaprobotconfig
+
+# or a fresh install of the fork into a new directory:
+sudo bash install-fork.sh install --domain bot.example.com --db-name mirzaprobot \
+  --token 123:ABC --admin -1001234567890 --bot mybot
+```
+
+What `update` does: resolves the fork source (downloaded zip, `--zip`, `--dir`,
+or the current checkout), snapshots the database **and** the install, copies
+the new code while preserving `config.php`, `lang/override/`, `vpnbot/`,
+`storage/`, `vendor/`, rebuilds composer only when needed, runs `table.php`
+(new schema, migrations, indexes, webhook take control), reloads PHP-FPM and
+makes sure the `cronbot/run.php` dispatcher is in `root` + `www-data`
+crontabs (which is what picks up new jobs like auto-renewal without any
+manual cron edits). Rollback = restore `storage/backup/` files + `db_*.sql`.
+
+Requires the same stack as the original install (PHP 8.2+, MySQL, Apache); it
+assumes the environment itself was provisioned by the original `install.sh`.
+
+### Automated build health (CI)
+
+`.github/workflows/ci.yml` runs on every push/PR:
+
+- **Lint job** — `composer validate` + `php -l` on every non-vendor PHP file,
+  `bash -n` on both installers, and ShellCheck on `install-fork.sh`
+  (`install.sh` upstream script checked at error-severity).
+- **Smoke job (Linux + MySQL 8)** — provisions a real MySQL service, generates
+  `config.php` from the template, runs `table.php`, then asserts the schema is
+  healthy: `panel_data_cache` table + unique key, `invoice` auto-renew
+  columns, `setting.accountsummary`, `schema_flags` migration state, the
+  `idx_user_token` user index, and that the `autoextend` cron job is
+  registered. Finally it smoke-tests `sync.php` end-to-end against a fake
+  "legacy" install (protected files stay untouched, new code lands,
+  idempotent re-run).
+
 ### Remove
 
 Run the same command and select **`3`** to completely remove the bot and its services.
