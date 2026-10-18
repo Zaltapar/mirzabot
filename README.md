@@ -1,8 +1,8 @@
 <div align="center">
 
-# 🤖 Mirza Bot
+# 🤖 Mirza Bot — Enhanced Edition
 
-### A powerful Telegram bot for selling VPN services — with fully automated config creation.
+### A powerful Telegram bot for selling VPN services — with fully automated config creation, Pro-grade interactivity and tuned performance.
 
 <p>
   <a href="https://t.me/mirzapanel">
@@ -17,19 +17,14 @@
 </p>
 
 <p>
-  <a href="https://github.com/mahdiMGF2/mirzabot/stargazers">
-    <img src="https://img.shields.io/github/stars/mahdiMGF2/mirzabot?style=flat-square&color=f5c518" alt="Stars"/>
+  <a href="https://github.com/Zaltapar/mirzabot/stargazers">
+    <img src="https://img.shields.io/github/stars/Zaltapar/mirzabot?style=flat-square&color=f5c518" alt="Stars"/>
   </a>
-  <a href="https://github.com/mahdiMGF2/mirzabot/network/members">
-    <img src="https://img.shields.io/github/forks/mahdiMGF2/mirzabot?style=flat-square" alt="Forks"/>
-  </a>
-  <a href="https://github.com/mahdiMGF2/mirzabot/issues">
-    <img src="https://img.shields.io/github/issues/mahdiMGF2/mirzabot?style=flat-square" alt="Issues"/>
-  </a>
-  <a href="https://github.com/mahdiMGF2/mirzabot/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/mahdiMGF2/mirzabot?style=flat-square" alt="License"/>
+  <a href="https://github.com/Zaltapar/mirzabot/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/Zaltapar/mirzabot/ci.yml?style=flat-square" alt="CI"/>
   </a>
   <img src="https://img.shields.io/badge/PHP-8.2-777BB4?style=flat-square&logo=php&logoColor=white" alt="PHP 8.2"/>
+  <img src="https://img.shields.io/badge/version-0.10-8B949E?style=flat-square" alt="Version"/>
 </p>
 
 </div>
@@ -39,17 +34,18 @@
 ## 📚 Table of Contents
 
 - [✨ Overview](#-overview)
+- [🆕 What's New in This Version](#-whats-new-in-this-version)
 - [📖 Documentation](#-documentation)
 - [🧩 Supported Panels](#-supported-panels)
 - [💳 Payment Gateways](#-payment-gateways)
 - [⚙️ Features](#️-features)
-- [🚀 Installation](#-installation)
+- [🚀 Installation & Upgrading](#-installation--upgrading)
   - [Prerequisites](#prerequisites)
-  - [Install](#install)
-  - [Update](#update)
-  - [Remove](#remove)
-  - [Non-Interactive (CLI) Usage](#non-interactive-cli-usage)
-- [💎 Free vs. Pro](#-free-vs-pro)
+  - [Migrate a running install to this version](#migrate-a-running-install-to-this-version)
+  - [Fresh install](#fresh-install)
+  - [Update this version in place (sync.php)](#update-this-version-in-place-syncphp)
+  - [Automated build health (CI)](#automated-build-health-ci)
+  - [Rollback](#rollback)
 - [🌍 Languages](#-languages)
 - [💵 Support the Project](#-support-the-project)
 - [👥 Contributors](#-contributors)
@@ -62,7 +58,33 @@
 
 It connects directly to your panels, builds configurations automatically, accepts a wide range of payment methods, and gives both customers and admins a clean experience through a **Telegram Mini App** and a **web admin panel**.
 
+This enhanced edition layers a set of interactivity, UX and performance improvements on top of the core product, plus tooling that keeps upgrades to it safe and automated.
+
 > Whether you're handing out trial accounts or running a large-scale reseller business, Mirza Bot has the tools to run it end to end.
+
+---
+
+## 🆕 What's New in This Version
+
+### Interactivity & UX
+- **Inline main menu by default** — the primary menu is served as an inline keyboard (one-time migration flips existing installs automatically).
+- **Account overview on `/start`** — each user immediately sees their services, balances and wallet state.
+- **Richer pre-payment summary** — the payment confirmation shows the full service breakdown before you pay.
+- **Service status chips** — purchased-service lists show live status at a glance.
+- **Copy buttons** — configs, links and usernames come with one-tap copy actions.
+- **Locale-aware dates** with safe language fallback for all service time displays.
+- **Opt-in auto-renewal** — customers can ask for automatic renewal of expiring services; the cron `autoextend` job handles it end to end.
+
+### Performance
+- Panel data **cache** for the Telegram Mini App (busted automatically on every mutation) plus a `user.token` index.
+- Lightened webview API (no root keyboard payload, de-N+1'd queries, reused user row).
+- HTTP caching, gzip and non-blocking SDK loading for the webview.
+- Cached exchange-rate lookups (TTL), batched channel-membership checks, lazy admin-only keyboard loads, and consolidated admin-stats queries.
+
+### Tooling
+- `sync.php` — an in-place upgrader that layers this code over a running install while preserving your credentials and state.
+- `install-fork.sh` — Linux installer/migrator: migrate a running bot to this version (with DB + file snapshots) or do a fresh install.
+- GitHub Actions CI (`.github/workflows/ci.yml`) — PHP lint, shell checks, a real-MySQL schema smoke test and an end-to-end upgrader test on every push.
 
 ---
 
@@ -159,100 +181,80 @@ Mirza Bot integrates with the most popular VPN and network management panels:
 
 ---
 
-## 🚀 Installation
+## 🚀 Installation & Upgrading
 
 ### Prerequisites
 
 | Requirement | Details |
 |-------------|---------|
-| 🖥️ **OS** | A **clean** Ubuntu **22.04** or **24.04** server |
+| 🖥️ **OS** | An Ubuntu **22.04** or **24.04** server |
 | 🌐 **Domain** | A domain name pointed to your server's IP |
-| ⚙️ **Stack** | PHP 8.2, Apache, MySQL, SSL — *installed automatically by the script* |
+| ⚙️ **Stack** | PHP 8.2, Apache, MySQL, SSL |
 
-> 💡 Start from a fresh server with no existing web server, database, or panel installed.
+### Migrate a running install to this version
 
-### Install
-
-Run the following command on your server as **root**:
-
-```bash
-curl -o install.sh -L https://raw.githubusercontent.com/mahdiMGF2/mirzabot/main/install.sh && bash install.sh
-```
-
-An interactive menu will appear:
-
-```
-1) Install Mirza
-2) Update Mirza
-3) Remove Mirza
-4) Migrate: Free → Pro (Beta)
-5) Renew SSL certificate
-6) Help & Parameters
-7) Exit
-```
-
-➡️ Select **`1`** to install the bot, then follow the prompts.
-
-### Update
-
-Run the same command and select **`2`**:
+The main path: you already run MirzaBot on the server and want to move it to
+this enhanced edition without losing credentials, overrides, sales bots or
+runtime state.
 
 ```bash
-curl -o install.sh -L https://raw.githubusercontent.com/mahdiMGF2/mirzabot/main/install.sh && bash install.sh
+# 1) get this code onto the server (checkout or download the source zip)
+# 2) run the migrator against your install directory:
+sudo bash install-fork.sh update --install-dir /var/www/html/mirzaprobotconfig
 ```
 
-### Upgrade an installed bot with custom changes (sync.php)
+`update` (powered by the bundled `sync.php`) does, in order:
 
-If you run a customized/forked version (or want to layer new code over a running
-install without touching its credentials, language overrides, sales bots or
-runtime state), run the bundled upgrader from the **new** code checkout:
+1. **Preflight** — verifies both the source checkout and the target install.
+2. **DB snapshot** — `mysqldump` of the target's database into `storage/backup/`
+   (skipped if `mysqldump` is unavailable; `--no-db` to skip on purpose).
+3. **File snapshot** — a rollback archive of the current install
+   (`--no-backup` to skip).
+4. **Copy** — new code over the install, *preserving* `config.php`,
+   `lang/override/`, `vpnbot/`, `storage/`, `vendor/` and `.git/`.
+5. **Composer** — only when `vendor/` is missing or `composer.json` changed.
+6. **Take control** — runs `php table.php` in the target (idempotent schema
+   bootstrap, migrations, indexes, webhook re-set), so the new features and
+   database columns are live immediately.
+
+It then reloads PHP-FPM (best effort) and makes sure the `cronbot/run.php`
+dispatcher is registered in the `root` + `www-data` crontabs — which is what
+picks up new jobs like **auto-renewal** with no manual cron edits.
+
+Options: `--zip <path>` / `--dir <path>` / `--url <url>` for the source,
+`--skip-snapshot`, `--yes` for non-interactive runs.
+
+### Fresh install
+
+On a server that does not have the stack yet, first provision PHP/Apache/MySQL/SSL
+with the bundled installer:
+
+```bash
+curl -o install.sh -L https://raw.githubusercontent.com/Zaltapar/mirzabot/main/install.sh && bash install.sh
+```
+
+Then install this version of the bot into a fresh directory:
+
+```bash
+sudo bash install-fork.sh install --domain bot.example.com \
+  --db-name mirzaprobot --token 123:ABC --admin -1001234567890 --bot mybot
+```
+
+`install` creates the database + user, writes `config.php` from the template,
+copies the code, runs composer, boots the schema/webhook and registers the
+cron dispatcher.
+
+### Update this version in place (sync.php)
+
+When you pull new code of this edition over a running install:
 
 ```bash
 # from the new checkout, point it at the installed bot:
 php sync.php /var/www/html/mirzaprobotconfig
 ```
 
-What it does, in order:
-
-1. **Preflight** - verifies both the source checkout and the target install.
-2. **DB snapshot** - `mysqldump` of the target's database into `storage/backup/`
-   (skipped if `mysqldump` is unavailable; pass `--no-db` to skip on purpose).
-3. **File snapshot** - a rollback archive of the current install
-   (`--no-backup` to skip).
-4. **Copy** - new code over the install, *preserving* `config.php`,
-   `lang/override/`, `vpnbot/`, `storage/`, `vendor/` and `.git/`.
-5. **Composer** - only when `vendor/` is missing or `composer.json` changed.
-6. **Take control** - runs `php table.php` in the target (idempotent schema
-   bootstrap, migrations, indexes, webhook re-set), so the new features and
-   database columns are live immediately.
-
-Safe to re-run. To roll back: restore the file snapshot + DB snapshot in
-`storage/backup/` and re-run `php table.php` on the restored code.
-
-### Migrate an existing install to this fork (install-fork.sh, Linux)
-
-`install-fork.sh` wraps `sync.php` for live servers. It has two modes:
-
-```bash
-# migrate a running original MirzaBot install to this fork (backups included):
-sudo bash install-fork.sh update --install-dir /var/www/html/mirzaprobotconfig
-
-# or a fresh install of the fork into a new directory:
-sudo bash install-fork.sh install --domain bot.example.com --db-name mirzaprobot \
-  --token 123:ABC --admin -1001234567890 --bot mybot
-```
-
-What `update` does: resolves the fork source (downloaded zip, `--zip`, `--dir`,
-or the current checkout), snapshots the database **and** the install, copies
-the new code while preserving `config.php`, `lang/override/`, `vpnbot/`,
-`storage/`, `vendor/`, rebuilds composer only when needed, runs `table.php`
-(new schema, migrations, indexes, webhook take control), reloads PHP-FPM and
-makes sure the `cronbot/run.php` dispatcher is in `root` + `www-data`
-crontabs (which is what picks up new jobs like auto-renewal without any
-manual cron edits). Rollback = restore `storage/backup/` files + `db_*.sql`.
-
-Requires the same stack as the original install (PHP 8.2+, MySQL, Apache); it
-assumes the environment itself was provisioned by the original `install.sh`.
+`sync.php` is safe to re-run and idempotent. Use `--no-db` / `--no-backup` to
+skip the respective snapshots.
 
 ### Automated build health (CI)
 
@@ -260,7 +262,7 @@ assumes the environment itself was provisioned by the original `install.sh`.
 
 - **Lint job** — `composer validate` + `php -l` on every non-vendor PHP file,
   `bash -n` on both installers, and ShellCheck on `install-fork.sh`
-  (`install.sh` upstream script checked at error-severity).
+  (`install.sh` checked at error severity).
 - **Smoke job (Linux + MySQL 8)** — provisions a real MySQL service, generates
   `config.php` from the template, runs `table.php`, then asserts the schema is
   healthy: `panel_data_cache` table + unique key, `invoice` auto-renew
@@ -270,70 +272,12 @@ assumes the environment itself was provisioned by the original `install.sh`.
   "legacy" install (protected files stay untouched, new code lands,
   idempotent re-run).
 
-### Remove
+### Rollback
 
-Run the same command and select **`3`** to completely remove the bot and its services.
-
-### Non-Interactive (CLI) Usage
-
-You can also drive the installer entirely from the command line — handy for automation and scripted deployments.
-
-**Commands**
-
-| Command | Description |
-|---------|-------------|
-| `install` | Install Mirza |
-| `update` | Update Mirza (choose channel / version) |
-| `remove` | Remove Mirza and its services |
-| `migrate` | Migrate Free → Pro |
-| `renew` | Renew the bot's SSL certificate |
-| `menu` | Open the interactive panel (default) |
-
-**Install parameters**
-
-| Parameter | Description |
-|-----------|-------------|
-| `--name` | Bot username |
-| `--token` | Telegram bot token |
-| `--admin` | Admin chat ID |
-| `--domain` | Domain name (e.g. `bot.example.com`) |
-| `--db-user` | Database username |
-| `--db-pass` | Database password |
-| `--version` | Specific release tag (e.g. `0.1.7`) |
-| `--channel` | `beta` · `release` · `auto` |
-| `-h`, `--help` | Show CLI help and exit |
-
-**Examples**
-
-```bash
-# Auto-pick the best channel
-mirza install --channel auto
-
-# Fully non-interactive install
-mirza install --name myvpnbot --token 123:ABC \
-              --admin 111 --domain bot.example.com --version 0.1.7
-
-# Update to a specific version or channel
-mirza update --version 0.1.6
-mirza update --channel release
-
-# Remove
-mirza remove
-```
-
----
-
-## 💎 Free vs. Pro
-
-| | Free 🆓 | Pro 💎 |
-|---|:---:|:---:|
-| Automated VPN sales & config creation | ✅ | ✅ |
-| Trial accounts, wallet & service management | ✅ | ✅ |
-| All supported panels & payment gateways | ✅ | ✅ |
-| Advanced customization & analytics | — | ✅ |
-| Enhanced management & extra modules | — | ✅ |
-
-📌 **Pro purchase guide:** [View on Telegram »](https://t.me/mirzaperimium/4)
+After any `update`, the rollback point lives in the install's
+`storage/backup/` (file snapshot + `db_*.sql`). Restore both, re-run
+`php table.php` on the restored code, and you are back on the previous
+version.
 
 ---
 
@@ -361,16 +305,16 @@ Your support keeps the updates and improvements coming. Thank you! 🙌
 
 Thanks to everyone who has contributed to making Mirza Bot better:
 
-<a href="https://github.com/mahdiMGF2/mirzabot/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=mahdiMGF2/mirzabot" alt="Contributors"/>
+<a href="https://github.com/Zaltapar/mirzabot/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Zaltapar/mirzabot" alt="Contributors"/>
 </a>
 
 ---
 
 <div align="center">
 
-**Made with ❤️ by the Mirza Panel community**
+**Maintained as a community fork · Made with ❤️ by the Mirza Panel community**
 
-📖 [Documentation](https://mirzabot.com/docs/) · 💬 [Channel](https://t.me/mirzapanel) · 👥 [Group](https://t.me/mirzapanelgroup) · ⭐ [Star on GitHub](https://github.com/mahdiMGF2/mirzabot)
+📖 [Documentation](https://mirzabot.com/docs/) · 💬 [Channel](https://t.me/mirzapanel) · 👥 [Group](https://t.me/mirzapanelgroup) · ⭐ [Star on GitHub](https://github.com/Zaltapar/mirzabot)
 
 </div>
