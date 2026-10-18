@@ -638,6 +638,35 @@ function rate_arze()
     }
     return $decoded['result'];
 }
+function rate_arze_cached(int $ttlSeconds = 300, int $staleMaxSeconds = 86400)
+{
+    $file = __DIR__ . '/storage/fx_rates.json';
+    $cached = null;
+    if (is_file($file)) {
+        $decoded = json_decode((string) @file_get_contents($file), true);
+        if (is_array($decoded) && isset($decoded['at'], $decoded['rates']) && is_array($decoded['rates'])) {
+            $cached = $decoded;
+        }
+    }
+    if (is_array($cached) && (time() - (int) $cached['at']) < $ttlSeconds) {
+        return $cached['rates'];
+    }
+    $fresh = rate_arze();
+    $usable = is_array($fresh)
+        && isset($fresh['TRX'], $fresh['USD'])
+        && (float) $fresh['TRX'] > 0
+        && (float) $fresh['USD'] > 0;
+    if ($usable) {
+        @mkdir(__DIR__ . '/storage', 0775, true);
+        @file_put_contents($file, json_encode(['at' => time(), 'rates' => $fresh]), LOCK_EX);
+        return $fresh;
+    }
+    if (is_array($cached) && (time() - (int) $cached['at']) < $staleMaxSeconds) {
+        error_log('rate_arze_cached: upstream fetch failed, using stale rates from ' . (time() - (int) $cached['at']) . 's ago');
+        return $cached['rates'];
+    }
+    return null;
+}
 function updatePaymentMessageId($response, $orderId)
 {
     if (!is_array($response)) {

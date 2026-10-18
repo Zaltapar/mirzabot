@@ -4951,7 +4951,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $message_id = sendmessage($from_id, $textnowpayments, $paymentkeyboard, 'HTML');
         updatePaymentMessageId($message_id, $randomString);
     } elseif ($datain == "plisio") {
-        $rates = rate_arze();
+        $rates = rate_arze_cached();
         if ($rates === null) {
             sendmessage($from_id, $textbotlang['users']['Balance']['errorLinkPayment'], $keyboard, 'HTML');
             step('home', $from_id);
@@ -5022,7 +5022,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $message_id = sendmessage($from_id, $textnowpayments, $paymentkeyboard, 'HTML');
         updatePaymentMessageId($message_id, $randomString);
     } elseif ($datain == "nowpayment") {
-        $rates = rate_arze();
+        $rates = rate_arze_cached();
         if ($rates === null) {
             sendmessage($from_id, $textbotlang['users']['Balance']['errorLinkPayment'], $keyboard, 'HTML');
             step('home', $from_id);
@@ -5089,7 +5089,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $message_id = sendmessage($from_id, $textnowpayments, $paymentkeyboard, 'HTML');
         updatePaymentMessageId($message_id, $randomString);
     } elseif ($datain == "iranpay1") {
-        $rates = rate_arze();
+        $rates = rate_arze_cached();
         if ($rates === null || empty($rates['TRX']) || empty($rates['USD'])) {
             sendmessage($from_id, $textbotlang['users']['Balance']['errorLinkPayment'], $keyboard, 'HTML');
             step('home', $from_id);
@@ -5289,7 +5289,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
             sendmessage($from_id, $textbotlang['users']['Balance']['queueBusy'], null, 'HTML');
             return;
         }
-        $rates = rate_arze();
+        $rates = rate_arze_cached();
         if ($rates === null) {
             sendmessage($from_id, $textbotlang['users']['Balance']['errorLinkPayment'], $keyboard, 'HTML');
             step('home', $from_id);
@@ -5357,7 +5357,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         step("getvoocherx", $from_id);
         savedata("clear", "id_payment", $randomString);
     } elseif ($datain == "digitaltron") {
-        $rates = rate_arze();
+        $rates = rate_arze_cached();
         if ($rates === null) {
             sendmessage($from_id, $textbotlang['users']['Balance']['errorLinkPayment'], $keyboard, 'HTML');
             step('home', $from_id);
