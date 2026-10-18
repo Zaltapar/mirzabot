@@ -186,7 +186,7 @@ do_update() {
   echo "    db version  : $old_ver -> $new_ver"
   echo "    source      : $SRC_DIR"
 
-  if [ ! confirm "Proceed with the update? (DB + file snapshots will be created in $install_dir/storage/backup)" ]; then
+  if ! confirm "Proceed with the update? (DB + file snapshots will be created in $install_dir/storage/backup)"; then
     die "Aborted before touching the install."
   fi
 

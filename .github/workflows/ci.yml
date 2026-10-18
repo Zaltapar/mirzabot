@@ -54,12 +54,15 @@ jobs:
 
       - name: ShellCheck install-fork.sh (strict)
         run: |
-          docker run --rm -v "$GITHUB_WORKSPACE/install-fork.sh:/sc/install-fork.sh:ro" \
+          tr -d '\r' < install-fork.sh > /tmp/install-fork-nl.sh
+          docker run --rm -v /tmp/install-fork-nl.sh:/sc/install-fork.sh:ro \
             -w /sc koalaman/shellcheck:stable install-fork.sh
 
       - name: ShellCheck install.sh (errors only, upstream script)
         run: |
-          docker run --rm -v "$GITHUB_WORKSPACE/install.sh:/sc/install.sh:ro" \
+          # the committed script may carry CRLF endings; strip them first
+          tr -d '\r' < install.sh > /tmp/install-nl.sh
+          docker run --rm -v /tmp/install-nl.sh:/sc/install.sh:ro \
             -w /sc koalaman/shellcheck:stable -S error install.sh
 
   smoke:
