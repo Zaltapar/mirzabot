@@ -667,6 +667,28 @@ function rate_arze_cached(int $ttlSeconds = 300, int $staleMaxSeconds = 86400)
     }
     return null;
 }
+function locale_date($timestamp, string $mode = 'date')
+{
+    global $from_id;
+    $ts = is_numeric($timestamp) && (int) $timestamp > 0 ? (int) $timestamp : time();
+    $lang = 'fa';
+    if ($from_id !== null && $from_id !== '' && intval($from_id) !== 0) {
+        $userRow = select("user", "lang", "id", $from_id, "select");
+        if (is_array($userRow) && !empty($userRow['lang'])) {
+            $lang = $userRow['lang'];
+        }
+    }
+    $formats = [
+        'date' => ['fa' => 'Y/m/d', 'g' => 'Y/m/d'],
+        'datetime' => ['fa' => 'Y/m/d H:i:s', 'g' => 'Y/m/d H:i'],
+        'time' => ['fa' => 'H:i:s', 'g' => 'H:i'],
+    ];
+    $format = $formats[$mode] ?? $formats['date'];
+    if ($lang === 'fa') {
+        return jdate($format['fa'], $ts);
+    }
+    return date($format['g'], $ts);
+}
 function updatePaymentMessageId($response, $orderId)
 {
     if (!is_array($response)) {
@@ -2276,7 +2298,12 @@ function languagechange($path_dir = null, string $lang = 'fa')
     if (!in_array($lang, $allowed, true))
         $lang = 'fa';
     $base_dir = $path_dir ?: __DIR__;
-    $texts = require $base_dir . '/lang/' . $lang . '.php';
+    $file = $base_dir . '/lang/' . $lang . '.php';
+    if (!file_exists($file)) {
+        $lang = 'fa';
+        $file = $base_dir . '/lang/fa.php';
+    }
+    $texts = require $file;
     if (is_array($texts))
         bottext_apply_overrides($texts, $lang);
     return $texts;

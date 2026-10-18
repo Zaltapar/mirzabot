@@ -618,7 +618,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         'Unknown' => $textbotlang['users']['status']['unknown']
     ][$status];
     #--------------[ expire ]---------------#
-    $expirationDate = $DataUserOut['expire'] ? jdate('Y/m/d', $DataUserOut['expire']) : $textbotlang['users']['status']['unlimited'];
+    $expirationDate = $DataUserOut['expire'] ? locale_date($DataUserOut['expire']) : $textbotlang['users']['status']['unlimited'];
     #-------------[ data_limit ]----------------#
     $LastTraffic = $DataUserOut['data_limit'] ? formatBytes($DataUserOut['data_limit']) : $textbotlang['users']['status']['unlimited'];
     #---------------[ RemainingVolume ]--------------#
@@ -800,7 +800,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         if (isset($DataUserOut['online_at']) && $DataUserOut['online_at'] !== null) {
             $dateTime = new DateTime($DataUserOut['online_at'], new DateTimeZone('UTC'));
             $dateTime->setTimezone(new DateTimeZone('Asia/Tehran'));
-            $lastonline = jdate('Y/m/d H:i:s', $dateTime->getTimestamp());
+            $lastonline = locale_date($dateTime->getTimestamp(), 'datetime');
         } else {
             $lastonline = $textbotlang['common']['connection']['notConnectedAlt'];
         }
@@ -817,7 +817,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         'deactivev' => $textbotlang['users']['status']['disabled'],
     ][$status] ?? $textbotlang['users']['status']['unknown'];
     #--------------[ expire ]---------------#
-    $expirationDate = $DataUserOut['expire'] ? jdate('Y/m/d', $DataUserOut['expire']) : $textbotlang['users']['status']['unlimited'];
+    $expirationDate = $DataUserOut['expire'] ? locale_date($DataUserOut['expire']) : $textbotlang['users']['status']['unlimited'];
     #-------------[ data_limit ]----------------#
     $LastTraffic = $DataUserOut['data_limit'] ? formatBytes($DataUserOut['data_limit']) : $textbotlang['users']['status']['unlimited'];
     #---------------[ RemainingVolume ]--------------#
@@ -859,7 +859,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $sub_updated = $DataUserOut['sub_updated_at'];
         $dateTime = new DateTime($sub_updated, new DateTimeZone('UTC'));
         $dateTime->setTimezone(new DateTimeZone('Asia/Tehran'));
-        $lastupdate = jdate('Y/m/d H:i:s', $dateTime->getTimestamp());
+        $lastupdate = locale_date($dateTime->getTimestamp(), 'datetime');
     }
     #--------------[ Percent ]---------------#
     if ($DataUserOut['data_limit'] != null && $DataUserOut['used_traffic'] != null) {
@@ -2314,7 +2314,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         'username' => $username,
         'type' => 'usertest'
     );
-    $expirationDate = $DataUserOut['expire'] ? jdate('Y/m/d', $DataUserOut['expire']) : $textbotlang['users']['status']['unlimited'];
+    $expirationDate = $DataUserOut['expire'] ? locale_date($DataUserOut['expire']) : $textbotlang['users']['status']['unlimited'];
     $timeDiff = $DataUserOut['expire'] - time();
     $day = $DataUserOut['expire'] ? floor($timeDiff / 86400) . $textbotlang['users']['status']['day'] : $textbotlang['users']['status']['unlimited'];
     $output = $DataUserOut['data_limit'] - $DataUserOut['used_traffic'];
@@ -2452,7 +2452,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     } else {
         if (isset($DataUserOut['online_at']) && $DataUserOut['online_at'] !== null) {
             $dateString = $DataUserOut['online_at'];
-            $lastonline = jdate('Y/m/d H:i:s', strtotime($dateString));
+            $lastonline = locale_date(strtotime($dateString), 'datetime');
         } else {
             $lastonline = $textbotlang['common']['connection']['notConnectedAlt'];
         }
@@ -2469,7 +2469,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         'deactivev' => $textbotlang['users']['status']['disabled'],
     ][$status] ?? $textbotlang['users']['status']['unknown'];
     #--------------[ expire ]---------------#
-    $expirationDate = $DataUserOut['expire'] ? jdate('Y/m/d', $DataUserOut['expire']) : $textbotlang['users']['status']['unlimited'];
+    $expirationDate = $DataUserOut['expire'] ? locale_date($DataUserOut['expire']) : $textbotlang['users']['status']['unlimited'];
     #-------------[ data_limit ]----------------#
     $LastTraffic = $DataUserOut['data_limit'] ? formatBytes($DataUserOut['data_limit']) : $textbotlang['users']['status']['unlimited'];
     #---------------[ RemainingVolume ]--------------#
@@ -2485,7 +2485,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $sub_updated = $DataUserOut['sub_updated_at'];
         $dateTime = new DateTime($sub_updated, new DateTimeZone('UTC'));
         $dateTime->setTimezone(new DateTimeZone('Asia/Tehran'));
-        $lastupdate = jdate('Y/m/d H:i:s', $dateTime->getTimestamp());
+        $lastupdate = locale_date($dateTime->getTimestamp(), 'datetime');
     }
     if ($DataUserOut['data_limit'] != null && $DataUserOut['used_traffic'] != null) {
         $Percent = ($DataUserOut['data_limit'] - $DataUserOut['used_traffic']) * 100 / $DataUserOut['data_limit'];
@@ -2785,7 +2785,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     } else {
         if (isset($DataUserOut['online_at']) && $DataUserOut['online_at'] !== null) {
             $dateString = $DataUserOut['online_at'];
-            $lastonline = jdate('Y/m/d H:i:s', strtotime($dateString));
+            $lastonline = locale_date(strtotime($dateString), 'datetime');
         } else {
             $lastonline = $textbotlang['common']['connection']['notConnectedAlt'];
         }
@@ -2802,7 +2802,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
 
     ][$status];
     #--------------[ expire ]---------------#
-    $expirationDate = $DataUserOut['expire'] ? jdate('Y/m/d', $DataUserOut['expire']) : $textbotlang['users']['status']['unlimited'];
+    $expirationDate = $DataUserOut['expire'] ? locale_date($DataUserOut['expire']) : $textbotlang['users']['status']['unlimited'];
     #-------------[ data_limit ]----------------#
     $LastTraffic = $DataUserOut['data_limit'] ? formatBytes($DataUserOut['data_limit']) : $textbotlang['users']['status']['unlimited'];
     #---------------[ RemainingVolume ]--------------#
@@ -3315,9 +3315,9 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
 } elseif ($datain == "fqQuestions") {
     sendmessage($from_id, $textbotlang['textbot']['faqDesc'], null, 'HTML');
 } elseif ($text == $textbotlang['textbot']['accountWallet'] || $datain == "account" || $text == "/wallet") {
-    $dateacc = jdate('Y/m/d');
+    $dateacc = locale_date();
     $current_time = time();
-    $timeacc = jdate('H:i:s', $current_time);
+    $timeacc = locale_date($current_time, 'time');
     if ($user['codeInvitation'] == null) {
         $randomString = bin2hex(random_bytes(6));
         update("user", "codeInvitation", $randomString, "id", $from_id);
@@ -3350,7 +3350,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         'n' => $textbotlang['common']['roles']['agentAlt'],
         'n2' => $textbotlang['common']['roles']['advancedAgentAlt'],
     ][$user['agent']];
-    $userjoin = jdate('Y/m/d H:i:s', $user['register']);
+    $userjoin = locale_date($user['register'], 'datetime');
     if (intval($setting['scorestatus']) == 1) {
         $textscore = strtr($textbotlang['users']['affiliates']['accountScore'], ['{score}' => $user['score']]);
     } else {
