@@ -201,6 +201,34 @@ Run the same command and select **`2`**:
 curl -o install.sh -L https://raw.githubusercontent.com/mahdiMGF2/mirzabot/main/install.sh && bash install.sh
 ```
 
+### Upgrade an installed bot with custom changes (sync.php)
+
+If you run a customized/forked version (or want to layer new code over a running
+install without touching its credentials, language overrides, sales bots or
+runtime state), run the bundled upgrader from the **new** code checkout:
+
+```bash
+# from the new checkout, point it at the installed bot:
+php sync.php /var/www/html/mirzaprobotconfig
+```
+
+What it does, in order:
+
+1. **Preflight** - verifies both the source checkout and the target install.
+2. **DB snapshot** - `mysqldump` of the target's database into `storage/backup/`
+   (skipped if `mysqldump` is unavailable; pass `--no-db` to skip on purpose).
+3. **File snapshot** - a rollback archive of the current install
+   (`--no-backup` to skip).
+4. **Copy** - new code over the install, *preserving* `config.php`,
+   `lang/override/`, `vpnbot/`, `storage/`, `vendor/` and `.git/`.
+5. **Composer** - only when `vendor/` is missing or `composer.json` changed.
+6. **Take control** - runs `php table.php` in the target (idempotent schema
+   bootstrap, migrations, indexes, webhook re-set), so the new features and
+   database columns are live immediately.
+
+Safe to re-run. To roll back: restore the file snapshot + DB snapshot in
+`storage/backup/` and re-run `php table.php` on the restored code.
+
 ### Remove
 
 Run the same command and select **`3`** to completely remove the bot and its services.
