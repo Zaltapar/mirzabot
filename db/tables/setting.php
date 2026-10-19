@@ -111,6 +111,9 @@ return [
             'status_keyboard_config' => '0',
             'cron_status' => $cronStatus,
             'accountsummary' => 'onsummary',
+            'rich_messages' => '1',
+            'modern_buttons' => '1',
+            'force_reply' => '1',
         ],
     ],
     'columns' => [
@@ -164,5 +167,8 @@ return [
         ['alert_balance', '0', 'VARCHAR(10)'],
         ['balance_value_alert', '10000', 'VARCHAR(30)'],
         ['accountsummary', 'onsummary', 'VARCHAR(45)'],
+        ['rich_messages', '1', 'VARCHAR(10)'],
+        ['modern_buttons', '1', 'VARCHAR(10)'],
+        ['force_reply', '1', 'VARCHAR(10)'],
     ],
 ];

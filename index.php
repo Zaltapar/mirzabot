@@ -958,6 +958,26 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
             unset($keyboardsetting['inline_keyboard'][1][1]);
         if ($marzbanstatusextra == "offextra")
             unset($keyboardsetting['inline_keyboard'][0][1]);
+        $favoriteServiceAction = favoriteActionValue($from_id, 'service');
+        $favoritePrefixes = ['extend' => 'extend_', 'Extra_volume' => 'Extra_volume_', 'Extra_time' => 'Extra_time_'];
+        if ($favoriteServiceAction !== null && isset($favoritePrefixes[$favoriteServiceAction])) {
+            $favoritePrefix = $favoritePrefixes[$favoriteServiceAction];
+            foreach ($keyboardsetting['inline_keyboard'] as $rowIndex => $rowButtons) {
+                foreach ($rowButtons as $buttonIndex => $buttonItem) {
+                    if (!isset($buttonItem['callback_data']) || !str_starts_with($buttonItem['callback_data'], $favoritePrefix)) {
+                        continue;
+                    }
+                    $buttonItem['text'] = '🔥 ' . $buttonItem['text'];
+                    unset($keyboardsetting['inline_keyboard'][$rowIndex][$buttonIndex]);
+                    array_unshift($keyboardsetting['inline_keyboard'], [$buttonItem]);
+                    break 2;
+                }
+            }
+            $keyboardsetting['inline_keyboard'] = array_values(array_filter(
+                array_map(static fn ($rowButtons) => array_values($rowButtons), $keyboardsetting['inline_keyboard']),
+                static fn ($rowButtons) => $rowButtons !== []
+            ));
+        }
         $keyboardsetting['inline_keyboard'] = array_values($keyboardsetting['inline_keyboard']);
         $keyboardsetting = json_encode($keyboardsetting);
     } else {
@@ -979,6 +999,10 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
             'config' => array(
                 'text' => $textbotlang['users']['status']['config'],
                 'callback_data' => "config_"
+            ),
+            'resend' => array(
+                'text' => $textbotlang['users']['status']['resendServiceBtn'],
+                'callback_data' => "resendservice_"
             ),
             'extend' => array(
                 'text' => $textbotlang['users']['extend']['title'],
@@ -1055,6 +1079,8 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
             unset($keyboarddate['removeservice']);
         if ($statusshowconfig == "offconfig")
             unset($keyboarddate['config']);
+        if (empty($nameloc['delivered_message_id']))
+            unset($keyboarddate['resend']);
         if ($marzban['type'] == "hiddify") {
             unset($keyboarddate['changelink']);
             unset($keyboarddate['changestatus']);
@@ -1080,6 +1106,13 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
             unset($keyboarddate['Extra_time']);
         if ($marzbanstatusextra == "offextra")
             unset($keyboarddate['Extra_volume']);
+        $favoriteServiceAction = favoriteActionValue($from_id, 'service');
+        if ($favoriteServiceAction !== null && isset($keyboarddate[$favoriteServiceAction])) {
+            $favoriteButton = $keyboarddate[$favoriteServiceAction];
+            $favoriteButton['text'] = '🔥 ' . $favoriteButton['text'];
+            unset($keyboarddate[$favoriteServiceAction]);
+            $keyboarddate = ['suggestedaction' => $favoriteButton] + $keyboarddate;
+        }
         $tempArray = [];
         $keyboardsetting = ['inline_keyboard' => []];
         foreach ($keyboarddate as $keyboardtext) {
@@ -1114,6 +1147,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     step('home', $from_id);
     return;
 } elseif (preg_match('/subscriptionurl_(\w+)/', $datain, $dataget) || strpos($text, "/sub ") !== false) {
+    trackUserAction($from_id, 'service', 'linksub');
     if (!empty($text) && $text[0] == "/") {
         $id_invoice = explode(' ', $text)[1];
         $nameloc = select("invoice", "*", "username", $id_invoice, "select");
@@ -1209,6 +1243,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     }
     sendmessage($from_id, $textbotlang['users']['status']['deletedSuccess'], null, 'html');
 } elseif (preg_match('/config_(\w+)/', $datain, $dataget) || strpos($text, "/link ") !== false) {
+    trackUserAction($from_id, 'service', 'config');
     if (!empty($text) && $text[0] == "/") {
         $id_invoice = explode(' ', $text)[1];
         $nameloc = select("invoice", "*", "username", $id_invoice, "select");
@@ -1295,6 +1330,33 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         'parse_mode' => "HTML",
     ]);
     @unlink($urlimage);
+} elseif (preg_match('/resendservice_(\w+)/', $datain, $dataget)) {
+    $id_invoice = $dataget[1];
+    $nameloc = select("invoice", "*", "id_invoice", $id_invoice, "select");
+    if (!$nameloc || $nameloc['id_user'] != $from_id) {
+        return;
+    }
+    $storedMessageId = $nameloc['delivered_message_id'] ?? '';
+    $resent = false;
+    if ($storedMessageId !== '' && ctype_digit((string) $storedMessageId)) {
+        trackUserAction($from_id, 'service', 'resend');
+        $response = telegram('copyMessage', [
+            'chat_id' => $from_id,
+            'from_chat_id' => $from_id,
+            'message_id' => (int) $storedMessageId,
+        ]);
+        $resent = is_array($response) && ($response['ok'] ?? false);
+    }
+    if ($resent) {
+        telegram('answerCallbackQuery', [
+            'callback_query_id' => $callback_query_id,
+            'text' => $textbotlang['users']['status']['resendSent'],
+            'show_alert' => true,
+            'cache_time' => 5,
+        ]);
+    } else {
+        sendmessage($from_id, $textbotlang['users']['status']['resendUnavailable'], null, 'HTML');
+    }
 } elseif (preg_match('/changestatus_(\w+)/', $datain, $dataget)) {
     $statuschangeservice = select("shopSetting", "*", "Namevalue", "statuschangeservice", "select")['value'];
     if ($statuschangeservice == "offstatus") {
@@ -1371,6 +1433,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         Editmessagetext($from_id, $message_id, $textbotlang['users']['status']['disabledconfig'], $bakinfos);
     }
 } elseif (preg_match('/extend_(\w+)/', $datain, $dataget)) {
+    trackUserAction($from_id, 'service', 'extend');
     $id_invoice = $dataget[1];
     $nameloc = select("invoice", "*", "id_invoice", $id_invoice, "select");
     if ($nameloc == false || !invoiceBelongsToUser($nameloc, $from_id)) {
@@ -1406,14 +1469,14 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     savedata("clear", "id_invoice", $nameloc['id_invoice']);
     if ($product == 0) {
         $textcustom = sprintf($textbotlang['users']['sell']['customVolumePrompt'], $custompricevalue, $mainvolume, $maxvolume);
-        sendmessage($from_id, $textcustom, $backuser, 'html');
+        sendmessage($from_id, $textcustom, withForceReply($backuser), 'html');
         deletemessage($from_id, $message_id);
         step('gettimecustomvolomforextend', $from_id);
         return;
     }
     if ($nameloc['name_product'] == $textbotlang['users']['customSellVolume']['btnVolume'] || $nameloc['name_product'] == $textbotlang['users']['customSellVolume']['btnService']) {
         $textcustom = sprintf($textbotlang['users']['sell']['customVolumePrompt2'], $custompricevalue, $mainvolume, $maxvolume);
-        sendmessage($from_id, $textcustom, $backuser, 'html');
+        sendmessage($from_id, $textcustom, withForceReply($backuser), 'html');
         deletemessage($from_id, $message_id);
         step('gettimecustomvolomforextend', $from_id);
         return;
@@ -1426,6 +1489,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         ]);
         $productextend = ['inline_keyboard' => []];
         $statusshowprice = select("shopSetting", "*", "Namevalue", "statusshowprice", "select")['value'];
+        $extendPlanRows = [];
         while ($result = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $hide_panel = json_decode($result['hide_panel'], true);
             if (in_array($nameloc['Service_location'], $hide_panel))
@@ -1440,9 +1504,20 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
                 $result['price_product'] = number_format($result['price_product']);
                 $namekeyboard = $result['name_product'] . " - " . $result['price_product'] . $textbotlang['common']['labels']['tomanUnit'];
             }
-            $productextend['inline_keyboard'][] = [
-                ['text' => $namekeyboard, 'callback_data' => "serviceextendselect_" . $result['code_product']]
+            $extendPlanRows[] = [
+                'code_product' => $result['code_product'],
+                'row' => [
+                    ['text' => $namekeyboard, 'callback_data' => "serviceextendselect_" . $result['code_product']]
+                ],
             ];
+        }
+        $extendPlanRows = sortByUserPreference($extendPlanRows, userActionCounts($from_id, 'extend'), 'code_product');
+        $extendFavoriteCode = favoriteActionValue($from_id, 'extend');
+        foreach ($extendPlanRows as $extendPlanIndex => $extendPlan) {
+            if ($extendPlanIndex === 0 && $extendFavoriteCode !== null && (string) $extendPlan['code_product'] === (string) $extendFavoriteCode) {
+                $extendPlan['row'][0]['text'] = '🔥 ' . $extendPlan['row'][0]['text'];
+            }
+            $productextend['inline_keyboard'][] = $extendPlan['row'];
         }
         $productextend['inline_keyboard'][] = [
             ['text' => $textbotlang['keyboard']['renewCurrentPlan'], 'callback_data' => "exntedagei"]
@@ -1454,7 +1529,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $json_list_product_lists = json_encode($productextend);
         Editmessagetext($from_id, $message_id, $textbotlang['users']['extend']['selectservice'], $json_list_product_lists);
     } else {
-        $monthkeyboard = keyboardTimeCategory($nameloc['Service_location'], $user['agent'], "productextendmonths_", "product_$id_invoice", false, true);
+        $monthkeyboard = keyboardTimeCategory($nameloc['Service_location'], $user['agent'], "productextendmonths_", "product_$id_invoice", false, true, favoriteActionValue($from_id, 'duration'));
         Editmessagetext($from_id, $message_id, $textbotlang['users']['sell']['selectDuration'], $monthkeyboard);
     }
 } elseif (preg_match('/^autoextend_(\w+)/', $datain, $dataget)) {
@@ -1511,7 +1586,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     $customtimevalueprice = $eextraprice[$user['agent']];
     savedata("save", "volume", $text);
     $textcustom = sprintf($textbotlang['users']['sell']['customTimePrompt'], $customtimevalueprice, $maintime, $maxtime);
-    sendmessage($from_id, $textcustom, $backuser, 'html');
+    sendmessage($from_id, $textcustom, withForceReply($backuser), 'html');
     step('getvolumecustomuserforextend', $from_id);
 } elseif (preg_match('/productextendmonths_(\w+)/', $datain, $dataget)) {
     $monthenumber = $dataget[1];
@@ -1526,6 +1601,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     $productextend = ['inline_keyboard' => []];
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
     $statusshowprice = select("shopSetting", "*", "Namevalue", "statusshowprice", "select")['value'];
+    $extendPlanRows = [];
     while ($result = $stmt->fetch(PDO::FETCH_ASSOC)) {
         if (intval($user['pricediscount']) != 0) {
             $resultper = ($result['price_product'] * $user['pricediscount']) / 100;
@@ -1537,9 +1613,20 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
             $result['price_product'] = number_format($result['price_product']);
             $namekeyboard = $result['name_product'] . " - " . $result['price_product'] . $textbotlang['common']['labels']['tomanUnit'];
         }
-        $productextend['inline_keyboard'][] = [
-            ['text' => $namekeyboard, 'callback_data' => "serviceextendselect_" . $result['code_product']]
+        $extendPlanRows[] = [
+            'code_product' => $result['code_product'],
+            'row' => [
+                ['text' => $namekeyboard, 'callback_data' => "serviceextendselect_" . $result['code_product']]
+            ],
         ];
+    }
+    $extendPlanRows = sortByUserPreference($extendPlanRows, userActionCounts($from_id, 'extend'), 'code_product');
+    $extendFavoriteCode = favoriteActionValue($from_id, 'extend');
+    foreach ($extendPlanRows as $extendPlanIndex => $extendPlan) {
+        if ($extendPlanIndex === 0 && $extendFavoriteCode !== null && (string) $extendPlan['code_product'] === (string) $extendFavoriteCode) {
+            $extendPlan['row'][0]['text'] = '🔥 ' . $extendPlan['row'][0]['text'];
+        }
+        $productextend['inline_keyboard'][] = $extendPlan['row'];
     }
     if ($nameloc['name_product'] == $textbotlang['users']['customSellVolume']['btnVolume'] || $nameloc['name_product'] == $textbotlang['users']['customSellVolume']['btnService']) {
         $productextend['inline_keyboard'][] = [
@@ -1774,6 +1861,8 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         sendmessage($from_id, $textbotlang['users']['extend']['error'], null, 'HTML');
         return;
     }
+    trackUserAction($from_id, 'extend', (string) $prodcut['code_product'], (string) ($prodcut['name_product'] ?? ''));
+    trackUserAction($from_id, 'duration', (string) $prodcut['Service_time']);
     if ($datain == "confirmserdiscount") {
         $stmt = $pdo->prepare("SELECT * FROM DiscountSell WHERE (code_product = :code_product OR code_product = 'all') AND (code_panel = :code_panel OR code_panel = '/all') AND codeDiscount = :codeDiscount AND (agent = :agent OR agent = 'allusers') AND (type = 'all' OR type = 'extend')");
         $stmt->execute([
@@ -2009,6 +2098,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         ]);
     }
 } elseif (preg_match('/Extra_volume_(\w+)/', $datain, $dataget)) {
+    trackUserAction($from_id, 'service', 'Extra_volume');
     $id_invoice = $dataget[1];
     $nameloc = select("invoice", "*", "id_invoice", $id_invoice, "select");
     if (!invoiceBelongsToUser($nameloc, $from_id)) {
@@ -2558,6 +2648,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     ]);
     Editmessagetext($from_id, $message_id, $textbotlang['users']['support']['requestSubmitted'], $bakinfos, 'html');
 } elseif (preg_match('/Extra_time_(\w+)/', $datain, $dataget)) {
+    trackUserAction($from_id, 'service', 'Extra_time');
     $id_invoice = $dataget[1];
     $nameloc = select("invoice", "*", "id_invoice", $id_invoice, "select");
     if (!invoiceBelongsToUser($nameloc, $from_id)) {
@@ -3493,7 +3584,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
             $nullproduct = select("product", "*", null, null, "count");
             if ($nullproduct == 0) {
                 $textcustom = sprintf($textbotlang['users']['sell']['customVolumePrompt3'], $custompricevalue, $mainvolume, $maxvolume);
-                sendmessage($from_id, $textcustom, $backuser, 'html');
+                sendmessage($from_id, $textcustom, withForceReply($backuser), 'html');
                 step('gettimecustomvol', $from_id);
                 return;
             }
@@ -3526,9 +3617,9 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
                 }
                 $textproduct = $textbotlang['users']['sell']['serviceSelectFirst'];
                 if ($datain == "buy") {
-                    Editmessagetext($from_id, $message_id, $textproduct, KeyboardProduct($marzban_list_get['name_panel'], $query, $user['pricediscount'], $datakeyboard, $statuscustom, "backuser", null, "customsellvolume", $queryParams));
+                    Editmessagetext($from_id, $message_id, $textproduct, KeyboardProduct($marzban_list_get['name_panel'], $query, $user['pricediscount'], $datakeyboard, $statuscustom, "backuser", null, "customsellvolume", $queryParams, favoriteActionValue($from_id, 'buy')));
                 } else {
-                    sendmessage($from_id, $textproduct, KeyboardProduct($marzban_list_get['name_panel'], $query, $user['pricediscount'], $datakeyboard, $statuscustom, "backuser", null, "customsellvolume", $queryParams), 'HTML');
+                    sendmessage($from_id, $textproduct, KeyboardProduct($marzban_list_get['name_panel'], $query, $user['pricediscount'], $datakeyboard, $statuscustom, "backuser", null, "customsellvolume", $queryParams, favoriteActionValue($from_id, 'buy')), 'HTML');
                 }
             }
         } else {
@@ -3547,7 +3638,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
             } else {
                 $back = "backuser";
             }
-            $monthkeyboard = keyboardTimeCategory($marzban_list_get['name_panel'], $user['agent'], "productmonth_", $back, $statuscustom, false);
+            $monthkeyboard = keyboardTimeCategory($marzban_list_get['name_panel'], $user['agent'], "productmonth_", $back, $statuscustom, false, favoriteActionValue($from_id, 'buy_duration'));
             if ($datain == "buy" || $datain == "buybacktow") {
                 Editmessagetext($from_id, $message_id, $textbotlang['users']['sell']['selectDuration'], $monthkeyboard);
             } else {
@@ -3596,7 +3687,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $maxvolume = json_decode($marzban_list_get['maxvolume'], true);
         $maxvolume = $maxvolume[$user['agent']];
         $textcustom = sprintf($textbotlang['users']['sell']['customVolumePrompt4'], $custompricevalue, $mainvolume, $maxvolume);
-        sendmessage($from_id, $textcustom, $backuser, 'html');
+        sendmessage($from_id, $textcustom, withForceReply($backuser), 'html');
         step('gettimecustomvol', $from_id);
         return;
     }
@@ -3623,7 +3714,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
             } else {
                 $back = "buyback";
             }
-            Editmessagetext($from_id, $message_id, $textbotlang['users']['sell']['serviceSelect'], KeyboardProduct($marzban_list_get['name_panel'], $query, $user['pricediscount'], $datakeyboard, $statuscustom, $back, null, "customsellvolume", $queryParams));
+            Editmessagetext($from_id, $message_id, $textbotlang['users']['sell']['serviceSelect'], KeyboardProduct($marzban_list_get['name_panel'], $query, $user['pricediscount'], $datakeyboard, $statuscustom, $back, null, "customsellvolume", $queryParams, favoriteActionValue($from_id, 'buy')));
         }
     } else {
         $nullproduct = select("product", "*", null, null, "count");
@@ -3635,7 +3726,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $statuscustomvolume = json_decode($marzban_list_get['customvolume'], true)[$user['agent']];
         if ($statuscustomvolume == "1" && $marzban_list_get['type'] != "Manualsale")
             $statuscustom = true;
-        $monthkeyboard = keyboardTimeCategory($marzban_list_get['name_panel'], $user['agent'], "productmonth_", "buybacktow", $statuscustom, false);
+        $monthkeyboard = keyboardTimeCategory($marzban_list_get['name_panel'], $user['agent'], "productmonth_", "buybacktow", $statuscustom, false, favoriteActionValue($from_id, 'buy_duration'));
         Editmessagetext($from_id, $message_id, $textbotlang['users']['sell']['selectDuration'], $monthkeyboard);
     }
 } elseif (preg_match('/^categorynames_(.*)/', $datain, $dataget)) {
@@ -3661,7 +3752,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     } else {
         $statuscustom = false;
     }
-    Editmessagetext($from_id, $message_id, $textbotlang['users']['sell']['serviceSelectFirst'], KeyboardProduct($marzban_list_get['name_panel'], $query, $user['pricediscount'], $datakeyboard, $statuscustom, "backuser", null, "customsellvolume", $queryParams));
+    Editmessagetext($from_id, $message_id, $textbotlang['users']['sell']['serviceSelectFirst'], KeyboardProduct($marzban_list_get['name_panel'], $query, $user['pricediscount'], $datakeyboard, $statuscustom, "backuser", null, "customsellvolume", $queryParams, favoriteActionValue($from_id, 'buy')));
 } elseif (preg_match('/^productmonth_(\w+)/', $datain, $dataget)) {
     $monthenumber = $dataget[1];
     $userdate = json_decode($user['Processing_value'], true);
@@ -3703,7 +3794,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         } else {
             $statuscustom = false;
         }
-        Editmessagetext($from_id, $message_id, $textbotlang['users']['sell']['serviceSelectFirst'], KeyboardProduct($marzban_list_get['name_panel'], $query, $user['pricediscount'], $datakeyboard, $statuscustom, "backuser", null, "customsellvolume", $queryParams));
+        Editmessagetext($from_id, $message_id, $textbotlang['users']['sell']['serviceSelectFirst'], KeyboardProduct($marzban_list_get['name_panel'], $query, $user['pricediscount'], $datakeyboard, $statuscustom, "backuser", null, "customsellvolume", $queryParams, favoriteActionValue($from_id, 'buy')));
     }
 } elseif ($datain == "customsellvolume") {
     $userdate = json_decode($user['Processing_value'], true);
@@ -3715,7 +3806,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     $maxvolume = json_decode($marzban_list_get['maxvolume'], true);
     $maxvolume = $maxvolume[$user['agent']];
     $textcustom = sprintf($textbotlang['users']['sell']['customVolumePrompt5'], $custompricevalue, $mainvolume, $maxvolume);
-    sendmessage($from_id, $textcustom, $backuser, 'html');
+    sendmessage($from_id, $textcustom, withForceReply($backuser), 'html');
     deletemessage($from_id, $message_id);
     step('gettimecustomvol', $from_id);
 } elseif ($user['step'] == "gettimecustomvol") {
@@ -3743,7 +3834,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     $customtimevalueprice = $eextraprice[$user['agent']];
     update("user", "Processing_value_one", $text, "id", $from_id);
     $textcustom = sprintf($textbotlang['users']['sell']['customTimePrompt2'], $customtimevalueprice, $maintime, $maxtime);
-    sendmessage($from_id, $textcustom, $backuser, 'html');
+    sendmessage($from_id, $textcustom, withForceReply($backuser), 'html');
     if (in_array(usernameMethodKey($marzban_list_get['MethodUsername']), ['customUsername', 'customUsernameRandom'], true)) {
         step('getvolumecustomusername', $from_id);
     } else {
@@ -4128,6 +4219,8 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $textcreatuser = str_replace('{password}', $dataoutput['subscription_url'], $textcreatuser);
         update("invoice", "user_info", $dataoutput['subscription_url'], "id_invoice", $randomString);
     }
+    trackUserAction($from_id, 'buy', (string) ($info_product['code_product'] ?? ''), (string) ($info_product['name_product'] ?? ''));
+    trackUserAction($from_id, 'buy_duration', (string) ($info_product['Service_time'] ?? ''));
     sendMessageService($marzban_list_get, $dataoutput['configs'], $output_config_link, $dataoutput['username'], $Shoppinginfo, $textcreatuser, $randomString, wireguard: $dataoutput['wireguard'] ?? []);
     sendmessage($from_id, $textbotlang['users']['selectoption'], $keyboard, 'HTML');
     if (in_array(usernameMethodKey($marzban_list_get['MethodUsername']), ['customTextSequential', 'usernameSequential', 'numericIdSequential', 'agentCustomTextSequential'], true)) {
@@ -4386,7 +4479,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     }
     $query = "SELECT * FROM product WHERE (Location = :loc OR Location = '/all') AND agent = :agent ORDER BY display_order, id";
     $queryParams = [':loc' => $location, ':agent' => $user['agent']];
-    Editmessagetext($from_id, $message_id, $textbotlang['users']['sell']['serviceSelect'], KeyboardProduct($marzban_list_get['name_panel'], $query, $user['pricediscount'], $datakeyboard, $statuscustom, "backuser", null, "customsellvolumeom", $queryParams));
+    Editmessagetext($from_id, $message_id, $textbotlang['users']['sell']['serviceSelect'], KeyboardProduct($marzban_list_get['name_panel'], $query, $user['pricediscount'], $datakeyboard, $statuscustom, "backuser", null, "customsellvolumeom", $queryParams, favoriteActionValue($from_id, 'buy')));
 } elseif ($datain == "customsellvolumeom") {
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $user['Processing_value'], "select");
     $eextraprice = json_decode($marzban_list_get['pricecustomvolume'], true);
@@ -4666,6 +4759,8 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $textcreatuser = str_replace('{config}', "<code>{$output_config_link}</code>", $textcreatuser);
         $textcreatuser = str_replace('{links}', "<code>{$config}</code>", $textcreatuser);
         $textcreatuser = str_replace('{links2}', "{$output_config_link}", $textcreatuser);
+        trackUserAction($from_id, 'buy', (string) ($info_product['code_product'] ?? ''), (string) ($info_product['name_product'] ?? ''));
+        trackUserAction($from_id, 'buy_duration', (string) ($info_product['Service_time'] ?? ''));
         sendMessageService($marzban_list_get, $dataoutput['configs'], $output_config_link, $dataoutput['username'], $Shoppinginfo, $textcreatuser, $randomString, wireguard: $dataoutput['wireguard'] ?? []);
     }
     sendmessage($from_id, $textbotlang['users']['selectoption'], $keyboard, 'HTML');
@@ -4704,7 +4799,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
             ]
         ]
     ]);
-    Editmessagetext($from_id, $message_id, sprintf($textbotlang['users']['Balance']['enterAmount'], $minbalance, $maxbalance), $bakinfos, 'HTML');
+    Editmessagetext($from_id, $message_id, sprintf($textbotlang['users']['Balance']['enterAmount'], $minbalance, $maxbalance), withForceReply($bakinfos), 'HTML');
     step('getprice', $from_id);
     update("user", 'Processing_value', $message_id, "id", $from_id);
 } elseif ($user['step'] == "getprice") {
@@ -6676,7 +6771,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     } else {
         $statuscustom = false;
     }
-    Editmessagetext($from_id, $message_id, $textbotlang['users']['extend']['selectservice'], KeyboardProduct($marzban_list_get['name_panel'], $query, $user['pricediscount'], "serviceextendselects-", false, "backuser", $username, "customsellvolume", $queryParams));
+    Editmessagetext($from_id, $message_id, $textbotlang['users']['extend']['selectservice'], KeyboardProduct($marzban_list_get['name_panel'], $query, $user['pricediscount'], "serviceextendselects-", false, "backuser", $username, "customsellvolume", $queryParams, favoriteActionValue($from_id, 'extend')));
 } elseif (preg_match('/^serviceextendselects-(.*)-(.*)/', $datain, $dataget)) {
     deletemessage($from_id, $message_id);
     $codeproduct = $dataget[1];

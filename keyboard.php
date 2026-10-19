@@ -47,6 +47,14 @@ $agentPanelAllowed = $users['agent'] != "f";
 $agentRequestAllowed = $users['agent'] == "f";
 if (!empty($keyboardRows)) {
     $allowed_btn_styles = ['primary', 'success', 'danger'];
+    $modern_buttons_on = (($setting['modern_buttons'] ?? '1') == '1');
+    $default_btn_styles = [
+        'text_sell' => 'primary',
+        'accountwallet' => 'success',
+        'text_support' => 'primary',
+        'text_usertest' => 'primary',
+        'text_extend' => 'success',
+    ];
     foreach ($keyboardRows as $kb_r => $kb_row) {
         if (!is_array($kb_row)) {
             continue;
@@ -59,6 +67,9 @@ if (!empty($keyboardRows)) {
                 unset($keyboardRows[$kb_r][$kb_c]['style']);
             }
             $kb_text = isset($kb_btn['text']) ? $kb_btn['text'] : '';
+            if ($modern_buttons_on && !isset($keyboardRows[$kb_r][$kb_c]['style']) && isset($default_btn_styles[$kb_text])) {
+                $keyboardRows[$kb_r][$kb_c]['style'] = $default_btn_styles[$kb_text];
+            }
             if (($kb_text === "text_agentpanel" && !$agentPanelAllowed) || ($kb_text === "text_requestagent" && !$agentRequestAllowed)) {
                 unset($keyboardRows[$kb_r][$kb_c]);
             }
@@ -406,6 +417,8 @@ $featureCategories = [
             'notifnew' => ['label' => $textbotlang['Admin']['Status']['statusNotifNewUser'], 'setting' => 'statusnewuser', 'on' => 'onnewuser', 'off' => 'offnewuser'],
             'usernamebtn' => ['label' => $textbotlang['Admin']['Status']['statusUsernameBtn'], 'setting' => 'NotUser', 'on' => 'onnotuser', 'off' => 'offnotuser'],
             'inlinebtnmain' => ['label' => $textbotlang['Admin']['Status']['inlinebtns'], 'setting' => 'inlinebtnmain', 'on' => 'oninline', 'off' => 'offinline'],
+            'modern_buttons' => ['label' => $textbotlang['Admin']['Status']['modernButtons'], 'setting' => 'modern_buttons', 'on' => '1', 'off' => '0'],
+            'rich_messages' => ['label' => $textbotlang['Admin']['Status']['richMessages'], 'setting' => 'rich_messages', 'on' => '1', 'off' => '0'],
             'keyconfig' => ['label' => $textbotlang['keyboard']['configKeyboard'], 'setting' => 'status_keyboard_config', 'on' => '1', 'off' => '0'],
             'statussupportpv' => ['label' => $textbotlang['keyboard']['supportInPv'], 'setting' => 'statussupportpv', 'on' => 'onpvsupport', 'off' => 'offpvsupport'],
             'btn_status_category' => ['label' => $textbotlang['keyboard']['educationCategory'], 'setting' => 'categoryhelp', 'on' => '1', 'off' => '0'],
@@ -1332,7 +1345,7 @@ $keyboardlinkapp = json_encode([
     ],
     'resize_keyboard' => true
 ]);
-function KeyboardProduct($location, $query, $pricediscount, $datakeyboard, $statuscustom = false, $backuser = "backuser", $valuetow = null, $customvolume = "customsellvolume", $queryParams = [])
+function KeyboardProduct($location, $query, $pricediscount, $datakeyboard, $statuscustom = false, $backuser = "backuser", $valuetow = null, $customvolume = "customsellvolume", $queryParams = [], ?string $favoriteCode = null)
 {
     global $pdo, $textbotlang, $from_id;
     $product = ['inline_keyboard' => []];
@@ -1369,12 +1382,15 @@ function KeyboardProduct($location, $query, $pricediscount, $datakeyboard, $stat
         }
         if ($result['status_product'] == "disable" && str_starts_with($datakeyboard, "prodcutservice")) {
             $product['inline_keyboard'][] = [
-                ['text' => $result['name_product'] . " | " . $textbotlang['keyboard']['productSoldOut'], 'callback_data' => "productsoldout"]
+                ['text' => $result['name_product'] . " | " . $textbotlang['keyboard']['productSoldOut'], 'callback_data' => "productsoldout", 'disabled' => true]
             ];
             continue;
         }
         $product['inline_keyboard'][] = [
-            ['text' => $result['name_product'], 'callback_data' => "{$datakeyboard}{$result['code_product']}{$valuetow}"]
+            [
+                'text' => ($favoriteCode !== null && (string) $result['code_product'] === (string) $favoriteCode ? '🔥 ' : '') . $result['name_product'],
+                'callback_data' => "{$datakeyboard}{$result['code_product']}{$valuetow}"
+            ]
         ];
     }
     if ($statuscustom)
@@ -1410,7 +1426,7 @@ function KeyboardCategory($location, $agent, $backuser = "backuser")
     return json_encode($list_category);
 }
 
-function keyboardTimeCategory($name_panel, $agent, $callback_data = "producttime_", $callback_data_back = "backuser", $statuscustomvolume = false, $statusbtnextend = false)
+function keyboardTimeCategory($name_panel, $agent, $callback_data = "producttime_", $callback_data_back = "backuser", $statuscustomvolume = false, $statusbtnextend = false, ?string $favoriteDuration = null)
 {
     global $pdo, $textbotlang;
     $stmt = $pdo->prepare("SELECT (Service_time) FROM product WHERE (Location = :name_panel OR Location = '/all') AND  agent = :agent");
@@ -1418,77 +1434,49 @@ function keyboardTimeCategory($name_panel, $agent, $callback_data = "producttime
     $stmt->bindValue(':agent', $agent, PDO::PARAM_STR);
     $stmt->execute();
     $montheproduct = array_flip(array_flip($stmt->fetchAll(PDO::FETCH_COLUMN)));
+    $slotStmt = $pdo->prepare("SELECT Service_time, COUNT(*) AS total, SUM(status_product = 'disable') AS disabled FROM product WHERE (Location = :name_panel OR Location = '/all') AND agent = :agent GROUP BY Service_time");
+    $slotStmt->bindValue(':name_panel', $name_panel, PDO::PARAM_STR);
+    $slotStmt->bindValue(':agent', $agent, PDO::PARAM_STR);
+    $slotCounts = [];
+    foreach ($slotStmt->fetchAll(PDO::FETCH_ASSOC) as $slotRow) {
+        $slotCounts[(string) $slotRow['Service_time']] = ['total' => (int) $slotRow['total'], 'disabled' => (int) $slotRow['disabled']];
+    }
+    $durationSlots = [
+        ['1day', '1'],
+        ['7day', '7'],
+        ['1', '31'],
+        ['1', '30'],
+        ['2', '61'],
+        ['2', '60'],
+        ['3', '91'],
+        ['3', '90'],
+        ['4', '121'],
+        ['4', '120'],
+        ['6', '181'],
+        ['6', '180'],
+        ['365', '365'],
+        ['byVolume', '0'],
+    ];
     $monthkeyboard = ['inline_keyboard' => []];
-    if (in_array("1", $montheproduct)) {
-        $monthkeyboard['inline_keyboard'][] = [
-            ['text' => $textbotlang['common']['duration']['1day'], 'callback_data' => "{$callback_data}1"]
+    $favoriteRow = null;
+    foreach ($durationSlots as [$labelKey, $days]) {
+        if (!in_array($days, $montheproduct))
+            continue;
+        $slotButton = [
+            'text' => $textbotlang['common']['duration'][$labelKey],
+            'callback_data' => "{$callback_data}{$days}"
         ];
+        if (isset($slotCounts[$days]) && $slotCounts[$days]['disabled'] >= $slotCounts[$days]['total'])
+            $slotButton['disabled'] = true;
+        if ($favoriteDuration !== null && (string) $days === (string) $favoriteDuration && empty($slotButton['disabled'])) {
+            $slotButton['text'] = '🔥 ' . $slotButton['text'];
+            $favoriteRow = [$slotButton];
+            continue;
+        }
+        $monthkeyboard['inline_keyboard'][] = [$slotButton];
     }
-    if (in_array("7", $montheproduct)) {
-        $monthkeyboard['inline_keyboard'][] = [
-            ['text' => $textbotlang['common']['duration']['7day'], 'callback_data' => "{$callback_data}7"]
-        ];
-    }
-    if (in_array("31", $montheproduct)) {
-        $monthkeyboard['inline_keyboard'][] = [
-            ['text' => $textbotlang['common']['duration']['1'], 'callback_data' => "{$callback_data}31"]
-        ];
-    }
-    if (in_array("30", $montheproduct)) {
-        $monthkeyboard['inline_keyboard'][] = [
-            ['text' => $textbotlang['common']['duration']['1'], 'callback_data' => "{$callback_data}30"]
-        ];
-    }
-    if (in_array("61", $montheproduct)) {
-        $monthkeyboard['inline_keyboard'][] = [
-            ['text' => $textbotlang['common']['duration']['2'], 'callback_data' => "{$callback_data}61"]
-        ];
-    }
-    if (in_array("60", $montheproduct)) {
-        $monthkeyboard['inline_keyboard'][] = [
-            ['text' => $textbotlang['common']['duration']['2'], 'callback_data' => "{$callback_data}60"]
-        ];
-    }
-    if (in_array("91", $montheproduct)) {
-        $monthkeyboard['inline_keyboard'][] = [
-            ['text' => $textbotlang['common']['duration']['3'], 'callback_data' => "{$callback_data}91"]
-        ];
-    }
-    if (in_array("90", $montheproduct)) {
-        $monthkeyboard['inline_keyboard'][] = [
-            ['text' => $textbotlang['common']['duration']['3'], 'callback_data' => "{$callback_data}90"]
-        ];
-    }
-    if (in_array("121", $montheproduct)) {
-        $monthkeyboard['inline_keyboard'][] = [
-            ['text' => $textbotlang['common']['duration']['4'], 'callback_data' => "{$callback_data}121"]
-        ];
-    }
-    if (in_array("120", $montheproduct)) {
-        $monthkeyboard['inline_keyboard'][] = [
-            ['text' => $textbotlang['common']['duration']['4'], 'callback_data' => "{$callback_data}120"]
-        ];
-    }
-    if (in_array("181", $montheproduct)) {
-        $monthkeyboard['inline_keyboard'][] = [
-            ['text' => $textbotlang['common']['duration']['6'], 'callback_data' => "{$callback_data}181"]
-        ];
-    }
-    if (in_array("180", $montheproduct)) {
-        $monthkeyboard['inline_keyboard'][] = [
-            ['text' => $textbotlang['common']['duration']['6'], 'callback_data' => "{$callback_data}180"]
-        ];
-    }
-    if (in_array("365", $montheproduct)) {
-        $monthkeyboard['inline_keyboard'][] = [
-            ['text' => $textbotlang['common']['duration']['365'], 'callback_data' => "{$callback_data}365"]
-        ];
-    }
-    if (in_array("0", $montheproduct)) {
-        $monthkeyboard['inline_keyboard'][] = [
-            ['text' => $textbotlang['common']['duration']['byVolume'], 'callback_data' => "{$callback_data}0"]
-        ];
-    }
+    if ($favoriteRow !== null)
+        array_unshift($monthkeyboard['inline_keyboard'], $favoriteRow);
     if ($statusbtnextend)
         $monthkeyboard['inline_keyboard'][] = [['text' => $textbotlang['keyboard']['renewCurrentPlan'], 'callback_data' => "exntedagei"]];
     if ($statuscustomvolume == true)

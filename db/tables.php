@@ -31,4 +31,5 @@ return [
     'category',
     'reagent_report',
     'panel_data_cache',
+    'user_action_stats',
 ];

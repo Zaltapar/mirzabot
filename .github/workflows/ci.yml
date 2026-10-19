@@ -124,13 +124,22 @@ jobs:
           if ($tables !== "panel_data_cache") { echo "MISSING TABLE panel_data_cache\n"; $fail = 1; }
            $idx = $q("SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_NAME = \"panel_data_cache\" AND INDEX_NAME = \"uniq_panelcache_key\" AND TABLE_SCHEMA = DATABASE()");
            if ($idx != 1) { echo "MISSING UNIQUE KEY uniq_panelcache_key\n"; $fail = 1; }
-          foreach (["code_product", "auto_extend", "auto_extend_msg_at"] as $col) {
+          foreach (["code_product", "auto_extend", "auto_extend_msg_at", "delivered_message_id"] as $col) {
               $c = $q("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_NAME = \"invoice\" AND COLUMN_NAME = \"$col\" AND TABLE_SCHEMA = DATABASE()");
               if ($c != 1) { echo "MISSING invoice.$col\n"; $fail = 1; }
           }
           $acc = $q("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_NAME = \"setting\" AND COLUMN_NAME = \"accountsummary\" AND TABLE_SCHEMA = DATABASE()");
           if ($acc != 1) { echo "MISSING setting.accountsummary\n"; $fail = 1; }
+          foreach (["rich_messages", "modern_buttons", "force_reply"] as $col) {
+              $c = $q("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_NAME = \"setting\" AND COLUMN_NAME = \"$col\" AND TABLE_SCHEMA = DATABASE()");
+              if ($c != 1) { echo "MISSING setting.$col\n"; $fail = 1; }
+          }
           if ($q("SHOW TABLES LIKE \"schema_flags\"") !== "schema_flags") { echo "MISSING TABLE schema_flags\n"; $fail = 1; }
+          if ($q("SHOW TABLES LIKE \"user_action_stats\"") !== "user_action_stats") { echo "MISSING TABLE user_action_stats\n"; $fail = 1; }
+          foreach (["id_user", "kind", "value", "label", "counter", "last_used"] as $col) {
+              $c = $q("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_NAME = \"user_action_stats\" AND COLUMN_NAME = \"$col\" AND TABLE_SCHEMA = DATABASE()");
+              if ($c != 1) { echo "MISSING user_action_stats.$col\n"; $fail = 1; }
+          }
           $flag = $q("SELECT COUNT(*) FROM schema_flags WHERE flag = \"inlinebtnmain_oninline_default\"");
           if ($flag != 1) { echo "MIGRATION 017 did not run\n"; $fail = 1; }
           $inline = $q("SELECT inlinebtnmain FROM setting");

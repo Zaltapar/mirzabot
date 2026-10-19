@@ -1323,8 +1323,8 @@ function DirectPayment($order_id, $image = 'images.jpg')
             sendmessage($Balance_id['id'], sprintf($textbotlang['users']['Balance']['addedNotice5'], number_format($orderPrice)), $keyboard, 'HTML');
             return;
         }
-        $dataoutput = $ManagePanel->createUser($marzban_list_get['name_panel'], $info_product['code_product'], $username_ac, $datac);
-        if (!is_array($dataoutput) || empty($dataoutput['username'])) {
+        startBotDraft($Balance_id['id'], '⚙️ …');
+        $dataoutput = $ManagePanel->createUser($marzban_list_get['name_panel'], $info_product['code_product'], $username_ac, $datac);        if (!is_array($dataoutput) || empty($dataoutput['username'])) {
             update("invoice", "Status", $invoiceStatusBefore, "id_invoice", $get_invoice['id_invoice']);
             $dataoutput['msg'] = json_encode($dataoutput['msg'] ?? $dataoutput ?? 'unknown error');
             addBalance($Balance_id['id'], $orderPrice);
@@ -1373,6 +1373,8 @@ function DirectPayment($order_id, $image = 'images.jpg')
             $textcreatuser = str_replace('{password}', $dataoutput['subscription_url'], $textcreatuser);
             update("invoice", "user_info", $dataoutput['subscription_url'], "id_invoice", $get_invoice['id_invoice']);
         }
+        trackUserAction($get_invoice['id_user'] ?? $Balance_id['id'], 'buy', (string) ($info_product['code_product'] ?? $code_product_inv), (string) ($info_product['name_product'] ?? $get_invoice['name_product'] ?? ''));
+        trackUserAction($get_invoice['id_user'] ?? $Balance_id['id'], 'buy_duration', (string) ($info_product['Service_time'] ?? $get_invoice['Service_time'] ?? ''));
         sendMessageService($marzban_list_get, $dataoutput['configs'], $output_config_link, $dataoutput['username'], $Shoppinginfo, $textcreatuser, $get_invoice['id_invoice'], $get_invoice['id_user'], $image, wireguard: $dataoutput['wireguard'] ?? []);
         $partsdic = explode("_", $Balance_id['Processing_value_four']);
         if ($partsdic[0] == "dis") {
@@ -1537,6 +1539,8 @@ function DirectPayment($order_id, $image = 'images.jpg')
 
         update("service_other", "output", json_encode($extend), "id", $service_order['id']);
         update("service_other", "status", "paid", "id", $service_order['id']);
+        trackUserAction($nameloc['id_user'] ?? $Balance_id['id'], 'extend', (string) ($prodcut['code_product'] ?? ''), (string) ($prodcut['name_product'] ?? ''));
+        trackUserAction($nameloc['id_user'] ?? $Balance_id['id'], 'duration', (string) ($prodcut['Service_time'] ?? ''));
         bustPanelDataCache($nameloc['Service_location'], $nameloc['username']);
         $partsdic = explode("_", $Balance_id['Processing_value_four']);
         if ($partsdic[0] == "dis") {
@@ -1627,6 +1631,7 @@ function DirectPayment($order_id, $image = 'images.jpg')
         }
         update("service_other", "output", json_encode($extra_volume), "id", $service_order['id']);
         update("service_other", "status", "paid", "id", $service_order['id']);
+        trackUserAction($nameloc['id_user'] ?? $Balance_id['id'], 'service', 'Extra_volume');
         bustPanelDataCache($nameloc['Service_location'], $nameloc['username']);
         $keyboardextrafnished = json_encode([
             'inline_keyboard' => [
@@ -1685,6 +1690,7 @@ function DirectPayment($order_id, $image = 'images.jpg')
         }
         update("service_other", "output", json_encode($extra_time), "id", $service_order['id']);
         update("service_other", "status", "paid", "id", $service_order['id']);
+        trackUserAction($nameloc['id_user'] ?? $Balance_id['id'], 'service', 'Extra_time');
         bustPanelDataCache($nameloc['Service_location'], $nameloc['username']);
         $keyboardextrafnished = json_encode([
             'inline_keyboard' => [
@@ -2417,6 +2423,69 @@ function applyKeyboardLabels($rows, array $labels)
     }
     return array_values($rows);
 }
+function botSettingOn($key)
+{
+    global $setting;
+    return is_array($setting) && (($setting[$key] ?? '1') == '1');
+}
+function withForceReply($markup)
+{
+    $wasJson = is_string($markup);
+    $arr = $wasJson ? json_decode((string) $markup, true) : $markup;
+    if (!is_array($arr) || !botSettingOn('force_reply')) {
+        return $markup;
+    }
+    $arr['force_reply'] = true;
+    return $wasJson ? json_encode($arr, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : $arr;
+}
+function richMessagesEnabled()
+{
+    static $cached = null;
+    if ($cached === null)
+        $cached = botSettingOn('rich_messages');
+    return $cached;
+}
+/**
+ * Sends a rich message (markdown format). Returns true when the rich message was
+ * delivered; returns false so callers can fall back to the classic message.
+ */
+function sendRichMarkdown($chat_id, string $markdown, $fallbackText = null, $fallbackMarkup = null, $fallbackParseMode = 'HTML')
+{
+    if (!richMessagesEnabled()) {
+        return false;
+    }
+    $markdown = trim($markdown);
+    if ($markdown === '')
+        return false;
+    $response = telegram('sendRichMessage', [
+        'chat_id' => $chat_id,
+        'rich_message' => ['markdown' => $markdown],
+    ]);
+    if (is_array($response) && ($response['ok'] ?? false)) {
+        return true;
+    }
+    if ($fallbackText !== null) {
+        sendmessage($chat_id, $fallbackText, $fallbackMarkup, $fallbackParseMode);
+    }
+    return false;
+}
+/**
+ * Shows a short-lived ephemeral draft ("generating...") in the chat. The next
+ * regular sendMessage by the bot replaces it. Safe to call anywhere - on any
+ * API error it silently does nothing.
+ */
+function startBotDraft($chat_id, $text = '')
+{
+    if (!richMessagesEnabled() || !is_scalar($chat_id)) {
+        return false;
+    }
+    $response = telegram('sendMessageDraft', [
+        'chat_id' => (int) $chat_id,
+        'draft_id' => random_int(1, 2000000000),
+        'text' => (string) $text,
+    ]);
+    return is_array($response) && ($response['ok'] ?? false);
+}
 function languagechange($path_dir = null, string $lang = 'fa')
 {
     global $from_id;
@@ -2663,6 +2732,95 @@ function isBase64($string)
     }
     return false;
 }
+function trackUserAction($id_user, string $kind, string $value, ?string $label = null): void
+{
+    global $pdo;
+    $id_user = trim((string) $id_user);
+    $value = trim($value);
+    if ($id_user === '' || $value === '') {
+        return;
+    }
+    try {
+        $stmt = $pdo->prepare("INSERT INTO user_action_stats (id_user, kind, value, label, counter, last_used) VALUES (?, ?, ?, ?, 1, ?) ON DUPLICATE KEY UPDATE counter = counter + 1, label = COALESCE(VALUES(label), label), last_used = VALUES(last_used)");
+        $stmt->execute([
+            mb_substr($id_user, 0, 200, 'UTF-8'),
+            mb_substr($kind, 0, 50, 'UTF-8'),
+            mb_substr($value, 0, 200, 'UTF-8'),
+            $label === null || trim($label) === '' ? null : mb_substr(trim($label), 0, 300, 'UTF-8'),
+            date('Y/m/d H:i:s'),
+        ]);
+        unset($GLOBALS['mirza_action_counts'][$id_user . '|' . $kind]);
+    } catch (Exception $e) {
+    }
+}
+
+function userActionCounts($id_user, string $kind): array
+{
+    global $pdo;
+    $id_user = trim((string) $id_user);
+    if ($id_user === '') {
+        return [];
+    }
+    $cacheKey = $id_user . '|' . $kind;
+    if (isset($GLOBALS['mirza_action_counts'][$cacheKey])) {
+        return $GLOBALS['mirza_action_counts'][$cacheKey];
+    }
+    $counts = [];
+    try {
+        $stmt = $pdo->prepare("SELECT value, counter FROM user_action_stats WHERE id_user = ? AND kind = ?");
+        $stmt->execute([$id_user, mb_substr($kind, 0, 50, 'UTF-8')]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $counts[(string) $row['value']] = (int) $row['counter'];
+        }
+    } catch (Exception $e) {
+    }
+    $GLOBALS['mirza_action_counts'][$cacheKey] = $counts;
+    return $counts;
+}
+
+function topUserAction($id_user, string $kind): ?array
+{
+    global $pdo;
+    $id_user = trim((string) $id_user);
+    if ($id_user === '') {
+        return null;
+    }
+    try {
+        $stmt = $pdo->prepare("SELECT value, label, counter FROM user_action_stats WHERE id_user = ? AND kind = ? ORDER BY counter DESC, last_used DESC LIMIT 1");
+        $stmt->execute([$id_user, mb_substr($kind, 0, 50, 'UTF-8')]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row === false ? null : $row;
+    } catch (Exception $e) {
+        return null;
+    }
+}
+
+function sortByUserPreference(array $rows, array $counts, string $column): array
+{
+    if ($counts === [] || count($rows) < 2) {
+        return $rows;
+    }
+    $indexed = [];
+    foreach ($rows as $row) {
+        $indexed[] = ['row' => $row, 'count' => $counts[(string) ($row[$column] ?? '')] ?? 0];
+    }
+    usort($indexed, static fn ($a, $b) => $b['count'] <=> $a['count']);
+    return array_column($indexed, 'row');
+}
+
+function favoriteActionValue($id_user, string $kind): ?string
+{
+    $top = topUserAction($id_user, $kind);
+    return $top === null ? null : (string) $top['value'];
+}
+
+function storeDeliveredMessage($response, $invoice_id){
+    $messageId = is_array($response) ? ($response['result']['message_id'] ?? null) : null;
+    if ($invoice_id === null || !is_array($response) || ($response['ok'] ?? false) === false || $messageId === null || !ctype_digit((string) $messageId)) {
+        return;
+    }
+    update("invoice", "delivered_message_id", (string) $messageId, "id_invoice", $invoice_id);
+}
 function sendMessageService($panel_info, $config, $sub_link, $username_service, $reply_markup, $caption, $invoice_id, $user_id = null, $image = 'images.jpg', $wireguard = [])
 {
     global $setting, $from_id, $textbotlang;
@@ -2684,18 +2842,20 @@ function sendMessageService($panel_info, $config, $sub_link, $username_service, 
     if ($STATUS_SEND_MESSAGE_PHOTO) {
         if ($panel_info['type'] == "WGDashboard") {
             $urlimage = qrTempPath("{$panel_info['inboundid']}_{$invoice_id}.conf");
-            if (@file_put_contents($urlimage, $sub_link) === false) {
-                sendmessage($user_id, $caption, $reply_markup, 'HTML');
-            } else {
-                telegram('senddocument', [
-                    'chat_id' => $user_id,
-                    'document' => new CURLFile($urlimage),
-                    'reply_markup' => $reply_markup,
-                    'caption' => $caption,
-                    'parse_mode' => "HTML",
-                ]);
-                @unlink($urlimage);
-            }
+        if (@file_put_contents($urlimage, $sub_link) === false) {
+            $response = sendmessage($user_id, $caption, $reply_markup, 'HTML');
+            storeDeliveredMessage($response, $invoice_id);
+        } else {
+            $response = telegram('senddocument', [
+                'chat_id' => $user_id,
+                'document' => new CURLFile($urlimage),
+                'reply_markup' => $reply_markup,
+                'caption' => $caption,
+                'parse_mode' => "HTML",
+            ]);
+            storeDeliveredMessage($response, $invoice_id);
+            @unlink($urlimage);
+        }
         } else {
             $urlimage = qrTempPath("$user_id$invoice_id.png");
             $qrCode = createqrcode($out_put_qrcode);
@@ -2710,18 +2870,59 @@ function sendMessageService($panel_info, $config, $sub_link, $username_service, 
                     'parse_mode' => "HTML",
                 ]);
                 $photoSent = is_array($response) && !empty($response['ok']);
+                if ($photoSent) {
+                    storeDeliveredMessage($response, $invoice_id);
+                }
                 @unlink($urlimage);
             }
             if (!$photoSent) {
-                sendmessage($user_id, $caption, $reply_markup, 'HTML');
+                $response = sendmessage($user_id, $caption, $reply_markup, 'HTML');
+                storeDeliveredMessage($response, $invoice_id);
             }
         }
     } else {
-        sendmessage($user_id, $caption, $reply_markup, 'HTML');
+        $response = sendmessage($user_id, $caption, $reply_markup, 'HTML');
+        storeDeliveredMessage($response, $invoice_id);
     }
     if ($panel_info['config'] == "onconfig" && $setting['status_keyboard_config'] == "1") {
-        if (is_array($config)) {
-            sendmessage($user_id, $textbotlang['users']['status']['getConfigHint'], keyboard_config($config, $invoice_id, false), 'HTML');
+        if (is_array($config) && count($config) > 0) {
+            $configMarkup = keyboard_config($config, $invoice_id, false);
+            $richSent = false;
+            if (richMessagesEnabled()) {
+                $configRows = [];
+                foreach ($config as $configUrl) {
+                    if (!is_string($configUrl) || trim($configUrl) === '') {
+                        continue;
+                    }
+                    $configRows[] = '<code>' . htmlspecialchars(trim($configUrl), ENT_QUOTES) . '</code>';
+                }
+                if ($configRows !== []) {
+                    $hintTitle = $textbotlang['users']['status']['getConfigHint'];
+                    $copyButtons = [];
+                    $copyIndex = 1;
+                    foreach ($config as $configUrl) {
+                        if (!is_string($configUrl) || trim($configUrl) === '') {
+                            continue;
+                        }
+                        $copyButtons[] = '<tg-button type="copy_text" text="' . htmlspecialchars(trim($configUrl), ENT_QUOTES) . '">✅ ' . $copyIndex++ . '</tg-button>';
+                    }
+                    $richCard = '<details open><summary>' . htmlspecialchars($hintTitle, ENT_QUOTES) . '</summary>'
+                        . '<ul><li>' . implode('</li><li>', $configRows) . '</li></ul>'
+                        . '</details>';
+                    if ($copyButtons !== []) {
+                        $richCard .= '<p>' . implode(' ', $copyButtons) . '</p>';
+                    }
+                    $richResponse = telegram('sendRichMessage', [
+                        'chat_id' => $user_id,
+                        'rich_message' => ['html' => $richCard],
+                        'reply_markup' => $configMarkup,
+                    ]);
+                    $richSent = is_array($richResponse) && ($richResponse['ok'] ?? false);
+                }
+            }
+            if (!$richSent) {
+                sendmessage($user_id, $textbotlang['users']['status']['getConfigHint'], $configMarkup, 'HTML');
+            }
         }
     }
     sendWireguardFiles($user_id, $wireguard, $username_service);

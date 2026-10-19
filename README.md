@@ -24,7 +24,7 @@
     <img src="https://img.shields.io/github/actions/workflow/status/Zaltapar/mirzabot/ci.yml?style=flat-square" alt="CI"/>
   </a>
   <img src="https://img.shields.io/badge/PHP-8.2-777BB4?style=flat-square&logo=php&logoColor=white" alt="PHP 8.2"/>
-  <img src="https://img.shields.io/badge/version-1.0-8B949E?style=flat-square" alt="Version"/>
+  <img src="https://img.shields.io/badge/version-1.1-8B949E?style=flat-square" alt="Version"/>
 </p>
 
 </div>
@@ -65,6 +65,15 @@ This enhanced edition layers a set of interactivity, UX and performance improvem
 ---
 
 ## 🆕 What's New in This Version
+
+### New in 1.1
+- **Smart suggestions** — the bot learns each customer's most-used renewal plan, plan duration and service action; the favourite is marked with 🔥 and surfaced first (service actions are hoisted, plans reordered).
+- **Telegram `copyMessage` resend** — customers can re-deliver their original purchase message straight from the service page.
+- **Rich messages & drafts** (opt-in) — `sendRichMarkdown` cards for deliveries and a live checkout draft via Bot API 10.x, with automatic fallback to classic messages.
+- **Force-reply prompts** — every numeric input (volume, duration, balance, discount) requests a reply keyboard instead of a silent text prompt.
+- **Modern button styles** — primary/success/danger colours on main-menu buttons and disabled buttons for sold-out products.
+- **Spreadsheet exports** — panel now exports payments, users, invoices and a summary sheet as `.xlsx` (CSV-free, 50k-row cap).
+- **`restore.php`** — CLI tool to roll back to any `sync.php` snapshot (database + files), with a typed confirmation.
 
 ### Interactivity & UX
 - **Inline main menu by default** — the primary menu is served as an inline keyboard (one-time migration flips existing installs automatically).
