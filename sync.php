@@ -251,7 +251,7 @@ function run_mysqldump(array $creds, string $outFile): bool
     }
     $pass = str_replace("'", '', $creds['pass']);
     $cmd = sprintf(
-        '%s --host=%s --user=%s --password=%s --routines --triggers %s > %s 2>/dev/null',
+        '%s --host=%s --user=%s --password=%s --single-transaction --skip-lock-tables --quick --routines --triggers %s > %s 2>/dev/null',
         escapeshellarg($binary),
         escapeshellarg($creds['host']),
         escapeshellarg($creds['user']),
