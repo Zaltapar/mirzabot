@@ -24,7 +24,7 @@
     <img src="https://img.shields.io/github/actions/workflow/status/Zaltapar/mirzabot/ci.yml?style=flat-square" alt="CI"/>
   </a>
   <img src="https://img.shields.io/badge/PHP-8.2-777BB4?style=flat-square&logo=php&logoColor=white" alt="PHP 8.2"/>
-  <img src="https://img.shields.io/badge/version-0.10-8B949E?style=flat-square" alt="Version"/>
+  <img src="https://img.shields.io/badge/version-1.0-8B949E?style=flat-square" alt="Version"/>
 </p>
 
 </div>
