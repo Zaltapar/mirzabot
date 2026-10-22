@@ -26,7 +26,9 @@ Options -Indexes
 
 # Compress the big JS/CSS bundles (Vite output + Telegram SDK).
 <IfModule mod_deflate.c>
-    AddOutputFilterByType gzip application/javascript text/javascript application/json text/css text/html image/svg+xml application/wasm
+    <IfModule mod_filter.c>
+        AddOutputFilterByType DEFLATE application/javascript text/javascript application/json text/css text/html image/svg+xml application/wasm
+    </IfModule>
     GzipVary On
     GzipProxied On
 </IfModule>

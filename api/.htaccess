@@ -27,7 +27,9 @@ Options -Indexes
 
 # Compress JSON API responses for slow connections.
 <IfModule mod_deflate.c>
-    AddOutputFilterByType gzip application/json
+    <IfModule mod_filter.c>
+        AddOutputFilterByType DEFLATE application/json
+    </IfModule>
     GzipVary On
     GzipProxied On
 </IfModule>
