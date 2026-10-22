@@ -344,7 +344,10 @@ do_install() {
   ok "composer done"
 
   log "Running schema bootstrap + migrations + webhook (table.php)"
-  run php "$install_dir/table.php" || die "table.php failed - check $install_dir/error_log"
+  # table.php loads config.php relative to the working directory - run it from
+  # the install dir so the live config (not a template) is used.
+  cd "$install_dir" || die "Cannot cd into $install_dir"
+  run php table.php || die "table.php failed - check $install_dir/error_log"
   ok "schema + webhook ready"
 
   # Apache: enable + point the vhost at the new dir.

@@ -152,12 +152,36 @@ if (!$needComposer) {
 // ------------------------------------------------- schema, migrations, webhook
 step('Running schema bootstrap + migrations + indexes + webhook (table.php)');
 $phpBin = PHP_BINARY;
+// table.php's config load is relative (function.php: require 'config.php'), so it
+// must run with the target install dir as the working directory.
+chdir($targetDir);
 $rc = 0;
-passthru(escapeshellarg($phpBin) . ' ' . escapeshellarg($targetDir . '/table.php'), $rc);
+passthru(escapeshellarg($phpBin) . ' ' . escapeshellarg('table.php'), $rc);
 if ($rc !== 0) {
     fail('table.php failed (exit ' . $rc . "). Check the target's error_log. The code files are in place, but "
-        . 'the database schema may not be up to date yet - fix DB access and run: '
-        . escapeshellarg($phpBin) . ' ' . escapeshellarg($targetDir . '/table.php'));
+        . 'the database schema may not be up to date yet - run: cd ' . escapeshellarg($targetDir) . ' && '
+        . escapeshellarg($phpBin) . ' table.php');
+}
+$checkFile = $backupDir . '/.db_check.php';
+if (!is_dir($backupDir)) {
+    @mkdir($backupDir, 0775, true);
+}
+file_put_contents($checkFile, <<<'CHECK'
+<?php
+require 'config.php';
+$ok = is_object($pdo);
+if ($ok) {
+    $ok = (int) $pdo->query('SHOW TABLES LIKE "user_action_stats"')->fetchColumn() === 1;
+}
+exit($ok ? 0 : 3);
+CHECK);
+$rc2 = 0;
+exec(escapeshellarg($phpBin) . ' ' . escapeshellarg($checkFile) . ' 2>/dev/null', $checkOut, $rc2);
+@unlink($checkFile);
+if ($rc2 !== 0) {
+    fail('table.php reported success but the database schema was NOT applied '
+        . '(connection failed or user_action_stats missing). Run manually: cd '
+        . escapeshellarg($targetDir) . ' && ' . escapeshellarg($phpBin) . ' table.php');
 }
 info('table.php done - schema, migrations and webhook are up to date.');
 
