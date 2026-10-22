@@ -2811,7 +2811,12 @@ function sortByUserPreference(array $rows, array $counts, string $column): array
 function favoriteActionValue($id_user, string $kind): ?string
 {
     $top = topUserAction($id_user, $kind);
-    return $top === null ? null : (string) $top['value'];
+    // Only surface a suggestion once the user has actually repeated it -
+    // a single tap must not win the "most used" slot.
+    if ($top === null || (int) ($top['counter'] ?? 0) < 2) {
+        return null;
+    }
+    return (string) $top['value'];
 }
 
 function storeDeliveredMessage($response, $invoice_id){

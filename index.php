@@ -1106,12 +1106,12 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
             unset($keyboarddate['Extra_time']);
         if ($marzbanstatusextra == "offextra")
             unset($keyboarddate['Extra_volume']);
+        $favoriteRow = null;
         $favoriteServiceAction = favoriteActionValue($from_id, 'service');
         if ($favoriteServiceAction !== null && isset($keyboarddate[$favoriteServiceAction])) {
             $favoriteButton = $keyboarddate[$favoriteServiceAction];
-            $favoriteButton['text'] = '🔥 ' . $favoriteButton['text'];
+            $favoriteRow = ['text' => '🔥 ' . $favoriteButton['text'], 'callback_data' => $favoriteButton['callback_data'] . $username];
             unset($keyboarddate[$favoriteServiceAction]);
-            $keyboarddate = ['suggestedaction' => $favoriteButton] + $keyboarddate;
         }
         $tempArray = [];
         $keyboardsetting = ['inline_keyboard' => []];
@@ -1126,6 +1126,11 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
             $keyboardsetting['inline_keyboard'][] = $tempArray;
         }
         $keyboardsetting['inline_keyboard'][] = [['text' => $textbotlang['users']['status']['backlist'], 'callback_data' => 'backorder']];
+        // Suggested action gets its own top row, clearly separated from the
+        // regular action buttons (so it cannot be mistaken for the one below it).
+        if ($favoriteRow !== null) {
+            array_unshift($keyboardsetting['inline_keyboard'], [$favoriteRow]);
+        }
         $keyboardsetting = json_encode($keyboardsetting);
         if ($DataUserOut['sub_updated_at'] !== null) {
             $textconnect = sprintf($textbotlang['users']['status']['connectionInfo'], $lastonline, $lastupdate, $DataUserOut['sub_last_user_agent']);
