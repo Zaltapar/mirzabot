@@ -324,7 +324,7 @@ do_install() {
   run chmod 640 "$install_dir/config.php"
   ok "config.php written (db: $db_user / $db_pass - keep it secret)"
 
-  if ! run php "$SRC_DIR/sync.php" "$install_dir" --no-db --no-backup; then
+  if ! run php "$SRC_DIR/sync.php" "$install_dir" --no-db --no-backup --fresh; then
     die "sync.php failed during fresh install."
   fi
   ok "code copied"

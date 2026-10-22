@@ -111,6 +111,14 @@ $protected = [
     '.git' => 'target git metadata',
     'error_log' => 'runtime log',
 ];
+// Upgrading a running bot must not ship the web installer: the root .htaccess
+// returns 403 for every non-/install/ URL while install/index.php exists,
+// which silently kills the live webhook (/index.php). Pass --fresh for brand
+// new installs where the web installer UI is still wanted.
+$freshInstall = in_array('--fresh', $argvClean, true);
+if (!$freshInstall) {
+    $protected['install'] = 'web installer (kept out of running bots: .htaccess 403 lock)';
+}
 $copied = 0;
 $skipped = [];
 foreach ($protected as $rel => $why) {
@@ -121,13 +129,27 @@ foreach ($protected as $rel => $why) {
         $skipped[] = $rel . ' (file, ' . $why . ')';
     }
 }
+$preCopyComposerMd5 = md5((string) @file_get_contents($targetDir . '/composer.json'));
 sync_dir($srcDir, $targetDir, $protected, $copied);
 info("Copied {$copied} file(s). Preserved: " . implode(', ', $skipped !== [] ? $skipped : ['(nothing)']));
+
+if (!$freshInstall && is_dir($targetDir . '/install')) {
+    step('Removing leftover web installer (install/) from running bot');
+    $leftover = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($targetDir . '/install', FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($leftover as $item) {
+        $item->isDir() ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
+    }
+    @rmdir($targetDir . '/install');
+    info('install/ removed - while it exists, the root .htaccess returns 403 for the whole bot (webhook included).');
+}
 
 // ------------------------------------------------------------------ composer
 step('PHP dependencies (composer)');
 $needComposer = !is_dir($targetDir . '/vendor')
-    || md5((string) @file_get_contents($srcDir . '/composer.json')) !== md5((string) @file_get_contents($targetDir . '/composer.json'));
+    || $preCopyComposerMd5 !== md5((string) @file_get_contents($srcDir . '/composer.json'));
 if (!$needComposer) {
     info('vendor/ present and composer.json unchanged - skipping.');
 } else {
