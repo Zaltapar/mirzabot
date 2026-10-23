@@ -1542,7 +1542,6 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
 } elseif (preg_match('/^autoextend_(\w+)/', $datain, $dataget) || preg_match('/^autoextchange_(\w+)/', $datain, $dataget)) {
     $id_invoice = $dataget[1];
     $nameloc = select("invoice", "*", "id_invoice", $id_invoice, "select");
-    error_log("mirza-trace autoext id=" . var_export($id_invoice, true) . " found=" . var_export((bool) $nameloc, true) . " owner=" . var_export($nameloc['id_user'] ?? null, true) . " from=" . var_export($from_id, true));
     if (!$nameloc || !invoiceBelongsToUser($nameloc, $from_id)) {
         return;
     }
@@ -4239,7 +4238,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         'volume' => false,
         'time' => false,
     ));
-    $stmt = $pdo->prepare("INSERT IGNORE INTO invoice (id_user, id_invoice, username,time_sell, Service_location, name_product, price_product, Volume, Service_time,Status,note,refral,notifctions,code_product) VALUES (?,  ?, ?, ?, ?, ?, ?, ?,?,?,?,?,?,?,?)");
+    $stmt = $pdo->prepare("INSERT IGNORE INTO invoice (id_user, id_invoice, username,time_sell, Service_location, name_product, price_product, Volume, Service_time,Status,note,refral,notifctions,code_product) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     $Status = "unpaid";
     $stmt->execute([$from_id, $randomString, $username_ac, $date, $marzban_list_get['name_panel'], $info_product['name_product'], $priceproduct, $info_product['Volume_constraint'], $info_product['Service_time'], $Status, $userdate['nameconfig'] ?? null, $user['affiliates'], $notifctions, $info_product['code_product'] ?? null]);
     if ($priceproduct > $user['Balance'] && $user['agent'] != "n2" && intval($priceproduct) != 0) {
