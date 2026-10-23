@@ -1439,7 +1439,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     } else {
         Editmessagetext($from_id, $message_id, $textbotlang['users']['status']['disabledconfig'], $bakinfos);
     }
-} elseif (preg_match('/extend_(\w+)/', $datain, $dataget)) {
+} elseif (preg_match('/^extend_(\w+)/', $datain, $dataget)) {
     trackUserAction($from_id, 'service', 'extend');
     $id_invoice = $dataget[1];
     $nameloc = select("invoice", "*", "id_invoice", $id_invoice, "select");
@@ -1542,7 +1542,8 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
 } elseif (preg_match('/^autoextend_(\w+)/', $datain, $dataget) || preg_match('/^autoextchange_(\w+)/', $datain, $dataget)) {
     $id_invoice = $dataget[1];
     $nameloc = select("invoice", "*", "id_invoice", $id_invoice, "select");
-    if (!$nameloc || $nameloc['id_user'] != $from_id) {
+    error_log("mirza-trace autoext id=" . var_export($id_invoice, true) . " found=" . var_export((bool) $nameloc, true) . " owner=" . var_export($nameloc['id_user'] ?? null, true) . " from=" . var_export($from_id, true));
+    if (!$nameloc || !invoiceBelongsToUser($nameloc, $from_id)) {
         return;
     }
     $marzban = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
