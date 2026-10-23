@@ -30,8 +30,6 @@ Options -Indexes
     <IfModule mod_filter.c>
         AddOutputFilterByType DEFLATE application/json
     </IfModule>
-    GzipVary On
-    GzipProxied On
 </IfModule>
 
 <FilesMatch "^error_log$|\.log$|\.log\.[0-9]+$">
