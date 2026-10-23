@@ -61,7 +61,11 @@ if (is_object($result) && $result->code == "1") {
         DirectPayment($invoice_id,"../images.jpg");
     } catch (Throwable $directPaymentError) {
         mirzaReportPaymentFailure('aqayepardakht', $invoice_id, $directPaymentError);
-        return;
+        mirzaPaymentFailurePage(
+            $textbotlang['paymentGateway']['deliveryFailedTitle'] ?? '',
+            $textbotlang['paymentGateway']['deliveryFailed'] ?? '',
+            $invoice_id
+        );
     }
     $pricecashback = select("PaySetting", "ValuePay", "NamePay", "chashbackaqaypardokht","select")['ValuePay'];
     $__q16 = $pdo->prepare("SELECT * FROM user WHERE id = ? LIMIT 1");

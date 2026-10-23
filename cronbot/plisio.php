@@ -49,7 +49,12 @@ while ($Payment_report = ($list_service)->fetch(PDO::FETCH_ASSOC)) {
     if ($operationStatus == "completed") {
         if (!claimPaymentPaid($Payment_report['id_order']))
             continue;
-        DirectPayment($Payment_report['id_order'], "../images.jpg");
+        try {
+            DirectPayment($Payment_report['id_order'], "../images.jpg");
+        } catch (Throwable $directPaymentError) {
+            mirzaReportPaymentFailure('plisio-cron', $Payment_report['id_order'], $directPaymentError);
+            continue;
+        }
         $pricecashback = select("PaySetting", "ValuePay", "NamePay", "chashbackplisio", "select")['ValuePay'];
         $__q18 = $pdo->prepare("SELECT * FROM user WHERE id = ? LIMIT 1");
         $__q18->bindValue(1, $Payment_report['id_user'], PDO::PARAM_STR);

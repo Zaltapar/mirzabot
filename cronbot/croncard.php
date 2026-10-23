@@ -45,7 +45,12 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     clearSelectCache('Payment_report');
     if ($stmtPaid->rowCount() === 0)
         continue;
-    DirectPayment($Payment_report['id_order'], "../images.jpg");
+    try {
+        DirectPayment($Payment_report['id_order'], "../images.jpg");
+    } catch (Throwable $directPaymentError) {
+        mirzaReportPaymentFailure('croncard', $Payment_report['id_order'], $directPaymentError);
+        continue;
+    }
     $pricecashback = select("PaySetting", "ValuePay", "NamePay", "chashbackcart", "select")['ValuePay'];
     $Balance_id = select("user", "*", "id", $Payment_report['id_user'], "select");
     if ($pricecashback != "0") {

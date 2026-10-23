@@ -1230,6 +1230,7 @@ function DirectPayment($order_id, $image = 'images.jpg')
     $service_order = $linkedOrder['service'];
     if (($get_invoice && $get_invoice['Status'] == "active") || (!$get_invoice && $service_order && $service_order['status'] == "paid")) {
         addBalance($Balance_id['id'], intval($Payment_report['price']));
+        mirzaMarkPaymentRefunded($order_id);
         sendmessage($Balance_id['id'], sprintf($textbotlang['users']['Balance']['addedNotice5'], number_format(intval($Payment_report['price']))), $keyboard, 'HTML');
         return;
     }
@@ -1250,6 +1251,7 @@ function DirectPayment($order_id, $image = 'images.jpg')
         addBalance($Balance_id['id'], $paidAmount - $orderPrice);
         if ($walletPortion > 0 && !deductBalance($Balance_id, $walletPortion)) {
             addBalance($Balance_id['id'], min($paidAmount, $orderPrice));
+            mirzaMarkPaymentRefunded($order_id);
             if ($orderType != "buy") {
                 update("service_other", "status", "failed", "id", $service_order['id']);
             }
@@ -1291,6 +1293,7 @@ function DirectPayment($order_id, $image = 'images.jpg')
         }
         if (!is_array($info_product)) {
             addBalance($Balance_id['id'], $orderPrice);
+            mirzaMarkPaymentRefunded($order_id);
             sendmessage($Balance_id['id'], $textbotlang['users']['sell']['productGoneAfterPay'] ?? '❌ The purchased product is no longer available. Your balance has been refunded; contact support to buy a new service.', null, 'HTML');
             $texterros = sprintf($textbotlang['Admin']['reportgroup']['errorProductGone'] ?? '⚠️ Product "%1$s" (invoice %2$s, user %3$s) no longer exists; payment was refunded', $get_invoice['name_product'], $get_invoice['id_invoice'], $Balance_id['id']);
             if (strlen($setting['Channel_Report']) > 0 && isset($errorreport)) {
@@ -1324,6 +1327,7 @@ function DirectPayment($order_id, $image = 'images.jpg')
         clearSelectCache('invoice');
         if ($claimInvoice->rowCount() === 0) {
             addBalance($Balance_id['id'], $orderPrice);
+            mirzaMarkPaymentRefunded($order_id);
             sendmessage($Balance_id['id'], sprintf($textbotlang['users']['Balance']['addedNotice5'], number_format($orderPrice)), $keyboard, 'HTML');
             return;
         }
@@ -1332,6 +1336,7 @@ function DirectPayment($order_id, $image = 'images.jpg')
             update("invoice", "Status", $invoiceStatusBefore, "id_invoice", $get_invoice['id_invoice']);
             $dataoutput['msg'] = json_encode($dataoutput['msg'] ?? $dataoutput ?? 'unknown error');
             addBalance($Balance_id['id'], $orderPrice);
+            mirzaMarkPaymentRefunded($order_id);
             sendmessage($Balance_id['id'], $textbotlang['users']['sell']['errorConfig'], $keyboard, 'HTML');
             sendmessage($Balance_id['id'], sprintf($textbotlang['users']['Balance']['refundCreateFailed'], number_format($orderPrice)), $keyboard, 'HTML');
             $texterros = sprintf($textbotlang['Admin']['reportgroup']['errorConfigCreate'], $dataoutput['msg'], $Balance_id['id'], $Balance_id['username'], $marzban_list_get['name_panel']);
@@ -1525,6 +1530,7 @@ function DirectPayment($order_id, $image = 'images.jpg')
             update("service_other", "output", json_encode($extend), "id", $service_order['id']);
             update("service_other", "status", "failed", "id", $service_order['id']);
             addBalance($Balance_id['id'], $orderPrice);
+            mirzaMarkPaymentRefunded($order_id);
             sendmessage($Balance_id['id'], $textbotlang['users']['sell']['errorConfig'], $keyboard, 'HTML');
             sendmessage($Balance_id['id'], sprintf($textbotlang['users']['Balance']['refundRenewFailed'], number_format($orderPrice)), $keyboard, 'HTML');
             $extend['msg'] = json_encode($extend['msg']);
@@ -1619,6 +1625,7 @@ function DirectPayment($order_id, $image = 'images.jpg')
             update("service_other", "output", json_encode($extra_volume), "id", $service_order['id']);
             update("service_other", "status", "failed", "id", $service_order['id']);
             addBalance($Balance_id['id'], $orderPrice);
+            mirzaMarkPaymentRefunded($order_id);
             sendmessage($Balance_id['id'], sprintf($textbotlang['users']['Balance']['addedNotice5'], number_format($orderPrice)), null, 'HTML');
             $extra_volume['msg'] = json_encode($extra_volume['msg']);
             $textreports = sprintf($textbotlang['Admin']['reportgroup']['errorExtraVolumeFn'], $marzban_list_get['name_panel'], $nameloc['username'], $extra_volume['msg']);
@@ -1678,6 +1685,7 @@ function DirectPayment($order_id, $image = 'images.jpg')
             update("service_other", "output", json_encode($extra_time), "id", $service_order['id']);
             update("service_other", "status", "failed", "id", $service_order['id']);
             addBalance($Balance_id['id'], $orderPrice);
+            mirzaMarkPaymentRefunded($order_id);
             sendmessage($Balance_id['id'], sprintf($textbotlang['users']['Balance']['addedNotice5'], number_format($orderPrice)), null, 'HTML');
             $extra_time['msg'] = json_encode($extra_time['msg']);
             $textreports = sprintf($textbotlang['Admin']['reportgroup']['errorExtraTimeFn'], $marzban_list_get['name_panel'], $nameloc['username'], $extra_time['msg']);
@@ -1730,6 +1738,7 @@ function DirectPayment($order_id, $image = 'images.jpg')
     } else {
         addBalance($Payment_report['id_user'], intval($Payment_report['price']));
         update("Payment_report", "payment_Status", "paid", "id_order", $Payment_report['id_order']);
+        update("Payment_report", "reconciled", "delivered", "id_order", $Payment_report['id_order']);
         $Payment_report['price'] = number_format($Payment_report['price'], 0);
         $format_price_cart = $Payment_report['price'];
         if ($Payment_report['Payment_Method'] == "cart to cart" or $Payment_report['Payment_Method'] == "arze digital offline") {
@@ -3280,13 +3289,14 @@ function mirzaEnsureInstallerRemoved()
 
 function mirzaReportCriticalError(string $context, string $message, string $file = '', int $line = 0): void
 {
-    static $alreadyReported = false;
+    static $alreadyReported = [];
     $summary = trim($message) . ($file !== '' ? ' @ ' . basename($file) . ':' . $line : '');
     error_log('MIRZABOT CRITICAL [' . $context . '] ' . $summary);
-    if ($alreadyReported) {
+    $reportKey = md5($context . '|' . $summary);
+    if (isset($alreadyReported[$reportKey])) {
         return;
     }
-    $alreadyReported = true;
+    $alreadyReported[$reportKey] = true;
     try {
         global $pdo, $setting;
         if (!($pdo instanceof PDO)) {
@@ -3327,6 +3337,43 @@ function mirzaReportPaymentFailure(string $gateway, $orderId, \Throwable $error)
         $error->getFile(),
         $error->getLine()
     );
+}
+
+function mirzaMarkPaymentRefunded($orderId): void
+{
+    try {
+        update('Payment_report', 'refunded_at', date('Y/m/d H:i:s'), 'id_order', $orderId);
+    } catch (\Throwable $e) {
+        error_log('Could not mark payment ' . $orderId . ' as refunded: ' . $e->getMessage());
+    }
+}
+
+function mirzaPaymentFailurePage(string $title = '', string $message = '', $orderId = ''): void
+{
+    if (!headers_sent()) {
+        http_response_code(200);
+        header('Content-Type: text/html; charset=utf-8');
+    }
+    if ($title === '') {
+        $title = 'پرداخت دریافت شد / Payment received';
+    }
+    if ($message === '') {
+        $message = 'مبلغ از حساب شما کسر شد اما تحویل سرویس با خطا مواجه شد. مبلغ به کیف پول شما بازگردانده می‌شود و پشتیبانی در جریان است.'
+            . ' Your payment was received but delivery failed. The amount will be refunded to your wallet and support has been notified.';
+    }
+    $e = static fn($value) => htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    echo '<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8">'
+        . '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        . '<title>' . $e($title) . '</title><style>'
+        . 'body{font-family:Tahoma,Arial,sans-serif;background:#f2f2f2;margin:0;padding:20px;display:flex;'
+        . 'justify-content:center;align-items:center;min-height:100vh}'
+        . '.b{background:#fff;border-radius:8px;max-width:540px;box-shadow:0 2px 10px rgba(0,0,0,.1);'
+        . 'padding:32px;text-align:center}h1{color:#b45309;font-size:20px;margin:0 0 14px}'
+        . 'p{color:#555;line-height:1.9;margin:0 0 8px}.id{color:#999;font-size:13px}'
+        . '</style></head><body><div class="b"><h1>' . $e($title) . '</h1><p>' . $e($message) . '</p>'
+        . ($orderId !== '' ? '<p class="id">#' . $e($orderId) . '</p>' : '')
+        . '</div></body></html>';
+    exit;
 }
 
 function mirzaRegisterFatalReporter(string $context): void

@@ -4829,6 +4829,9 @@ We hope you had a good experience with the ease and speed of your service. If yo
                 'statusSuccess' => 'Payment successful',
                 'statusFailed' => 'Failed',
                 'descThanks' => 'Thank you for completing the transaction!',
+                'deliveryFailedTitle' => 'Payment received',
+                'deliveryFailed' => 'Your payment was received, but creating the service failed. The amount will be refunded to your wallet and support has been notified.',
+                'deliveryFailedRefund' => '⚠️ Your payment was received but the service could not be created. %s Toman was refunded to your wallet. You can try the purchase again.',
                 'giftReport' => '🎁 Dear user, the amount of %s Toman has been deposited into your account as a gift.',
                 'reportZarinpal' => '💵 New payment
         

@@ -1,5 +1,6 @@
 <?php
 require_once 'config.php';
+require_once __DIR__ . '/callback_data.php';
 function isTelegramChatIdEmpty($chat_id): bool
 {
     if ($chat_id === null || $chat_id === false) {
@@ -172,6 +173,10 @@ function telegram($method, $datas = [], $token = null, $allowEmojiFallback = tru
 
     if (isset($datas['message_thread_id']) && intval($datas['message_thread_id']) <= 0) {
         unset($datas['message_thread_id']);
+    }
+
+    if (isset($datas['reply_markup'])) {
+        $datas['reply_markup'] = mirzaSanitizeReplyMarkup($datas['reply_markup']);
     }
 
     $premiumEmojiPayload = null;
@@ -520,7 +525,7 @@ $photoid = $photo ? end($photo)["file_id"] : '';
 $caption = $update["message"]["caption"] ?? '';
 $video = $update["message"]["video"] ?? 0;
 $videoid = $video ? $video["file_id"] : 0;
-$datain = $update["callback_query"]["data"] ?? '';
+$datain = mirzaResolveCallbackData($update["callback_query"]["data"] ?? '');
 $first_name = $update['message']['from']['first_name']  ?? $update["callback_query"]["from"]["first_name"] ?? $update["inline_query"]['from']['first_name'] ?? '';
 $username = $update['message']['from']['username'] ?? $update['callback_query']['from']['username'] ?? $update["callback_query"]["from"]["username"] ?? 'NOT_USERNAME';
 $user_phone =$update["message"]["contact"]["phone_number"] ?? 0;

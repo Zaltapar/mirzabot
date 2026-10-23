@@ -69,7 +69,11 @@ $payment_status = $textbotlang['paymentGateway']['zarinpalErrors'][$response['er
         DirectPayment($invoice_id,"../images.jpg");
     } catch (Throwable $directPaymentError) {
         mirzaReportPaymentFailure('zarinpal', $invoice_id, $directPaymentError);
-        return;
+        mirzaPaymentFailurePage(
+            $textbotlang['paymentGateway']['deliveryFailedTitle'] ?? '',
+            $textbotlang['paymentGateway']['deliveryFailed'] ?? '',
+            $invoice_id
+        );
     }
     $pricecashback = select("PaySetting", "ValuePay", "NamePay", "chashbackzarinpal","select")['ValuePay'];
     $Balance_id = select("user","*","id",$Payment_report['id_user'],"select");

@@ -6873,7 +6873,14 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         return;
     }
     update("Payment_report", "dec_not_confirmed", $Payment_report['dec_not_confirmed'] . json_encode($update['message']['successful_payment']), "id_order", $Payment_report['id_order']);
-    DirectPayment($Payment_report['id_order']);
+    try {
+        DirectPayment($Payment_report['id_order']);
+    } catch (Throwable $directPaymentError) {
+        mirzaReportPaymentFailure('telegram-stars', $Payment_report['id_order'], $directPaymentError);
+        $deliveryFailedText = $textbotlang['paymentGateway']['deliveryFailed'] ?? 'Your payment was received but the service could not be created. The amount will be refunded to your wallet.';
+        sendmessage($Payment_report['id_user'], $deliveryFailedText, null, 'HTML');
+        return;
+    }
     $pricecashback = select("PaySetting", "ValuePay", "NamePay", "chashbackstar", "select")['ValuePay'];
     $Balance_id = select("user", "*", "id", $Payment_report['id_user'], "select");
     if ($pricecashback != "0") {

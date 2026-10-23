@@ -68,7 +68,11 @@ if ($StatusPayment == 100) {
                 DirectPayment($invoice_id, "../images.jpg");
             } catch (Throwable $directPaymentError) {
                 mirzaReportPaymentFailure('iranpay1', $invoice_id, $directPaymentError);
-                return;
+                mirzaPaymentFailurePage(
+                    $textbotlang['paymentGateway']['deliveryFailedTitle'] ?? '',
+                    $textbotlang['paymentGateway']['deliveryFailed'] ?? '',
+                    $invoice_id
+                );
             }
             $pricecashback = select("PaySetting", "ValuePay", "NamePay", "chashbackiranpay1", "select")['ValuePay'];
             $Balance_id = select("user", "*", "id", $Payment_report['id_user'], "select");

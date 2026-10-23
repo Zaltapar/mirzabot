@@ -20,6 +20,9 @@ $stmt = $pdo->prepare("DELETE FROM logs_api WHERE time < :olderThan");
 $stmt->execute([':olderThan' => date('Y/m/d H:i:s', time() - 7 * 86400)]);
 $deletedLogs = $stmt->rowCount();
 
+$stmt = $pdo->prepare("DELETE FROM callback_token WHERE created_at < :olderThan");
+$stmt->execute([':olderThan' => date('Y/m/d H:i:s', time() - 7 * 86400)]);
+
 if (($deletedInvoices > 0 || $deletedLogs > 0) && !isTelegramChatIdEmpty($setting['Channel_Report'] ?? '')) {
     telegram('sendmessage', [
         'chat_id' => $setting['Channel_Report'],

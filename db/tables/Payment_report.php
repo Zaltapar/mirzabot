@@ -23,5 +23,7 @@ return [
         ['bottype', null, 'VARCHAR(300)'],
         ['message_id', null, 'INT'],
         ['id_invoice', 'none', 'VARCHAR(400)'],
+        ['refunded_at', null, 'VARCHAR(200)'],
+        ['reconciled', null, 'VARCHAR(50)'],
     ],
 ];

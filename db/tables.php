@@ -32,4 +32,5 @@ return [
     'reagent_report',
     'panel_data_cache',
     'user_action_stats',
+    'callback_token',
 ];

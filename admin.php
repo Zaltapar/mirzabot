@@ -1538,7 +1538,14 @@ elseif ($datain == "systemsms") {
         Editmessagetext($from_id, $message_id, $textconfrom, $Confirm_pay);
         return;
     }
-    DirectPayment($order_id);
+    try {
+        DirectPayment($order_id);
+    } catch (Throwable $directPaymentError) {
+        mirzaReportPaymentFailure('admin-card-confirm', $order_id, $directPaymentError);
+        $deliveryFailedText = $textbotlang['Admin']['Payment']['deliveryFailed'] ?? ($textbotlang['paymentGateway']['deliveryFailed'] ?? 'Delivery failed; the report group was notified.');
+        sendmessage($from_id, $deliveryFailedText, null, 'HTML');
+        return;
+    }
     $pricecashback = select("PaySetting", "ValuePay", "NamePay", "chashbackcart", "select")['ValuePay'];
     $Balance_id = select("user", "*", "id", $Payment_report['id_user'], "select");
     if ($pricecashback != "0") {

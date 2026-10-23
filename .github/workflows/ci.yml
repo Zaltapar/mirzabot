@@ -49,6 +49,9 @@ jobs:
       - name: SQL placeholder audit
         run: php tools/check-sql-placeholders.php
 
+      - name: callback_data tokenisation test
+        run: php tools/test-callback-data.php
+
       - name: Shell syntax check
         run: |
           bash -n install.sh
@@ -139,6 +142,11 @@ jobs:
           }
           if ($q("SHOW TABLES LIKE \"schema_flags\"") !== "schema_flags") { echo "MISSING TABLE schema_flags\n"; $fail = 1; }
           if ($q("SHOW TABLES LIKE \"user_action_stats\"") !== "user_action_stats") { echo "MISSING TABLE user_action_stats\n"; $fail = 1; }
+          if ($q("SHOW TABLES LIKE \"callback_token\"") !== "callback_token") { echo "MISSING TABLE callback_token\n"; $fail = 1; }
+          foreach (["refunded_at", "reconciled"] as $col) {
+              $c = $q("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_NAME = \"Payment_report\" AND COLUMN_NAME = \"$col\" AND TABLE_SCHEMA = DATABASE()");
+              if ($c != 1) { echo "MISSING Payment_report.$col\n"; $fail = 1; }
+          }
           foreach (["id_user", "kind", "value", "label", "counter", "last_used"] as $col) {
               $c = $q("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_NAME = \"user_action_stats\" AND COLUMN_NAME = \"$col\" AND TABLE_SCHEMA = DATABASE()");
               if ($c != 1) { echo "MISSING user_action_stats.$col\n"; $fail = 1; }
@@ -154,7 +162,7 @@ jobs:
 
       - name: cron job registry includes autoextend
         run: |
-          php -r 'require "cronbot/jobs.php"; $jobs = array_column(mirza_cron_jobs(), "job"); if (!in_array("autoextend", $jobs, true)) { echo "autoextend job missing\n"; exit(1); } echo "cron jobs ok: " . count($jobs) . "\n";'
+          php -r 'require "cronbot/jobs.php"; $jobs = array_column(mirza_cron_jobs(), "job"); if (!in_array("autoextend", $jobs, true)) { echo "autoextend job missing\n"; exit(1); } if (!in_array("payment_reconcile", $jobs, true)) { echo "payment_reconcile job missing\n"; exit(1); } echo "cron jobs ok: " . count($jobs) . "\n";'
 
       - name: sync.php upgrader smoke test
         run: |
