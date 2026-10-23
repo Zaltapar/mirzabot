@@ -63,6 +63,7 @@ if ((int) $userLock->fetchColumn() !== 1) {
     return;
 }
 #-------------Variable----------#
+error_log("mirza-trace in datain=" . var_export($datain, true) . " text=" . var_export($text, true) . " step=" . var_export($user['step'] ?? null, true) . " chat=" . var_export($Chat_type, true));
 $otherreport = select("topicid", "idreport", "report", "otherreport", "select")['idreport'];
 if ($setting['statusnewuser'] == "onnewuser" && !rowExists("user", "id", $from_id)) {
     $Response = json_encode([
@@ -3602,6 +3603,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
 } elseif ($datain == "fqQuestions") {
     sendmessage($from_id, $textbotlang['textbot']['faqDesc'], null, 'HTML');
 } elseif ($text == $textbotlang['textbot']['accountWallet'] || $datain == "account" || $text == "/wallet") {
+    error_log("mirza-trace account branch reached");
     $dateacc = locale_date();
     $current_time = time();
     $timeacc = locale_date($current_time, 'time');
