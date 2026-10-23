@@ -657,6 +657,11 @@ https://t.me/%s?start=%s',
                         'autoExtendOn' => '✅ 已开启该服务的自动续费。服务到期前，机器人会按当前价格自动续费（钱包余额需充足）。',
                         'autoExtendOff' => '❌ 自动续费已关闭。',
                         'autoExtendUnsupported' => '❌ 该服务不支持自动续费。',
+                        'autoRenewAsk' => '🔔 {username} 的自动续费已开启（将按 {spec} 续费）。要做什么？',
+                        'autoRenewChangeBtn' => '🔁 更改续费规格',
+                        'autoRenewOffBtn' => '🚫 关闭自动续费',
+                        'autoRenewSpecOn' => '✅ {username} 的自动续费已开启：服务到期后将按 {spec} 续费，并从钱包扣除 {price} 托曼。',
+                        'autoRenewCurrentSpec' => '当前套餐',
                         'autoRenewSuccess' => '🔁 您的服务 <b>{username}</b> 已自动续费。
 💶 价格: {price} 托曼{pricechanged}
 🔗 <code>{username}</code>',

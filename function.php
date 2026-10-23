@@ -2826,6 +2826,53 @@ function storeDeliveredMessage($response, $invoice_id){
     }
     update("invoice", "delivered_message_id", (string) $messageId, "id_invoice", $invoice_id);
 }
+
+function autoExtendSpecLabel($spec, $invoice, $textbotlang): string
+{
+    if (is_array($spec) && !empty($spec['code_product'])) {
+        return (string) ($spec['name_product'] ?? $spec['code_product']);
+    }
+    if (is_array($spec) && isset($spec['volume'])) {
+        return $spec['volume'] . 'G / ' . (int) ($spec['days'] ?? 0) . 'd';
+    }
+    return (string) ($textbotlang['users']['extend']['autoRenewCurrentSpec'] ?? '');
+}
+
+function startAutoExtendSpecCapture($from_id, $nameloc, $marzban, $user, $textbotlang, $backuser): void
+{
+    $id_invoice = $nameloc['id_invoice'];
+    $isCustom = $nameloc['name_product'] == $textbotlang['users']['customSellVolume']['btnVolume'] || $nameloc['name_product'] == $textbotlang['users']['customSellVolume']['btnService'];
+    savedata("clear", "id_invoice", $id_invoice);
+    if ($isCustom) {
+        $pricePerGb = json_decode((string) $marzban['pricecustomvolume'], true)[$user['agent']] ?? 0;
+        $mainvolume = json_decode((string) $marzban['mainvolume'], true)[$user['agent']] ?? 1;
+        $maxvolume = json_decode((string) $marzban['maxvolume'], true)[$user['agent']] ?? 0;
+        sendmessage($from_id, sprintf($textbotlang['users']['sell']['customVolumePrompt2'], $pricePerGb, $mainvolume, $maxvolume), withForceReply($backuser), 'html');
+        step('autoext_volume', $from_id);
+        return;
+    }
+    $monthkeyboard = keyboardTimeCategory($marzban['name_panel'], $user['agent'], "autoexttime_", "product_$id_invoice", false, false, favoriteActionValue($from_id, 'duration'));
+    sendmessage($from_id, $textbotlang['users']['sell']['selectDuration'], $monthkeyboard, 'html');
+}
+
+function confirmAutoExtendSpec($from_id, $nameloc, $user, array $spec, $specPrice, $textbotlang): void
+{
+    update("invoice", "auto_extend_spec", json_encode($spec, JSON_UNESCAPED_UNICODE), "id_invoice", $nameloc['id_invoice']);
+    update("invoice", "auto_extend", "1", "id_invoice", $nameloc['id_invoice']);
+    clearSelectCache('invoice');
+    $label = autoExtendSpecLabel($spec, $nameloc, $textbotlang);
+    $backToService = json_encode([
+        'inline_keyboard' => [
+            [['text' => $textbotlang['users']['status']['backservice'], 'callback_data' => "product_" . $nameloc['id_invoice']]],
+        ]
+    ]);
+    sendmessage($from_id, strtr($textbotlang['users']['extend']['autoRenewSpecOn'], [
+        '{username}' => $nameloc['username'],
+        '{spec}' => $label,
+        '{price}' => number_format((float) $specPrice, 0),
+    ]), $backToService, 'html');
+    step('home', $from_id);
+}
 function sendMessageService($panel_info, $config, $sub_link, $username_service, $reply_markup, $caption, $invoice_id, $user_id = null, $image = 'images.jpg', $wireguard = [])
 {
     global $setting, $from_id, $textbotlang;

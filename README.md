@@ -68,6 +68,7 @@ This enhanced edition layers a set of interactivity, UX and performance improvem
 
 ### New in 1.1
 - **Smart suggestions** — the bot learns each customer's most-used renewal plan, plan duration and service action; the favourite is marked with 🔥 and surfaced first (service actions are hoisted, plans reordered).
+- **Auto-renewal with reserved spec** — "auto-renewal" now reserves the renewal spec up front (volume + days for custom services, plan for packaged ones) and the cron renews at exactly that spec when the service expires, instead of blindly renewing the current plan.
 - **Telegram `copyMessage` resend** — customers can re-deliver their original purchase message straight from the service page.
 - **Rich messages & drafts** (opt-in) — `sendRichMarkdown` cards for deliveries and a live checkout draft via Bot API 10.x, with automatic fallback to classic messages.
 - **Force-reply prompts** — every numeric input (volume, duration, balance, discount) requests a reply keyboard instead of a silent text prompt.

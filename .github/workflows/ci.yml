@@ -124,7 +124,7 @@ jobs:
           if ($tables !== "panel_data_cache") { echo "MISSING TABLE panel_data_cache\n"; $fail = 1; }
            $idx = $q("SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_NAME = \"panel_data_cache\" AND INDEX_NAME = \"uniq_panelcache_key\" AND TABLE_SCHEMA = DATABASE()");
            if ($idx != 1) { echo "MISSING UNIQUE KEY uniq_panelcache_key\n"; $fail = 1; }
-          foreach (["code_product", "auto_extend", "auto_extend_msg_at", "delivered_message_id"] as $col) {
+          foreach (["code_product", "auto_extend", "auto_extend_msg_at", "delivered_message_id", "auto_extend_spec"] as $col) {
               $c = $q("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_NAME = \"invoice\" AND COLUMN_NAME = \"$col\" AND TABLE_SCHEMA = DATABASE()");
               if ($c != 1) { echo "MISSING invoice.$col\n"; $fail = 1; }
           }

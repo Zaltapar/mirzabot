@@ -1009,7 +1009,9 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
                 'callback_data' => "extend_"
             ),
             'autoextend' => array(
-                'text' => $textbotlang['keyboard']['autoExtendBtn'] . ((string) ($nameloc['auto_extend'] ?? '0') === '1' ? ' ✅' : ''),
+                'text' => $textbotlang['keyboard']['autoExtendBtn']
+                    . (((string) ($nameloc['auto_extend'] ?? '0') === '1') ? ' (' . autoExtendSpecLabel(json_decode((string) ($nameloc['auto_extend_spec'] ?? ''), true), $nameloc, $textbotlang) . ')' : '')
+                    . (((string) ($nameloc['auto_extend'] ?? '0') === '1') ? ' ✅' : ''),
                 'callback_data' => "autoextend_"
             ),
             'changelink' => array(
@@ -1537,7 +1539,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $monthkeyboard = keyboardTimeCategory($nameloc['Service_location'], $user['agent'], "productextendmonths_", "product_$id_invoice", false, true, favoriteActionValue($from_id, 'duration'));
         Editmessagetext($from_id, $message_id, $textbotlang['users']['sell']['selectDuration'], $monthkeyboard);
     }
-} elseif (preg_match('/^autoextend_(\w+)/', $datain, $dataget)) {
+} elseif (preg_match('/^autoextend_(\w+)/', $datain, $dataget) || preg_match('/^autoextchange_(\w+)/', $datain, $dataget)) {
     $id_invoice = $dataget[1];
     $nameloc = select("invoice", "*", "id_invoice", $id_invoice, "select");
     if (!$nameloc || $nameloc['id_user'] != $from_id) {
@@ -1553,18 +1555,159 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         sendmessage($from_id, $textbotlang['users']['extend']['autoExtendUnsupported'], $backuser, 'html');
         return;
     }
-    $newState = ((string) ($nameloc['auto_extend'] ?? '0') === '1') ? '0' : '1';
-    update("invoice", "auto_extend", $newState, "id_invoice", $id_invoice);
+    $isOn = ((string) ($nameloc['auto_extend'] ?? '0') === '1');
+    if ($isOn && preg_match('/^autoextend_(\w+)/', $datain)) {
+        // Auto-renewal is already on: show the reserved spec with change / off / back options.
+        $spec = json_decode((string) ($nameloc['auto_extend_spec'] ?? ''), true);
+        $specLabel = autoExtendSpecLabel($spec, $nameloc, $textbotlang);
+        $autoextKeyboard = json_encode([
+            'inline_keyboard' => [
+                [['text' => $textbotlang['users']['extend']['autoRenewChangeBtn'], 'callback_data' => "autoextchange_" . $id_invoice]],
+                [['text' => $textbotlang['users']['extend']['autoRenewOffBtn'], 'callback_data' => "autoextoff_" . $id_invoice]],
+                [['text' => $textbotlang['users']['status']['backservice'], 'callback_data' => "product_" . $id_invoice]],
+            ]
+        ]);
+        sendmessage($from_id, strtr($textbotlang['users']['extend']['autoRenewAsk'], ['{username}' => $nameloc['username'], '{spec}' => $specLabel]), $autoextKeyboard, 'html');
+        return;
+    }
+    startAutoExtendSpecCapture($from_id, $nameloc, $marzban, $user, $textbotlang, $backuser);
+    return;
+} elseif (preg_match('/^autoextoff_(\w+)/', $datain, $dataget)) {
+    $id_invoice = $dataget[1];
+    $nameloc = select("invoice", "*", "id_invoice", $id_invoice, "select");
+    if (!$nameloc || $nameloc['id_user'] != $from_id) {
+        return;
+    }
+    update("invoice", "auto_extend", "0", "id_invoice", $id_invoice);
+    update("invoice", "auto_extend_spec", null, "id_invoice", $id_invoice);
+    clearSelectCache('invoice');
     $backToService = json_encode([
         'inline_keyboard' => [
             [['text' => $textbotlang['users']['status']['backservice'], 'callback_data' => "product_" . $id_invoice]],
         ]
     ]);
-    if ($newState == '1') {
-        sendmessage($from_id, $textbotlang['users']['extend']['autoExtendOn'], $backToService, 'html');
-    } else {
-        sendmessage($from_id, $textbotlang['users']['extend']['autoExtendOff'], $backToService, 'html');
+    sendmessage($from_id, $textbotlang['users']['extend']['autoExtendOff'], $backToService, 'html');
+    return;
+} elseif ($user['step'] == "autoext_volume") {
+    $userdate = json_decode($user['Processing_value'], true);
+    $nameloc = select("invoice", "*", "id_invoice", $userdate['id_invoice'] ?? '', "select");
+    if (!$nameloc || $nameloc['id_user'] != $from_id) {
+        step('home', $from_id);
+        return;
     }
+    $marzban_list_get = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
+    $mainvolume = json_decode($marzban_list_get['mainvolume'], true)[$user['agent']];
+    $maxvolume = json_decode($marzban_list_get['maxvolume'], true)[$user['agent']];
+    if (!ctype_digit($text)) {
+        sendmessage($from_id, $textbotlang['common']['invalidVolume'], $backuser, 'HTML');
+        return;
+    }
+    if (intval($text) > intval($maxvolume) || intval($text) < intval($mainvolume)) {
+        $texttime = strtr($textbotlang['users']['customSellVolume']['invalidVolume'], ['{mainvolume}' => $mainvolume, '{maxvolume}' => $maxvolume]);
+        sendmessage($from_id, $texttime, $backuser, 'HTML');
+        return;
+    }
+    savedata("save", "volume", $text);
+    $eextraprice = json_decode($marzban_list_get['pricecustomtime'], true);
+    $customtimevalueprice = $eextraprice[$user['agent']];
+    $maintime = json_decode($marzban_list_get['maintime'], true)[$user['agent']];
+    $maxtime = json_decode($marzban_list_get['maxtime'], true)[$user['agent']];
+    $textcustom = sprintf($textbotlang['users']['sell']['customTimePrompt'], $customtimevalueprice, $maintime, $maxtime);
+    sendmessage($from_id, $textcustom, withForceReply($backuser), 'html');
+    step('autoext_days', $from_id);
+    return;
+} elseif ($user['step'] == "autoext_days") {
+    $userdate = json_decode($user['Processing_value'], true);
+    $nameloc = select("invoice", "*", "id_invoice", $userdate['id_invoice'] ?? '', "select");
+    if (!$nameloc || $nameloc['id_user'] != $from_id) {
+        step('home', $from_id);
+        return;
+    }
+    $marzban_list_get = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
+    $maintime = json_decode($marzban_list_get['maintime'], true)[$user['agent']];
+    $maxtime = json_decode($marzban_list_get['maxtime'], true)[$user['agent']];
+    if (!ctype_digit($text)) {
+        sendmessage($from_id, $textbotlang['common']['invalidTime'], $backuser, 'HTML');
+        return;
+    }
+    if (intval($text) > intval($maxtime) || intval($text) < intval($maintime)) {
+        $texttime = strtr($textbotlang['users']['customSellVolume']['invalidTimeRange'], ['{maintime}' => $maintime, '{maxtime}' => $maxtime]);
+        sendmessage($from_id, $texttime, $backuser, 'HTML');
+        return;
+    }
+    $volumePrice = json_decode($marzban_list_get['pricecustomvolume'], true)[$user['agent']];
+    $timePrice = json_decode($marzban_list_get['pricecustomtime'], true)[$user['agent']];
+    $spec = [
+        'volume' => intval($userdate['volume']),
+        'days' => intval($text),
+    ];
+    $specPrice = $spec['volume'] * $volumePrice + $spec['days'] * $timePrice;
+    confirmAutoExtendSpec($from_id, $nameloc, $user, $spec, $specPrice, $textbotlang);
+    return;
+} elseif (preg_match('/^autoexttime_(\d+)_(\w+)/', $datain, $dataget)) {
+    $monthenumber = $dataget[1];
+    $id_invoice = $dataget[2];
+    $nameloc = select("invoice", "*", "id_invoice", $id_invoice, "select");
+    if ($nameloc == false || !invoiceBelongsToUser($nameloc, $from_id)) {
+        sendmessage($from_id, $textbotlang['users']['extend']['error'], null, 'HTML');
+        return;
+    }
+    $stmt = $pdo->prepare("SELECT * FROM product WHERE (Location = :service_location OR Location = '/all') AND agent = :agent AND Service_time = :monthe AND one_buy_status = '0' ORDER BY display_order, id");
+    $stmt->execute([
+        ':service_location' => $nameloc['Service_location'],
+        ':agent' => $user['agent'],
+        ':monthe' => $monthenumber,
+    ]);
+    $statusshowprice = select("shopSetting", "*", "Namevalue", "statusshowprice", "select")['value'];
+    $autoextplans = ['inline_keyboard' => []];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $planLabel = $row['name_product'];
+        if ($statusshowprice != "offshowprice") {
+            $planPrice = number_format($row['price_product']);
+            if (intval($user['pricediscount']) != 0) {
+                $planPrice = number_format($row['price_product'] - ($row['price_product'] * intval($user['pricediscount'])) / 100);
+            }
+            $planLabel .= " - " . $planPrice . $textbotlang['common']['labels']['tomanUnit'];
+        }
+        $autoextplans['inline_keyboard'][] = [
+            ['text' => $planLabel, 'callback_data' => "autoextprod_" . $row['code_product'] . "_" . $id_invoice],
+        ];
+    }
+    $autoextplans['inline_keyboard'][] = [
+        ['text' => $textbotlang['users']['status']['backlist'], 'callback_data' => "product_" . $id_invoice],
+    ];
+    Editmessagetext($from_id, $message_id, $textbotlang['users']['extend']['selectservice'], json_encode($autoextplans));
+    return;
+} elseif (preg_match('/^autoextprod_(\w+)_(\w+)/', $datain, $dataget)) {
+    $code_product = $dataget[1];
+    $id_invoice = $dataget[2];
+    $nameloc = select("invoice", "*", "id_invoice", $id_invoice, "select");
+    if ($nameloc == false || !invoiceBelongsToUser($nameloc, $from_id)) {
+        sendmessage($from_id, $textbotlang['users']['extend']['error'], null, 'HTML');
+        return;
+    }
+    $stmt = $pdo->prepare("SELECT * FROM product WHERE (Location = :service_location OR Location = '/all') AND agent = :agent AND code_product = :code_product AND one_buy_status = '0' LIMIT 1");
+    $stmt->execute([
+        ':service_location' => $nameloc['Service_location'],
+        ':agent' => $user['agent'],
+        ':code_product' => $code_product,
+    ]);
+    $product = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($product == false) {
+        sendmessage($from_id, $textbotlang['users']['extend']['planNotAvailable'], $backuser, 'HTML');
+        return;
+    }
+    $specPrice = $product['price_product'];
+    if (intval($user['pricediscount']) != 0) {
+        $specPrice = $specPrice - ($specPrice * intval($user['pricediscount'])) / 100;
+    }
+    $spec = [
+        'code_product' => $product['code_product'],
+        'name_product' => $product['name_product'],
+        'volume' => intval($product['Volume_constraint']),
+        'days' => intval($product['Service_time']),
+    ];
+    confirmAutoExtendSpec($from_id, $nameloc, $user, $spec, $specPrice, $textbotlang);
     return;
 } elseif ($user['step'] == "gettimecustomvolomforextend") {
     $userdate = json_decode($user['Processing_value'], true);

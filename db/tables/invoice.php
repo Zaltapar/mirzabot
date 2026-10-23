@@ -40,5 +40,6 @@ return [
         ['delivered_message_id', null, 'VARCHAR(100) NULL'],
         ['auto_extend', '0', 'VARCHAR(10)'],
         ['auto_extend_msg_at', null, 'INT(11) NULL'],
+        ['auto_extend_spec', null, 'VARCHAR(500) NULL'],
     ],
 ];

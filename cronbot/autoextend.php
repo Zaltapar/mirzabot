@@ -105,6 +105,11 @@ function autoExtendProcess($invoice, $panelObj, int $windowSeconds, int $now, in
         $priceChangedLine = strtr($texts['users']['extend']['autoRenewPriceNote'], ['{old}' => number_format((float) $invoice['price_product'], 0)]);
     }
     update("invoice", "price_product", (string) $price, "id_invoice", $invoice['id_invoice']);
+    $reservedSpec = json_decode((string) ($invoice['auto_extend_spec'] ?? ''), true);
+    if (is_array($reservedSpec) && (isset($reservedSpec['volume']) || !empty($reservedSpec['code_product']))) {
+        update("invoice", "Volume", (string) ($product['Volume_constraint'] ?? ''), "id_invoice", $invoice['id_invoice']);
+        update("invoice", "Service_time", (string) ($product['Service_time'] ?? ''), "id_invoice", $invoice['id_invoice']);
+    }
     $value = json_encode([
         "volumebuy" => $product['Volume_constraint'],
         "Service_time" => $product['Service_time'],
@@ -134,8 +139,31 @@ function autoExtendResolveProduct($invoice, $user, $panel)
     global $pdo, $faLang;
     $agent = $user['agent'] ?? 'f';
     $loc = $panel['name_panel'];
-    $code = trim((string) ($invoice['code_product'] ?? ''));
     $productFilter = "status_product != 'disable' AND one_buy_status != '1'";
+    $reserved = json_decode((string) ($invoice['auto_extend_spec'] ?? ''), true);
+    if (is_array($reserved)) {
+        if (!empty($reserved['code_product'])) {
+            $stmt = $pdo->prepare("SELECT * FROM product WHERE code_product = :c AND (Location = :loc OR Location = '/all') AND (agent = :a OR agent = 'all') AND $productFilter LIMIT 1");
+            $stmt->execute([':c' => $reserved['code_product'], ':loc' => $loc, ':a' => $agent]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                $row['name_product'] = $reserved['name_product'] ?? $row['name_product'];
+                return $row;
+            }
+        } elseif (isset($reserved['volume'])) {
+            $price = autoExtendCustomPrice($panel, $agent, (int) $reserved['volume'], (int) ($reserved['days'] ?? 0));
+            if ($price !== null) {
+                return [
+                    'code_product' => 'customvolume',
+                    'name_product' => $faLang['users']['customSellVolume']['title'] ?? 'Custom',
+                    'Volume_constraint' => $reserved['volume'],
+                    'Service_time' => $reserved['days'] ?? 0,
+                    'price_product' => (string) $price,
+                ];
+            }
+        }
+    }
+    $code = trim((string) ($invoice['code_product'] ?? ''));
     if ($code === 'customvolume' || $code === 'custom_volume') {
         $price = autoExtendCustomPrice($panel, $agent, (int) $invoice['Volume'], (int) $invoice['Service_time']);
         if ($price === null) {

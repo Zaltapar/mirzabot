@@ -657,6 +657,11 @@ You can now use the bot ✔️',
                         'autoExtendOn' => '✅ Auto-renewal is now ON for this service. Before it expires, the bot will renew it at the current price (if your wallet has enough balance).',
                         'autoExtendOff' => '❌ Auto-renewal is now off.',
                         'autoExtendUnsupported' => '❌ Auto-renewal is not supported for this service.',
+                        'autoRenewAsk' => '🔔 Auto-renewal is ON for {username} (will renew with {spec}). What do you want to do?',
+                        'autoRenewChangeBtn' => '🔁 Change renewal spec',
+                        'autoRenewOffBtn' => '🚫 Turn off auto-renewal',
+                        'autoRenewSpecOn' => '✅ Auto-renewal for {username} is ON: when the service expires it will be renewed with {spec}, and {price} Toman will be charged from the wallet.',
+                        'autoRenewCurrentSpec' => 'current plan',
                         'autoRenewSuccess' => '🔁 Your service <b>{username}</b> has been auto-renewed.
 💶 Price: {price} Toman{pricechanged}
 🔗 <code>{username}</code>',
