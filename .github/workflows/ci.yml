@@ -46,6 +46,9 @@ jobs:
           fi
           echo "All PHP files pass php -l"
 
+      - name: SQL placeholder audit
+        run: php tools/check-sql-placeholders.php
+
       - name: Shell syntax check
         run: |
           bash -n install.sh
