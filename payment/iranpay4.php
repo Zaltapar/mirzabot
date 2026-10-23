@@ -99,7 +99,7 @@ if (!claimPaymentPaid($order_id)) {
 try {
     DirectPayment($order_id, "../images.jpg");
 } catch (Throwable $error) {
-    error_log("iranpay4: DirectPayment failed for {$order_id}: " . $error->getMessage());
+    mirzaReportPaymentFailure('iranpay4', $order_id, $error);
     iranpay4_finish(false, $failedTitle, 'پرداخت تایید شد ولی تحویل سرویس خطا داد. با پشتیبانی تماس بگیرید.');
 }
 

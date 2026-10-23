@@ -185,7 +185,7 @@ $textbotlang = languagechange();
 try {
     DirectPayment($data_order_id, "../images.jpg");
 } catch (Throwable $directPaymentError) {
-    error_log("DirectPayment failed for order {$data_order_id}: " . $directPaymentError->getMessage());
+    mirzaReportPaymentFailure('iranpay2', $data_order_id, $directPaymentError);
     return;
 }
 $pricecashback = select("PaySetting", "ValuePay", "NamePay", "chashbackiranpay2", "select")['ValuePay'];

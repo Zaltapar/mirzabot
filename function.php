@@ -1072,8 +1072,6 @@ function cubepayCardDetailsText($payment)
 function formatBytes($bytes, $precision = 2): string
 {
     global $textbotlang;
-    $base = log($bytes, 1024);
-    $power = $bytes > 0 ? floor($base) : 0;
     $suffixes = [
         $textbotlang['common']['units']['byte'],
         $textbotlang['common']['units']['kilobyte'],
@@ -1081,7 +1079,13 @@ function formatBytes($bytes, $precision = 2): string
         $textbotlang['common']['units']['gigabyteAlt'],
         $textbotlang['common']['units']['terabyte'],
     ];
-    return round(pow(1024, $base - $power), $precision) . ' ' . $suffixes[$power];
+    $bytes = is_numeric($bytes) ? (float) $bytes : 0.0;
+    if (!is_finite($bytes) || $bytes <= 0) {
+        return '0 ' . $suffixes[0];
+    }
+    $power = (int) floor(log($bytes, 1024));
+    $power = max(0, min(count($suffixes) - 1, $power));
+    return round(pow(1024, log($bytes, 1024) - $power), $precision) . ' ' . $suffixes[$power];
 }
 function generateUsername($from_id, $Metode, $username, $randomString, $text, $namecustome, $usernamecustom)
 {
@@ -3273,3 +3277,79 @@ function mirzaEnsureInstallerRemoved()
         mirzaStopForInstaller('Mirza install folder still exists and could not be removed automatically; delete it manually to enable the bot.');
     }
 }
+
+function mirzaReportCriticalError(string $context, string $message, string $file = '', int $line = 0): void
+{
+    static $alreadyReported = false;
+    $summary = trim($message) . ($file !== '' ? ' @ ' . basename($file) . ':' . $line : '');
+    error_log('MIRZABOT CRITICAL [' . $context . '] ' . $summary);
+    if ($alreadyReported) {
+        return;
+    }
+    $alreadyReported = true;
+    try {
+        global $pdo, $setting;
+        if (!($pdo instanceof PDO)) {
+            return;
+        }
+        if (!is_array($setting)) {
+            $setting = select('setting', '*');
+        }
+        $channel = is_array($setting) ? (string) ($setting['Channel_Report'] ?? '') : '';
+        if ($channel === '') {
+            return;
+        }
+        $topic = select('topicid', 'idreport', 'report', 'errorreport', 'select');
+        $thread = is_array($topic) ? ($topic['idreport'] ?? null) : null;
+        $request = $_SERVER['REQUEST_URI'] ?? (PHP_SAPI === 'cli' ? 'cli' : '');
+        $text = "!! <b>Unexpected error</b>\n"
+            . 'Context: ' . htmlspecialchars($context, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "\n"
+            . 'Message: ' . htmlspecialchars($summary, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "\n"
+            . 'Request: ' . htmlspecialchars((string) $request, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $payload = [
+            'chat_id' => $channel,
+            'text' => $text,
+            'parse_mode' => 'HTML',
+        ];
+        if ($thread !== null && $thread !== '' && $thread !== 0) {
+            $payload['message_thread_id'] = $thread;
+        }
+        telegram('sendmessage', $payload);
+    } catch (\Throwable $ignored) {
+    }
+}
+
+function mirzaReportPaymentFailure(string $gateway, $orderId, \Throwable $error): void
+{
+    mirzaReportCriticalError(
+        'payment:' . $gateway . ' order=' . $orderId . ' (PAID BUT NOT DELIVERED - manual review needed)',
+        get_class($error) . ': ' . $error->getMessage(),
+        $error->getFile(),
+        $error->getLine()
+    );
+}
+
+function mirzaRegisterFatalReporter(string $context): void
+{
+    static $registered = false;
+    if ($registered) {
+        return;
+    }
+    $registered = true;
+    set_exception_handler(static function (\Throwable $error) use ($context): void {
+        mirzaReportCriticalError($context, get_class($error) . ': ' . $error->getMessage(), $error->getFile(), $error->getLine());
+    });
+    register_shutdown_function(static function () use ($context): void {
+        $error = error_get_last();
+        if (!is_array($error)) {
+            return;
+        }
+        $fatalTypes = E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR | E_USER_ERROR | E_RECOVERABLE_ERROR;
+        if (($error['type'] & $fatalTypes) === 0) {
+            return;
+        }
+        mirzaReportCriticalError($context, (string) $error['message'], (string) ($error['file'] ?? ''), (int) ($error['line'] ?? 0));
+    });
+}
+
+mirzaRegisterFatalReporter(PHP_SAPI === 'cli' ? 'cli' : basename((string) ($_SERVER['SCRIPT_NAME'] ?? 'web')));

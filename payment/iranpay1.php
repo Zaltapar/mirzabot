@@ -67,7 +67,7 @@ if ($StatusPayment == 100) {
             try {
                 DirectPayment($invoice_id, "../images.jpg");
             } catch (Throwable $directPaymentError) {
-                error_log("DirectPayment failed for order {$invoice_id}: " . $directPaymentError->getMessage());
+                mirzaReportPaymentFailure('iranpay1', $invoice_id, $directPaymentError);
                 return;
             }
             $pricecashback = select("PaySetting", "ValuePay", "NamePay", "chashbackiranpay1", "select")['ValuePay'];

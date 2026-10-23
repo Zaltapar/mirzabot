@@ -208,7 +208,7 @@ class ManagePanel
         //inboud and proxies 
         $inbound_id = isset($panel['inboundid']) ? $panel['inboundid'] : 1;
         $inbounds = is_string($panel['inbounds']) ? json_decode($panel['inbounds']) : "{}";
-        $inbounds = $product['inbounds'] != null ? json_decode($product['inbounds']) : $inbounds;
+        $inbounds = is_array($product) && ($product['inbounds'] ?? null) != null ? json_decode($product['inbounds']) : $inbounds;
         if ($panel['type'] != "WGDashboard") {
             update("invoice", 'user_info', null, "username", $username);
         }

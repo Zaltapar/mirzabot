@@ -68,7 +68,7 @@ $payment_status = $textbotlang['paymentGateway']['zarinpalErrors'][$response['er
     try {
         DirectPayment($invoice_id,"../images.jpg");
     } catch (Throwable $directPaymentError) {
-        error_log("DirectPayment failed for order {$invoice_id}: " . $directPaymentError->getMessage());
+        mirzaReportPaymentFailure('zarinpal', $invoice_id, $directPaymentError);
         return;
     }
     $pricecashback = select("PaySetting", "ValuePay", "NamePay", "chashbackzarinpal","select")['ValuePay'];
