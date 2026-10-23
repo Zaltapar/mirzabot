@@ -193,7 +193,7 @@ file_put_contents($checkFile, <<<'CHECK'
 require 'config.php';
 $ok = is_object($pdo);
 if ($ok) {
-    $ok = (int) $pdo->query('SHOW TABLES LIKE "user_action_stats"')->fetchColumn() === 1;
+    $ok = (bool) $pdo->query('SHOW TABLES LIKE "user_action_stats"')->fetchColumn();
 }
 exit($ok ? 0 : 3);
 CHECK);
