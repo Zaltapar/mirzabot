@@ -667,7 +667,7 @@ function rate_arze_cached(int $ttlSeconds = 300, int $staleMaxSeconds = 86400)
     }
     return null;
 }
-function locale_date($timestamp, string $mode = 'date')
+function locale_date($timestamp = null, string $mode = 'date')
 {
     global $from_id;
     $ts = is_numeric($timestamp) && (int) $timestamp > 0 ? (int) $timestamp : time();
