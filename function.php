@@ -1086,6 +1086,12 @@ function formatBytes($bytes, $precision = 2): string
         $diagOnce('units-type', 'textbotlang common.units is ' . get_debug_type($units));
     }
     $units = is_array($units) ? $units : [];
+    foreach (['byte' => 'B', 'kilobyte' => 'KB', 'megabyte' => 'MB', 'gigabyteAlt' => 'GB', 'terabyte' => 'TB'] as $unitKey => $fallback) {
+        $raw = $units[$unitKey] ?? null;
+        if (!is_string($raw)) {
+            $diagOnce('unit-' . $unitKey, 'textbotlang common.units.' . $unitKey . ' is ' . get_debug_type($raw) . ' (' . var_export($raw, true) . '); using fallback "' . $fallback . '"');
+        }
+    }
     $suffixes = [
         is_string($units['byte'] ?? null) ? $units['byte'] : 'B',
         is_string($units['kilobyte'] ?? null) ? $units['kilobyte'] : 'KB',
