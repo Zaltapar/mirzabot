@@ -348,8 +348,10 @@ function create_snapshot(string $targetDir, string $baseOut): ?string
         return null;
     }
     $out = $baseOut . '.tar.gz';
+    // Exclude the backup dir itself: the archive is written inside the tree
+    // being archived, and without this tar exits 1 ("file changed as we read it").
     $rc = 0;
-    exec('tar -czf ' . escapeshellarg($out) . ' -C ' . escapeshellarg($parent) . ' ' . escapeshellarg($base) . ' 2>/dev/null', $o, $rc);
+    exec('tar -czf ' . escapeshellarg($out) . ' --exclude=' . escapeshellarg($base . '/storage/backup') . ' -C ' . escapeshellarg($parent) . ' ' . escapeshellarg($base) . ' 2>/dev/null', $o, $rc);
     return ($rc === 0 && is_file($out) && filesize($out) > 0) ? $out : null;
 }
 
