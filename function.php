@@ -1072,20 +1072,45 @@ function cubepayCardDetailsText($payment)
 function formatBytes($bytes, $precision = 2): string
 {
     global $textbotlang;
+    static $diag = [];
+    $diagOnce = static function (string $key, string $message) use (&$diag): void {
+        if (!isset($diag[$key])) {
+            $diag[$key] = true;
+            error_log('formatBytes: ' . $message);
+        }
+    };
+    $units = $textbotlang['common']['units'] ?? null;
+    if (!is_array($textbotlang)) {
+        $diagOnce('lang-type', 'global textbotlang is ' . get_debug_type($textbotlang) . ' (expected array)');
+    } elseif (!is_array($units)) {
+        $diagOnce('units-type', 'textbotlang common.units is ' . get_debug_type($units));
+    }
+    $units = is_array($units) ? $units : [];
     $suffixes = [
-        $textbotlang['common']['units']['byte'],
-        $textbotlang['common']['units']['kilobyte'],
-        $textbotlang['common']['units']['megabyte'],
-        $textbotlang['common']['units']['gigabyteAlt'],
-        $textbotlang['common']['units']['terabyte'],
+        is_string($units['byte'] ?? null) ? $units['byte'] : 'B',
+        is_string($units['kilobyte'] ?? null) ? $units['kilobyte'] : 'KB',
+        is_string($units['megabyte'] ?? null) ? $units['megabyte'] : 'MB',
+        is_string($units['gigabyteAlt'] ?? null) ? $units['gigabyteAlt'] : 'GB',
+        is_string($units['terabyte'] ?? null) ? $units['terabyte'] : 'TB',
     ];
     $bytes = is_numeric($bytes) ? (float) $bytes : 0.0;
     if (!is_finite($bytes) || $bytes <= 0) {
+        if (!is_finite($bytes)) {
+            $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
+            $frame = $backtrace[1] ?? [];
+            $caller = ($frame['function'] ?? '?') . '@' . basename((string) ($frame['file'] ?? '?')) . ':' . (int) ($frame['line'] ?? 0);
+            $diagOnce('input-' . $caller, 'non-finite input ' . get_debug_type($bytes) . ' (value ' . var_export($bytes, true) . ') from ' . $caller);
+        }
         return '0 ' . $suffixes[0];
     }
     $power = (int) floor(log($bytes, 1024));
     $power = max(0, min(count($suffixes) - 1, $power));
-    return round(pow(1024, log($bytes, 1024) - $power), $precision) . ' ' . $suffixes[$power];
+    $precision = is_numeric($precision) ? (int) $precision : 2;
+    $value = round(pow(1024, log($bytes, 1024) - $power), $precision);
+    if (!is_finite($value)) {
+        $value = 0;
+    }
+    return $value . ' ' . $suffixes[$power];
 }
 function generateUsername($from_id, $Metode, $username, $randomString, $text, $namecustome, $usernamecustom)
 {
