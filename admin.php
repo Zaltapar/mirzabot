@@ -54,7 +54,7 @@ function admin_period_stats($invFrom, $invTo, $soFrom, $soTo, $userFrom, $userTo
 }
 $textadmin = ["panel", "/panel", $textbotlang['Admin']['panelAdmin']];
 $text_panel_admin_login_template = sprintf($textbotlang['Admin']['report']['aboutBot'], $version);
-$aboutBotKeyboard = json_encode(['inline_keyboard' => [[['text' => $textbotlang['Admin']['report']['btnDonate'], 'url' => 'https://nowpayments.io/donation/mahdi']]]]);
+$aboutBotKeyboard = null;
 
 if (!in_array($from_id, $admin_ids))
     return;
@@ -982,6 +982,10 @@ elseif ($datain == "systemsms") {
             "pingmessage" => $userdata['typepinmessage'],
             "btnmessage" => $userdata['btntypemessage']
         ));
+        if (strpos((string) $userdata['message'], '{') !== false) {
+            $idsForRender = array_map('strval', array_column(json_decode($userslist, true) ?: [], 'id'));
+            $userslist = smart_render_messages_for($idsForRender, $userdata['message']);
+        }
         file_put_contents("cronbot/users.json", $userslist);
         file_put_contents('cronbot/info', $data);
     } elseif ($typeservice == "forwardmessage") {
@@ -1080,6 +1084,10 @@ elseif ($datain == "systemsms") {
             "pingmessage" => $userdata['typepinmessage'],
             "btnmessage" => $userdata['btntypemessage']
         ));
+        if (strpos((string) $userdata['message'], '{') !== false) {
+            $idsForRender = array_map('strval', array_column(json_decode($userslist, true) ?: [], 'id'));
+            $userslist = smart_render_messages_for($idsForRender, $userdata['message']);
+        }
         file_put_contents("cronbot/users.json", $userslist);
         file_put_contents('cronbot/info', $data);
     }
@@ -1092,6 +1100,321 @@ elseif ($datain == "systemsms") {
     }
     deletemessage($from_id, $message_id);
     sendmessage($from_id, $textbotlang['Admin']['messageBulk']['canceled'], null, 'HTML');
+} elseif ($datain == "smrules" || $datain == "backsmrules") {
+    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+        return;
+    }
+    smart_msg_ensure_tables();
+    savedata("clear", "sm_seg", "");
+    $smMsg = $textbotlang['Admin']['smartMsg'];
+    $smSeg = $smMsg['segments'];
+    $smFreq = $smMsg['freqs'];
+    $rules = select("message_rules", "*", null, null, "fetchAll");
+    if (!is_array($rules)) {
+        $rules = [];
+    }
+    $rows = [];
+    foreach ($rules as $rule) {
+        $segLabel = $smSeg[(string) $rule['segment']] ?? (string) $rule['segment'];
+        $freqLabel = $smFreq[(string) $rule['frequency']] ?? (string) $rule['frequency'];
+        $state = ((int) $rule['active'] === 1) ? $smMsg['active'] : $smMsg['inactive'];
+        $rows[] = [[
+            'text' => sprintf('№%d · %s · %s · %s', $rule['id'], $segLabel, $freqLabel, $state),
+            'callback_data' => 'smr_' . (int) $rule['id'],
+        ]];
+    }
+    $rows[] = [[
+        ['text' => $smMsg['newRule'], 'callback_data' => 'smnew'],
+    ]];
+    $rows[] = [[
+        ['text' => $textbotlang['keyboard']['backToMain'], 'callback_data' => 'backlistuser'],
+    ]];
+    $smRulesKeyboard = json_encode(['inline_keyboard' => $rows]);
+    $intro = count($rules) > 0 ? sprintf($smMsg['listTitle'], count($rules)) : $smMsg['noRules'];
+    if ($datain == "backsmrules") {
+        Editmessagetext($from_id, $message_id, $intro, $smRulesKeyboard);
+    } else {
+        sendmessage($from_id, $intro, $smRulesKeyboard, 'HTML');
+    }
+} elseif ($datain == "smnew") {
+    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+        return;
+    }
+    savedata("clear", "sm_seg", "");
+    $smMsg = $textbotlang['Admin']['smartMsg'];
+    $smSeg = $smMsg['segments'];
+    $rows = [];
+    $pair = [];
+    foreach (array_keys($smSeg) as $key) {
+        $pair[] = ['text' => $smSeg[$key], 'callback_data' => 'smseg_' . $key];
+        if (count($pair) === 2) {
+            $rows[] = $pair;
+            $pair = [];
+        }
+    }
+    if (count($pair) > 0) {
+        $rows[] = $pair;
+    }
+    $rows[] = [[
+        ['text' => $textbotlang['keyboard']['backToMain'], 'callback_data' => 'smrules'],
+    ]];
+    Editmessagetext($from_id, $message_id, $smMsg['selectSegment'], json_encode(['inline_keyboard' => $rows]));
+} elseif (preg_match('/^smseg_(\w+)$/', $datain, $dataget)) {
+    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+        return;
+    }
+    $seg = $dataget[1];
+    if (!in_array($seg, smart_rule_segments(), true)) {
+        return;
+    }
+    $smMsg = $textbotlang['Admin']['smartMsg'];
+    savedata("save", "sm_seg", $seg);
+    if (in_array($seg, ['away', 'active', 'power'], true)) {
+        savedata("save", "sm_param", "0");
+        step("smparam", $from_id);
+        Editmessagetext($from_id, $message_id, sprintf($smMsg['askParam'], $smMsg['segments'][$seg]), $backadmin);
+    } else {
+        savedata("save", "sm_param", "0");
+        step("smtext", $from_id);
+        Editmessagetext($from_id, $message_id, $smMsg['askText'] . "\n" . $smMsg['hintVars'], $backadmin);
+    }
+} elseif ($user['step'] == "smparam") {
+    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+        return;
+    }
+    $smMsg = $textbotlang['Admin']['smartMsg'];
+    if (!ctype_digit($text) || $text === '') {
+        sendmessage($from_id, $textbotlang['common']['invalidInput'], $backadmin, 'HTML');
+        return;
+    }
+    savedata("save", "sm_param", $text);
+    step("smtext", $from_id);
+    Editmessagetext($from_id, $message_id, $smMsg['askText'] . "\n" . $smMsg['hintVars'], $backadmin);
+} elseif ($user['step'] == "smtext") {
+    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+        return;
+    }
+    $smMsg = $textbotlang['Admin']['smartMsg'];
+    if (trim($text) === '') {
+        sendmessage($from_id, $textbotlang['common']['invalidInput'], $backadmin, 'HTML');
+        return;
+    }
+    savedata("save", "sm_message", $text);
+    $btnOptions = [
+        'none' => $textbotlang['keyboard']['sendWithoutButton'],
+        'buy' => $textbotlang['keyboard']['purchaseBtn'],
+        'start' => $textbotlang['keyboard']['startBtn'],
+        'usertestbtn' => $textbotlang['keyboard']['testAccountBtn'],
+        'helpbtn' => $textbotlang['keyboard']['educationBtn'],
+        'affiliatesbtn' => $textbotlang['keyboard']['affiliatesBtn'],
+        'addbalance' => $textbotlang['keyboard']['chargeWallet'],
+    ];
+    $rows = [];
+    $pair = [];
+    foreach ($btnOptions as $key => $label) {
+        $pair[] = ['text' => $label, 'callback_data' => 'smbtn_' . $key];
+        if (count($pair) === 2) {
+            $rows[] = $pair;
+            $pair = [];
+        }
+    }
+    if (count($pair) > 0) {
+        $rows[] = $pair;
+    }
+    $rows[] = [[
+        ['text' => $textbotlang['keyboard']['backToMain'], 'callback_data' => 'smrules'],
+    ]];
+    Editmessagetext($from_id, $message_id, $smMsg['askButton'], json_encode(['inline_keyboard' => $rows]));
+} elseif (preg_match('/^smbtn_(\w+)$/', $datain, $dataget)) {
+    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+        return;
+    }
+    $btn = $dataget[1];
+    if (!in_array($btn, ['none', 'buy', 'start', 'usertestbtn', 'helpbtn', 'affiliatesbtn', 'addbalance'], true)) {
+        return;
+    }
+    $smMsg = $textbotlang['Admin']['smartMsg'];
+    savedata("save", "sm_button", $btn);
+    $rows = [];
+    foreach ($smMsg['freqs'] as $key => $label) {
+        $rows[] = [['text' => $label, 'callback_data' => 'smfreq_' . $key]];
+    }
+    $rows[] = [[
+        ['text' => $textbotlang['keyboard']['backToMain'], 'callback_data' => 'smrules'],
+    ]];
+    Editmessagetext($from_id, $message_id, $smMsg['askFrequency'], json_encode(['inline_keyboard' => $rows]));
+} elseif (preg_match('/^smfreq_(\w+)$/', $datain, $dataget)) {
+    if (($adminrulecheck['rule'] !== 'administrator')) {
+        return;
+    }
+    $freq = $dataget[1];
+    if (!in_array($freq, ['once', 'daily', 'weekly', 'monthly'], true)) {
+        return;
+    }
+    smart_msg_ensure_tables();
+    $smMsg = $textbotlang['Admin']['smartMsg'];
+    $userdata = json_decode($user['Processing_value'], true);
+    $seg = (string) ($userdata['sm_seg'] ?? '');
+    $param = (int) ($userdata['sm_param'] ?? 0);
+    $message = (string) ($userdata['sm_message'] ?? '');
+    $button = (string) ($userdata['sm_button'] ?? 'none');
+    if ($seg === '' || $message === '' || !in_array($seg, smart_rule_segments(), true)) {
+        sendmessage($from_id, $textbotlang['Admin']['messageBulk']['errorRestart'], $keyboardadmin, 'HTML');
+        return;
+    }
+    $title = ($smMsg['segments'][$seg] ?? $seg) . ($param > 0 ? " ({$param})" : '');
+    $nowTs = time();
+    $stmt = $pdo->prepare("INSERT INTO message_rules (title, segment, segment_param, message, button, frequency, active, last_run, last_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, 0, 0, ?, ?)");
+    $stmt->execute([$title, $seg, $param, $message, $button, $freq, $nowTs, $nowTs]);
+    $newId = (int) $pdo->lastInsertId();
+    savedata("clear", "sm_seg", "");
+    step("home", $from_id);
+    $smRulesKeyboard = json_encode(['inline_keyboard' => [[
+        ['text' => $textbotlang['keyboard']['backToMain'], 'callback_data' => 'smrules'],
+    ]]]);
+    sendmessage($from_id, sprintf($smMsg['saved'], $newId, $title), $smRulesKeyboard, 'HTML');
+} elseif (preg_match('/^smr_(\d+)$/', $datain, $dataget)) {
+    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+        return;
+    }
+    smart_msg_ensure_tables();
+    $smMsg = $textbotlang['Admin']['smartMsg'];
+    $rule = select("message_rules", "*", "id", (int) $dataget[1], "select");
+    if (!$rule) {
+        sendmessage($from_id, $textbotlang['Admin']['messageBulk']['errorRestart'], $keyboardadmin, 'HTML');
+        return;
+    }
+    $segLabel = $smMsg['segments'][(string) $rule['segment']] ?? (string) $rule['segment'];
+    $freqLabel = $smMsg['freqs'][(string) $rule['frequency']] ?? (string) $rule['frequency'];
+    $params = [];
+    $where = smart_segment_query((string) $rule['segment'], (int) $rule['segment_param'], $params);
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM user u WHERE {$where}");
+    $countStmt->execute($params);
+    $targets = (int) $countStmt->fetchColumn();
+    $lastRun = ((int) $rule['last_run'] > 0) ? date('Y-m-d H:i', (int) $rule['last_run']) : $smMsg['never'];
+    $details = sprintf(
+        $smMsg['details'],
+        (int) $rule['id'],
+        $segLabel,
+        (int) $rule['segment_param'],
+        $freqLabel,
+        ((int) $rule['active'] === 1) ? $smMsg['active'] : $smMsg['inactive'],
+        $lastRun,
+        (int) $rule['last_count'],
+        $targets,
+        mb_substr((string) $rule['message'], 0, 200)
+    );
+    $rows = [
+        [
+            ['text' => $smMsg['runNow'], 'callback_data' => 'smrun_' . (int) $rule['id']],
+            ['text' => $smMsg['toggle'], 'callback_data' => 'smtog_' . (int) $rule['id']],
+        ],
+        [
+            ['text' => $smMsg['delete'], 'callback_data' => 'smdel_' . (int) $rule['id']],
+            ['text' => $textbotlang['keyboard']['backToMain'], 'callback_data' => 'smrules'],
+        ],
+    ];
+    Editmessagetext($from_id, $message_id, $details, json_encode(['inline_keyboard' => $rows]));
+} elseif (preg_match('/^smrun_(\d+)$/', $datain, $dataget)) {
+    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+        return;
+    }
+    smart_msg_ensure_tables();
+    $smMsg = $textbotlang['Admin']['smartMsg'];
+    $rule = select("message_rules", "*", "id", (int) $dataget[1], "select");
+    if (!$rule) {
+        sendmessage($from_id, $textbotlang['Admin']['messageBulk']['errorRestart'], $keyboardadmin, 'HTML');
+        return;
+    }
+    $ruleId = (int) $rule['id'];
+    $nowTs = time();
+    $candidates = smart_segment_users((string) $rule['segment'], (int) $rule['segment_param'], 500);
+    $interval = smart_rule_frequency_seconds((string) $rule['frequency']);
+    $logWindow = ($interval === PHP_INT_MAX) ? 0 : ($nowTs - $interval);
+    $sent = $pdo->prepare("SELECT id_user FROM message_rule_sent WHERE rule_id = ? AND (? = 0 OR sent_at > ?)");
+    $sent->execute([$ruleId, $logWindow, $logWindow]);
+    $already = array_map('strval', $sent->fetchAll(PDO::FETCH_COLUMN));
+    $batch = [];
+    foreach ($candidates as $row) {
+        $uid = (string) $row['id'];
+        if (!in_array($uid, $already, true)) {
+            $batch[] = $uid;
+        }
+    }
+    $batch = array_slice($batch, 0, 200);
+    if (count($batch) === 0) {
+        sendmessage($from_id, $smMsg['noTargets'], $keyboardadmin, 'HTML');
+        return;
+    }
+    file_put_contents("cronbot/smart_queue.json", json_encode($batch));
+    file_put_contents("cronbot/smart_info", json_encode([
+        'rule_id' => $ruleId,
+        'message' => (string) $rule['message'],
+        'button' => (string) $rule['button'],
+    ]));
+    $stmtRun = $pdo->prepare("UPDATE message_rules SET last_run = ?, last_count = 0 WHERE id = ?");
+    $stmtRun->execute([$nowTs, $ruleId]);
+    $cancelKeyboard = json_encode(['inline_keyboard' => [[
+        ['text' => $textbotlang['keyboard']['cancelOperation'], 'callback_data' => 'smcancel'],
+    ]]]);
+    sendmessage($from_id, sprintf($smMsg['running'], count($batch)), $cancelKeyboard, 'HTML');
+} elseif ($datain == "smcancel") {
+    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+        return;
+    }
+    @unlink('cronbot/smart_queue.json');
+    @unlink('cronbot/smart_info');
+    sendmessage($from_id, $textbotlang['Admin']['messageBulk']['canceled'], $keyboardadmin, 'HTML');
+} elseif (preg_match('/^smtog_(\d+)$/', $datain, $dataget)) {
+    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+        return;
+    }
+    smart_msg_ensure_tables();
+    $smMsg = $textbotlang['Admin']['smartMsg'];
+    $rule = select("message_rules", "*", "id", (int) $dataget[1], "select");
+    if (!$rule) {
+        sendmessage($from_id, $textbotlang['Admin']['messageBulk']['errorRestart'], $keyboardadmin, 'HTML');
+        return;
+    }
+    $newActive = ((int) $rule['active'] === 1) ? 0 : 1;
+    $stmtUp = $pdo->prepare("UPDATE message_rules SET active = ?, updated_at = ? WHERE id = ?");
+    $stmtUp->execute([$newActive, time(), (int) $rule['id']]);
+    sendmessage($from_id, sprintf($smMsg['toggled'], $newActive === 1 ? $smMsg['active'] : $smMsg['inactive']), null, 'HTML');
+} elseif (preg_match('/^smdel_(\d+)$/', $datain, $dataget)) {
+    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+        return;
+    }
+    smart_msg_ensure_tables();
+    $smMsg = $textbotlang['Admin']['smartMsg'];
+    $rule = select("message_rules", "*", "id", (int) $dataget[1], "select");
+    if (!$rule) {
+        sendmessage($from_id, $textbotlang['Admin']['messageBulk']['errorRestart'], $keyboardadmin, 'HTML');
+        return;
+    }
+    $confirmKeyboard = json_encode(['inline_keyboard' => [[
+        ['text' => $textbotlang['keyboard']['confirmAndStart'], 'callback_data' => 'smdelyes_' . (int) $rule['id']],
+        ['text' => $textbotlang['keyboard']['cancelOperation'], 'callback_data' => 'smr_' . (int) $rule['id']],
+    ]]]);
+    Editmessagetext($from_id, $message_id, sprintf($smMsg['confirmDelete'], (int) $rule['id']), $confirmKeyboard);
+} elseif (preg_match('/^smdelyes_(\d+)$/', $datain, $dataget)) {
+    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+        return;
+    }
+    smart_msg_ensure_tables();
+    $smMsg = $textbotlang['Admin']['smartMsg'];
+    $rule = select("message_rules", "*", "id", (int) $dataget[1], "select");
+    if ($rule) {
+        $stmtDel = $pdo->prepare("DELETE FROM message_rules WHERE id = ?");
+        $stmtDel->execute([(int) $rule['id']]);
+        $stmtDelSent = $pdo->prepare("DELETE FROM message_rule_sent WHERE rule_id = ?");
+        $stmtDelSent->execute([(int) $rule['id']]);
+        $infoNow = json_decode((string) @file_get_contents('cronbot/smart_info'), true);
+        if (is_array($infoNow) && (int) ($infoNow['rule_id'] ?? 0) === (int) $rule['id']) {
+            @unlink('cronbot/smart_queue.json');
+            @unlink('cronbot/smart_info');
+        }
+    }
+    sendmessage($from_id, $smMsg['deleted'], null, 'HTML');
 } elseif (preg_match('/sendmessageuser_(\w+)/', $datain, $dataget)) {
     $iduser = $dataget[1];
     savedata("clear", "iduser", $iduser);
@@ -2677,6 +3000,9 @@ elseif ($datain == "systemsms") {
                 ['text' => $textbotlang['keyboard']['messagingSection'], 'callback_data' => "systemsms"],
             ],
             [
+                ['text' => $textbotlang['keyboard']['smartRules'], 'callback_data' => "smrules"],
+            ],
+            [
                 ['text' => $textbotlang['keyboard']['groupVolumeOrTime'], 'callback_data' => "voloume_or_day_all"],
             ]
         ]
@@ -3607,8 +3933,17 @@ elseif ($datain == "systemsms") {
     step('home', $from_id);
 } elseif ($datain == "discountcode_create" && $adminrulecheck['rule'] == "administrator") {
     savedata("clear", "message_id", $message_id);
-    Editmessagetext($from_id, $message_id, $textbotlang['Admin']['Discountsell']['getCode'], $discountCodeFlowKeyboard);
+    Editmessagetext($from_id, $message_id, $textbotlang['Admin']['Discountsell']['getCode'], $discountRandomCodeKeyboard);
     step('get_codesell', $from_id);
+} elseif ($datain == "discount_random" && $user['step'] == "get_codesell" && $adminrulecheck['rule'] == "administrator") {
+    do {
+        $randomCode = strtolower(strtr(substr(base64_encode(random_bytes(6)), 0, 8), '+/', 'ab'));
+        $dupe = select("DiscountSell", "codeDiscount", "codeDiscount", $randomCode, "select")
+            ?: select("Discount", "code", "code", $randomCode, "select");
+    } while ($dupe);
+    savedata("save", "code", $randomCode);
+    editFlowMessage($textbotlang['Admin']['Discount']['priceCodeSell'], $discountCodeFlowKeyboard);
+    step('get_price_codesell', $from_id);
 } elseif ($user['step'] == "get_codesell") {
     if (!preg_match('/^[A-Za-z\d]+$/', $text)) {
         editFlowMessage($textbotlang['Admin']['Discount']['errorCode'], $discountCodeFlowKeyboard);
@@ -3644,7 +3979,7 @@ elseif ($datain == "systemsms") {
     step('gettypecodeagent', $from_id);
 } elseif ($user['step'] == "gettypecodeagent" && preg_match('/^discountagent_(f|n|n2|allusers)$/', $datain, $dataget)) {
     savedata("save", "agent", $dataget[1]);
-    Editmessagetext($from_id, $message_id, $textbotlang['Admin']['Discount']['askActiveHours'], $discountCodeFlowKeyboard);
+    Editmessagetext($from_id, $message_id, $textbotlang['Admin']['Discount']['askActiveHours'], $discountTimePresetKeyboard);
     step('gettimediscount', $from_id);
 } elseif ($user['step'] == "gettimediscount") {
     if (!ctype_digit($text)) {
@@ -3652,6 +3987,20 @@ elseif ($datain == "systemsms") {
         return;
     }
     savedata("save", "time", intval($text) == 0 ? "0" : time() + (intval($text) * 3600));
+    $keyboarddiscount = json_encode([
+        'inline_keyboard' => [
+            [
+                ['text' => $textbotlang['keyboard']['allPurchases'], 'callback_data' => "discountlimitbuy_0"],
+                ['text' => $textbotlang['keyboard']['firstPurchaseBtn'], 'callback_data' => "discountlimitbuy_1"],
+            ],
+            [['text' => $textbotlang['keyboard']['backToPreviousMenu'], 'callback_data' => "discountcode_list"]],
+        ]
+    ]);
+    editFlowMessage($textbotlang['Admin']['Discount']['firstDiscount'], $keyboarddiscount);
+    step('getfirstdiscount', $from_id);
+} elseif (preg_match('/^discounttime_(\d+)$/', $datain, $dataget) && $user['step'] == "gettimediscount") {
+    $hours = intval($dataget[1]);
+    savedata("save", "time", $hours == 0 ? "0" : time() + ($hours * 3600));
     $keyboarddiscount = json_encode([
         'inline_keyboard' => [
             [

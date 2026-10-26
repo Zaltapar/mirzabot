@@ -1,7 +1,7 @@
 #!/usr/bin/env php
 <?php
 /**
- * MirzaBot restore tool (CLI only).
+ * Bot restore tool (CLI only).
  *
  * Restores the DB dump and/or file snapshot produced by sync.php:
  *
@@ -39,7 +39,7 @@ $fileSnapshots = sort_by_time(array_merge(
     glob($backupDir . '/files_*.zip') ?: []
 ));
 
-step('MirzaBot restore tool — target: ' . __DIR__);
+step('Restore tool — target: ' . __DIR__);
 
 $sqlArg = array_values(array_filter($args, static fn ($a) => str_ends_with($a, '.sql')));
 $fileArg = array_values(array_filter($args, static fn ($a) => str_ends_with($a, '.tar.gz') || str_ends_with($a, '.zip')));

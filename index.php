@@ -1642,7 +1642,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         'days' => intval($text),
     ];
     $specPrice = $spec['volume'] * $volumePrice + $spec['days'] * $timePrice;
-    confirmAutoExtendSpec($from_id, $nameloc, $user, $spec, $specPrice, $textbotlang);
+    promptAutoExtendPricePolicy($from_id, $nameloc, $user, $spec, $specPrice, $textbotlang);
     return;
 } elseif (preg_match('/^autoexttime_(\d+)_(\w+)/', $datain, $dataget)) {
     $monthenumber = $dataget[1];
@@ -1707,7 +1707,24 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         'volume' => intval($product['Volume_constraint']),
         'days' => intval($product['Service_time']),
     ];
-    confirmAutoExtendSpec($from_id, $nameloc, $user, $spec, $specPrice, $textbotlang);
+    promptAutoExtendPricePolicy($from_id, $nameloc, $user, $spec, $specPrice, $textbotlang);
+    return;
+} elseif (preg_match('/^autoextprice_([01])_(\w+)/', $datain, $dataget)) {
+    $renewAtAnyPrice = $dataget[1] === '1';
+    $id_invoice = $dataget[2];
+    $nameloc = select("invoice", "*", "id_invoice", $id_invoice, "select");
+    if ($nameloc == false || !invoiceBelongsToUser($nameloc, $from_id)) {
+        sendmessage($from_id, $textbotlang['users']['extend']['error'], null, 'HTML');
+        return;
+    }
+    $userdate = json_decode((string) ($user['Processing_value'] ?? ''), true);
+    $spec = json_decode((string) ($userdate['autoext_spec'] ?? ''), true);
+    if (!is_array($spec) || ($userdate['id_invoice'] ?? '') != $id_invoice) {
+        step('home', $from_id);
+        return;
+    }
+    $specPrice = (int) ($userdate['autoext_price'] ?? 0);
+    finalizeAutoExtendSpec($from_id, $nameloc, $user, $spec, $specPrice, $renewAtAnyPrice, $textbotlang);
     return;
 } elseif ($user['step'] == "gettimecustomvolomforextend") {
     $userdate = json_decode($user['Processing_value'], true);
@@ -3186,7 +3203,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     $type = "transfertouser";
     $price = "0";
     $stmt->execute([$from_id, $nameloc['username'], $value, $type, $dateacc, $price]);
-} elseif ($user['step'] == "createusertest" || preg_match('/locationtest_(.*)/', $datain, $dataget) || $text == $textbotlang['textbot']['userTest'] || $datain == "usertestbtn" || $text == "usertest" || $text == "/free") {
+} elseif ($user['step'] == "createusertest" || preg_match('/locationtest_(.*)/', $datain, $dataget) || $text == $textbotlang['textbot']['userTest'] || $datain == "usertestbtn" || $text == "usertest" || $text == "/free" || preg_match('/^\/start\s+(usertest|free)$/i', $text)) {
     if (!check_active_btn($setting['keyboardmain'], "text_usertest")) {
         sendmessage($from_id, $textbotlang['users']['usertest']['unavailable'], null, 'HTML');
         return;

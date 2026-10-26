@@ -115,7 +115,7 @@ if ($isValidExport) {
     }
 
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    header('Content-Disposition: attachment; filename="mirzabot-' . preg_replace('/[^a-z]/', '', $_GET['export']) . '-' . date('Ymd-Hi') . '.xlsx"');
+    header('Content-Disposition: attachment; filename="bot-' . preg_replace('/[^a-z]/', '', $_GET['export']) . '-' . date('Ymd-Hi') . '.xlsx"');
     header('Cache-Control: no-store');
     (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet))->save('php://output');
     exit;

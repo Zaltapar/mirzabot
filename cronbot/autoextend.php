@@ -81,6 +81,22 @@ function autoExtendProcess($invoice, $panelObj, int $windowSeconds, int $now, in
         return;
     }
     $price = (float) $product['price_product'];
+    $reservedSpec = json_decode((string) ($invoice['auto_extend_spec'] ?? ''), true);
+    $renewAtAnyPrice = is_array($reservedSpec) ? (int) ($reservedSpec['price_lock'] ?? 1) === 1 : true;
+    $oldPrice = (float) $invoice['price_product'];
+    if (!$renewAtAnyPrice && $oldPrice > 0 && $price > $oldPrice + 0.009) {
+        $lastMsg = (int) ($invoice['auto_extend_msg_at'] ?? 0);
+        $throttled = $lastMsg > 0 && (time() - $lastMsg) < $throttleSeconds;
+        autoExtendNotify($invoice, 'autoRenewPriceHold', [
+            '{username}' => $invoice['username'],
+            '{old}' => number_format($oldPrice, 0),
+            '{new}' => number_format($price, 0),
+        ], $throttleSeconds);
+        if (!$throttled) {
+            autoExtendReport($invoice, 'price rose ' . number_format($oldPrice, 0) . ' -> ' . number_format($price, 0) . ' Toman; held by price-lock policy', $panel['name_panel']);
+        }
+        return;
+    }
     if ($price > 0 && !deductBalance($user, $price)) {
         autoExtendNotify($invoice, 'autoRenewBalanceLow', [
             '{username}' => $invoice['username'],

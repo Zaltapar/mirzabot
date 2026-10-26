@@ -7,6 +7,40 @@ fi
 
 INSTALL_LOG="/tmp/mirza_install.log"
 
+# ── One-shot / piped-run detection ──────────────────────────
+# `curl -fsSL <url>/install.sh | bash` makes stdin the script itself, so
+# prompts must go to the terminal. If no terminal exists at all, run in
+# one-shot mode: no menus, sensible defaults, flags supply the values.
+NONINTERACTIVE=0
+[ -t 0 ] || NONINTERACTIVE=1
+HAVE_TTY=0
+if [ -e /dev/tty ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then HAVE_TTY=1; fi
+
+# ask VAR PROMPT [default] - read a value (from stdin, the TTY, or the default)
+ask() {
+    local var="$1" prompt="$2" def="${3-}"
+    if [ -t 0 ]; then
+        printf '%s' "$prompt"; read -r "$var"
+    elif [ "$HAVE_TTY" = "1" ]; then
+        printf '%s' "$prompt"; read -r "$var" </dev/tty
+    else
+        eval "$var=\$def"
+    fi
+}
+
+# confirm_any PROMPT - y/N question; defaults to yes when no terminal is present
+confirm_any() {
+    local prompt="$1" ans=""
+    if [ -t 0 ]; then
+        printf '%s' "$prompt"; read -r ans
+    elif [ "$HAVE_TTY" = "1" ]; then
+        printf '%s' "$prompt"; read -r ans </dev/tty
+    else
+        ans="y"
+    fi
+    [[ "$ans" =~ ^[Yy]$ ]]
+}
+
 export DEBIAN_FRONTEND=noninteractive
 export NEEDRESTART_MODE=a
 export NEEDRESTART_SUSPEND=1
@@ -55,7 +89,7 @@ _step_eta() {
         "Configuring firewall"*)             echo 15 ;;
         "Restarting Apache"*)                echo 5  ;;
         "Setting PHP as the active"*|"Setting PHP "*) echo 6  ;;
-        "Downloading Mirza"*)                echo 20 ;;
+        "Downloading the bot"*)                echo 20 ;;
         "Extracting source files"*)          echo 5  ;;
         "Configuring MySQL root access"*)    echo 10 ;;
         "Opening firewall ports"*)           echo 4  ;;
@@ -170,7 +204,7 @@ _drule()  { printf "  ${C_BORDER}%s${CR}\n" "$(_repeat "━" "$UI_W")"; }
 banner()  {
     echo
     _drule
-    printf "  ${C_OK}▌${CR} ${C_TITLE}MIRZA${CR}  ${C_DIM}— VPN Subscription Management${CR}\n"
+    printf "  ${C_OK}▌${CR} ${C_TITLE}VPN BOT${CR}  ${C_DIM}— Subscription Manager${CR}\n"
     _drule
 }
 # Menu item row: [n] label  (left-aligned, no right border)
@@ -220,7 +254,7 @@ _link_mirza() {
 function self_update_script() {
     local MASTER_PATH="/root/install.sh"
     local BIN_LINK="/usr/local/bin/mirza"
-    local URL="https://raw.githubusercontent.com/mahdiMGF2/mirzabot/main/install.sh"
+    local URL="https://raw.githubusercontent.com/Zaltapar/mirzabot/main/install.sh"
     local TEMP_FILE="/tmp/mirzabot_update.sh"
 
     # Make sure DNS works before reaching GitHub
@@ -286,7 +320,7 @@ self_update_script "$@"
 # ── Repo / paths ─────────────────────────────────────────────
 BOT_DIR_DEFAULT="/var/www/html/mirzaprobotconfig"
 CONFIG_FILE_DEFAULT="$BOT_DIR_DEFAULT/config.php"
-GIT_REPO="mahdiMGF2/mirzabot"
+GIT_REPO="Zaltapar/mirzabot"
 LATEST_CACHE="/tmp/.mirza_latest_version"
 IP_CACHE="/tmp/.mirza_server_ip"
 
@@ -677,7 +711,7 @@ ensure_cron() {
 export -f _crontab_present _cron_unit_name _cron_daemon_active ensure_cron
 
 # Refuse to install on a server that already has conflicting software.
-# Only runs on a brand-new install (never on resume / Mirza's own partial state).
+# Only runs on a brand-new install (never on resume / the installer's own partial state).
 precheck_fresh_server() {
     local found=()
     _pkg_installed apache2 && found+=("apache2 (web server)")
@@ -829,6 +863,18 @@ choose_source() {
         esac
     fi
 
+    # ── One-shot (no interactive menu: piped run or --auto defaults) ──
+    if [ "$NONINTERACTIVE" = "1" ] || [ "$ARG_AUTO" = "1" ]; then
+        local l; l=$(get_latest_version)
+        if [ -n "$l" ]; then
+            SRC_ZIP_URL="${tagbase}/${l}.zip"; SRC_LABEL="Release ${l}"
+        else
+            SRC_ZIP_URL="$beta"; SRC_LABEL="Beta (main)"
+        fi
+        echo -e "  ${C_DIM}One-shot mode: installing ${SRC_LABEL}.${CR}"
+        return 0
+    fi
+
     # ── Interactive ──────────────────────────────────────────
     _sec "Select version"
     _mi "1" "Automatic  ${C_DIM}(latest stable release)${CR}"
@@ -915,8 +961,7 @@ version_section() {
     else
         _kv "Latest" "$(_dot warn) ${C_DIM}unknown (offline)${CR}"
     fi
-    _kv "Channel" "${C_DIM}t.me/mirzapanel${CR}"
-    _kv "Group" "${C_DIM}t.me/mirzapanelgroup${CR}"
+    _kv "Repo" "${C_DIM}github.com/${GIT_REPO}${CR}"
 }
 
 bot_section() {
@@ -1075,7 +1120,7 @@ function renew_ssl() {
     _kv "Domain" "${C_KEY}${domain}${CR}"
 
     if ! command -v certbot >/dev/null 2>&1; then
-        echo -e "  ${C_BAD}●${CR} ${C_BAD}certbot is not installed. Install Mirza first.${CR}"
+        echo -e "  ${C_BAD}●${CR} ${C_BAD}certbot is not installed. Install the bot first.${CR}"
         sleep 1; show_menu; return 1
     fi
 
@@ -1125,7 +1170,7 @@ function backup_bot() {
 
     CONFIG_PATH="/var/www/html/mirzaprobotconfig/config.php"
     if [ ! -f "$CONFIG_PATH" ]; then
-        printf "    ${C_BAD}●${CR} ${C_BAD}Mirza is not installed. config.php not found.${CR}\n"
+        printf "    ${C_BAD}●${CR} ${C_BAD}The bot is not installed. config.php not found.${CR}\n"
         echo ""
         printf "  ${C_PROMPT}❯${CR} Press Enter to return to the menu... "
         read -r _
@@ -1175,7 +1220,7 @@ function backup_bot() {
         send_result=$(curl -s -o /dev/null -w "%{http_code}" \
             -F "chat_id=${admin_id}" \
             -F "document=@${backup_file}" \
-            -F "caption=📦 Mirza DB Backup (${backup_date})" \
+            -F "caption=📦 Bot DB Backup (${backup_date})" \
             "https://api.telegram.org/bot${bot_token}/sendDocument" 2>/dev/null)
         if [ "$send_result" = "200" ]; then
             _kv "Telegram" "$(_dot ok) ${C_OK}Backup sent to admin chat (${admin_id})${CR}"
@@ -1203,7 +1248,7 @@ function import_bot() {
 
     CONFIG_PATH="/var/www/html/mirzaprobotconfig/config.php"
     if [ ! -f "$CONFIG_PATH" ]; then
-        printf "    ${C_BAD}●${CR} ${C_BAD}Mirza is not installed. config.php not found.${CR}\n"
+        printf "    ${C_BAD}●${CR} ${C_BAD}The bot is not installed. config.php not found.${CR}\n"
         echo ""
         printf "  ${C_PROMPT}❯${CR} Press Enter to return to the menu... "
         read -r _
@@ -1312,12 +1357,18 @@ function import_bot() {
 }
 
 function show_menu() {
+    if [ "$NONINTERACTIVE" = "1" ] && [ "$HAVE_TTY" = "0" ]; then
+        echo -e "  ${C_BAD}●${CR} No terminal is available for the interactive menu."
+        echo -e "  ${C_TXT}Re-run with explicit flags instead, e.g.:${CR}"
+        echo -e "      ${C_KEY}mirza install --domain bot.example.com --token 123:ABC --admin 111${CR}"
+        exit 1
+    fi
     show_logo
     _sec "Menu"
-    _mi "1" "Install Mirza"
-    _mi "2" "Update Mirza"
-    _mi "3" "Remove Mirza"
-    _mi "4" "Migrate: Free -> Pro (Beta)"
+    _mi "1" "Install the bot"
+    _mi "2" "Update the bot"
+    _mi "3" "Remove the bot"
+    _mi "4" "Migrate an existing install"
     _mi "5" "Renew SSL certificate"
     _mi "6" "Backup Database"
     _mi "7" "Import Database  ${C_WARN}(Beta)${CR}"
@@ -1347,10 +1398,10 @@ function show_help_screen() {
     banner
 
     _sec "Commands"
-    _kv "install" "${C_DIM}Install Mirza${CR}"
-    _kv "update" "${C_DIM}Update Mirza (choose channel / version)${CR}"
-    _kv "remove" "${C_DIM}Remove Mirza and its services${CR}"
-    _kv "migrate" "${C_DIM}Migrate Free -> Pro${CR}"
+    _kv "install" "${C_DIM}Install the bot${CR}"
+    _kv "update" "${C_DIM}Update the bot (choose channel / version)${CR}"
+    _kv "remove" "${C_DIM}Remove the bot and its services${CR}"
+    _kv "migrate" "${C_DIM}Migrate an existing install${CR}"
     _kv "renew" "${C_DIM}Renew the bot domain SSL certificate${CR}"
     _kv "backup" "${C_DIM}Backup database & send to Telegram${CR}"
     _kv "import" "${C_DIM}Import database from SQL file (Beta)${CR}"
@@ -1729,7 +1780,7 @@ function install_bot() {
         clear
         banner
         _sec "Install blocked"
-        printf "    ${C_BAD}●${CR} ${C_BAD}Mirza is already installed on this server.${CR}\n"
+        printf "    ${C_BAD}●${CR} ${C_BAD}The bot is already installed on this server.${CR}\n"
         printf "    ${C_DIM}Path:${CR} %s\n" "$BOT_DIR_DEFAULT"
         echo ""
         printf "    ${C_DIM}To upgrade, use option ${CR}${C_KEY}2 (Update)${CR}${C_DIM}.${CR}\n"
@@ -1919,7 +1970,7 @@ function install_bot() {
 
         TEMP_DIR="/tmp/mirzaprobot"
         rm -rf "$TEMP_DIR"; mkdir -p "$TEMP_DIR"
-        run_step "Downloading Mirza (${SRC_LABEL_RESUME})" "wget -O '$TEMP_DIR/bot.zip' '$ZIP_URL'" \
+        run_step "Downloading the bot (${SRC_LABEL_RESUME})" "wget -O '$TEMP_DIR/bot.zip' '$ZIP_URL'" \
             || { show_step_error; install_pause "Downloading bot files"; }
         run_step "Extracting source files" "unzip -o '$TEMP_DIR/bot.zip' -d '$TEMP_DIR'" \
             || { show_step_error; install_pause "Extracting bot files"; }
@@ -1968,11 +2019,15 @@ function install_bot() {
             domainname="$ARG_DOMAIN"
             echo -e "  ${C_DIM}Domain (from --domain):${CR} ${C_KEY}${domainname}${CR}"
         else
-            read -p "Enter the domain: " domainname
+            ask domainname "Enter the domain: " ""
         fi
         while ! validate_domain "$domainname"; do
             echo -e "\e[91mInvalid domain. Enter a full domain like bot.example.com (no http://, no slash).\033[0m"
-            read -p "Enter the domain: " domainname
+            ask domainname "Enter the domain: " ""
+            if [ -z "$domainname" ]; then
+                echo -e "  ${C_BAD}●${CR} ${C_BAD}A domain is required. Re-run with --domain bot.example.com${CR}"
+                exit 1
+            fi
         done
         # Verify the domain actually points to this server (certbot needs this)
         domain_points_here "$domainname"
@@ -1980,13 +2035,9 @@ function install_bot() {
             0) echo -e "  ${C_OK}●${CR} ${C_OK}Domain resolves to this server.${CR}" ;;
             1) echo -e "  ${C_WARN}!${CR} ${C_WARN}Domain does NOT point to this server's IP ($(get_server_ip)).${CR}"
                echo -e "  ${C_DIM}Let's Encrypt will fail until the DNS A record points here.${CR}"
-               printf "  ${C_PROMPT}❯${CR} Continue anyway? ${C_DIM}[y/N]${CR}: "
-               read -r _gd
-               if [[ ! "$_gd" =~ ^[Yy]$ ]]; then echo -e "  ${C_BAD}Aborted. Fix the DNS A record and retry.${CR}"; sleep 1; show_menu; return 1; fi ;;
+               if ! confirm_any "  Continue anyway? [y/N]: "; then echo -e "  ${C_BAD}Aborted. Fix the DNS A record and retry.${CR}"; sleep 1; show_menu; return 1; fi ;;
             2) echo -e "  ${C_WARN}!${CR} ${C_WARN}Could not resolve the domain yet (DNS may still be propagating).${CR}"
-               printf "  ${C_PROMPT}❯${CR} Continue anyway? ${C_DIM}[y/N]${CR}: "
-               read -r _gd
-               if [[ ! "$_gd" =~ ^[Yy]$ ]]; then echo -e "  ${C_BAD}Aborted.${CR}"; sleep 1; show_menu; return 1; fi ;;
+               if ! confirm_any "  Continue anyway? [y/N]: "; then echo -e "  ${C_BAD}Aborted.${CR}"; sleep 1; show_menu; return 1; fi ;;
         esac
         state_set DOMAIN "$domainname"
     fi
@@ -2072,13 +2123,15 @@ EOF
             YOUR_BOT_TOKEN="$ARG_TOKEN"
             echo -e "\e[33m[+] \e[36mBot Token (from --token):\e[0m ${YOUR_BOT_TOKEN:0:10}..."
         else
-            printf "\e[33m[+] \e[36mBot Token: \033[0m"
-            read YOUR_BOT_TOKEN
+            echo -ne "\e[33m[+] \e[36mBot Token: \033[0m"; ask YOUR_BOT_TOKEN "" ""
         fi
         while [[ ! "$YOUR_BOT_TOKEN" =~ ^[0-9]{8,10}:[a-zA-Z0-9_-]{35}$ ]]; do
             echo -e "\e[91mInvalid bot token format. Please try again.\033[0m"
-            printf "\e[33m[+] \e[36mBot Token: \033[0m"
-            read YOUR_BOT_TOKEN
+            echo -ne "\e[33m[+] \e[36mBot Token: \033[0m"; ask YOUR_BOT_TOKEN "" ""
+            if [ -z "$YOUR_BOT_TOKEN" ]; then
+                echo -e "  ${C_BAD}●${CR} ${C_BAD}A valid bot token is required. Re-run with --token 123:ABC...\033[0m"
+                exit 1
+            fi
         done
         # Live-verify the token with Telegram (getMe)
         while true; do
@@ -2107,13 +2160,15 @@ EOF
             YOUR_CHAT_ID="$ARG_ADMIN"
             echo -e "\e[33m[+] \e[36mChat id (from --admin):\e[0m ${YOUR_CHAT_ID}"
         else
-            printf "\e[33m[+] \e[36mChat id: \033[0m"
-            read YOUR_CHAT_ID
+            echo -ne "\e[33m[+] \e[36mChat id: \033[0m"; ask YOUR_CHAT_ID "" ""
         fi
         while [[ ! "$YOUR_CHAT_ID" =~ ^-?[0-9]+$ ]]; do
             echo -e "\e[91mInvalid chat ID format. Please try again.\033[0m"
-            printf "\e[33m[+] \e[36mChat id: \033[0m"
-            read YOUR_CHAT_ID
+            echo -ne "\e[33m[+] \e[36mChat id: \033[0m"; ask YOUR_CHAT_ID "" ""
+            if [ -z "$YOUR_CHAT_ID" ]; then
+                echo -e "  ${C_BAD}●${CR} ${C_BAD}An admin chat id is required. Re-run with --admin <id>.\033[0m"
+                exit 1
+            fi
         done
         state_set CHAT_ID "$YOUR_CHAT_ID"
     fi
@@ -2173,8 +2228,8 @@ EOF
                 echo -e "\e[32mDatabase username (from --db-user):\e[0m ${dbuser}"
             else
                 echo -e "\n\e[32mPlease enter the database username!\033[0m"
-                printf "[+] Default user name is \e[91m${randomdbdb}\e[0m ( let it blank to use this user name ): "
-                read dbuser
+                echo -ne "[+] Default user name is \e[91m${randomdbdb}\e[0m ( let it blank to use this user name ): "
+                ask dbuser "" "$randomdbdb"
             fi
             if [ "$dbuser" = "" ]; then
                 dbuser=$randomdbdb
@@ -2185,11 +2240,11 @@ EOF
             fi
             if [ -n "$ARG_DBPASS" ]; then
                 dbpass="$ARG_DBPASS"
-                echo -e "\e[32mDatabase password (from --db-pass): [hidden]\033[0m"
+                echo -e "\e[32mDatabase password (from --db-pass): [hidden]\e[0m"
             else
                 echo -e "\n\e[32mPlease enter the database password!\033[0m"
-                printf "[+] Default password is \e[91m${randomdbpass}\e[0m ( let it blank to use this password ): "
-                read dbpass
+                echo -ne "[+] Default password is \e[91m${randomdbpass}\e[0m ( let it blank to use this password ): "
+                ask dbpass "" "$randomdbpass"
             fi
             if [ "$dbpass" = "" ]; then
                 dbpass=$randomdbpass
@@ -2243,6 +2298,7 @@ try { \$pdo = new PDO(\$dsn, \$usernamedb, \$passworddb, \$options); } catch (\P
 \$adminnumber = '${YOUR_CHAT_ID}';
 \$domainhosts = '${YOUR_DOMAIN}';
 \$usernamebot = '${YOUR_BOTNAME}';
+\$fx_rate_url = '';
 ?>
 EOF
         sudo chown www-data:www-data /var/www/html/mirzaprobotconfig/config.php 2>/dev/null
@@ -2260,7 +2316,7 @@ EOF
             "curl -s -F \"url=https://${YOUR_DOMAIN}/index.php\" \"https://api.telegram.org/bot${YOUR_BOT_TOKEN}/setWebhook\"" \
             || { show_step_error; install_pause "Setting Telegram webhook"; }
 
-        MESSAGE="✅ The Mirza bot is installed! for start the bot send /start command."
+        MESSAGE="✅ The bot is installed! for start the bot send /start command."
         curl -s -X POST "https://api.telegram.org/bot${YOUR_BOT_TOKEN}/sendMessage" -d chat_id="${YOUR_CHAT_ID}" -d text="$MESSAGE" > /dev/null 2>&1
         sleep 3
         run_step "Starting Apache" "systemctl start apache2" \
@@ -2277,7 +2333,7 @@ EOF
     clear
     banner
     _sec "Installation complete"
-    printf "    ${C_OK}●${CR} ${C_OK}Mirza is installed and the webhook is set.${CR}\n"
+    printf "    ${C_OK}●${CR} ${C_OK}The bot is installed and the webhook is set.${CR}\n"
     printf "    ${C_DIM}Open Telegram and send ${CR}${C_KEY}/start${CR}${C_DIM} to your bot.${CR}\n"
 
     _sec "Access"
@@ -2306,7 +2362,7 @@ function update_bot() {
     BOT_DIR="/var/www/html/mirzaprobotconfig"
     if [ ! -d "$BOT_DIR" ]; then
         _sec "Update"
-        printf "    ${C_BAD}●${CR} ${C_BAD}Mirza is not installed. Install it first.${CR}\n"
+        printf "    ${C_BAD}●${CR} ${C_BAD}The bot is not installed. Install it first.${CR}\n"
         sleep 2
         show_menu
         return 1
@@ -2329,7 +2385,7 @@ function update_bot() {
 
     echo ""
     echo -e "  ${C_DIM}Update target:${CR} ${C_KEY}${TARGET_LABEL}${CR}"
-    print_header "Updating Mirza Bot"
+    print_header "Updating the bot"
     run_step "Updating system packages" "apt update --allow-releaseinfo-change && apt upgrade -y" \
         || { show_step_error; echo -e "\e[91mError updating the server. Exiting...\033[0m"; exit 1; }
     run_step "Ensuring cron is installed and running" "ensure_cron" \
@@ -2499,7 +2555,7 @@ EOF
             || echo -e "\e[93mWarning: vpnbot webhook update failed.\033[0m"
     fi
     rm -rf "$TEMP_DIR"
-    echo -e "\n\e[92mMirza Bot updated to latest version successfully!\033[0m"
+    echo -e "\n\e[92mthe bot updated to latest version successfully!\033[0m"
     if [ -f "/root/install.sh" ]; then
         sudo chmod +x /root/install.sh
         sudo ln -sf /root/install.sh /usr/local/bin/mirza
@@ -2509,22 +2565,22 @@ EOF
     fi
 }
 function remove_bot() {
-    echo -e "\e[33mStarting Mirza Bot removal process...\033[0m"
+    echo -e "\e[33mStarting the bot removal process...\033[0m"
     LOG_FILE="/var/log/remove_bot.log"
     echo "Log file: $LOG_FILE" > "$LOG_FILE"
     BOT_DIR="/var/www/html/mirzaprobotconfig"
     if [ ! -d "$BOT_DIR" ]; then
-        echo -e "\e[31m[ERROR]\033[0m Mirza Bot is not installed (/var/www/html/mirzaprobotconfig not found)." | tee -a "$LOG_FILE"
+        echo -e "\e[31m[ERROR]\033[0m the bot is not installed (/var/www/html/mirzaprobotconfig not found)." | tee -a "$LOG_FILE"
         echo -e "\e[33mNothing to remove. Exiting...\033[0m" | tee -a "$LOG_FILE"
         sleep 2
         exit 1
     fi
-    read -p "Are you sure you want to remove Mirza Bot and its dependencies? (y/n): " choice
+    read -p "Are you sure you want to remove the bot and its dependencies? (y/n): " choice
     if [[ ! "$choice" =~ ^[Yy]$ ]]; then
         echo "Aborting..." | tee -a "$LOG_FILE"
         exit 0
     fi
-    echo "Removing Mirza Bot..." | tee -a "$LOG_FILE"
+    echo "Removing the bot..." | tee -a "$LOG_FILE"
     if command -v crontab >/dev/null 2>&1 || [ -x /usr/bin/crontab ]; then
         local _cb
         _cb="$(command -v crontab || echo /usr/bin/crontab)"
@@ -2532,7 +2588,7 @@ function remove_bot() {
             "$_cb" -u www-data -l 2>/dev/null | grep -v '/cronbot/' | "$_cb" -u www-data - 2>/dev/null || true
         fi
         "$_cb" -l 2>/dev/null | grep -v '/cronbot/' | "$_cb" - 2>/dev/null || true
-        echo -e "\e[92mRemoved Mirza cron jobs.\033[0m" | tee -a "$LOG_FILE"
+        echo -e "\e[92mRemoved cron jobs.\033[0m" | tee -a "$LOG_FILE"
     fi
     CONFIG_PATH="/var/www/html/mirzaprobotconfig/config.php"
     if [ -f "$CONFIG_PATH" ]; then
@@ -2592,9 +2648,9 @@ function remove_bot() {
     echo -e "\e[33mResetting firewall rules (except SSL)...\033[0m" | tee -a "$LOG_FILE"
     sudo ufw delete allow 'Apache' 2>/dev/null
     sudo ufw reload 2>/dev/null
-    # Clear Mirza install state so a fresh install is allowed afterwards
+    # Clear the installer state so a fresh install is allowed afterwards
     sudo rm -rf /root/confmirza
-    echo -e "\e[92mMirza Bot, MySQL, and their dependencies have been completely removed.\033[0m" | tee -a "$LOG_FILE"
+    echo -e "\e[92mthe bot, MySQL, and their dependencies have been completely removed.\033[0m" | tee -a "$LOG_FILE"
 }
 
 function migrate_to_pro() {
@@ -2720,11 +2776,11 @@ function migrate_to_pro() {
     NEW_BOT_DIR="/var/www/html/mirzaprobotconfig"
     rm -rf "$OLD_BOT_DIR"
     mkdir -p "$NEW_BOT_DIR"
-    ZIP_URL="https://github.com/mahdiMGF2/mirzabot/archive/refs/heads/main.zip"
+    ZIP_URL="https://github.com/Zaltapar/mirzabot/archive/refs/heads/main.zip"
     TEMP_DIR="/tmp/mirzabot_mig"
     mkdir -p "$TEMP_DIR"
-    run_step "Downloading Mirza source" "wget -q -O '$TEMP_DIR/bot.zip' '$ZIP_URL'" \
-        || { show_step_error; echo -e "\033[31mError: Failed to download Mirza source.\033[0m"; exit 1; }
+    run_step "Downloading the bot source" "wget -q -O '$TEMP_DIR/bot.zip' '$ZIP_URL'" \
+        || { show_step_error; echo -e "\033[31mError: Failed to download the bot source.\033[0m"; exit 1; }
     run_step "Extracting source files" "unzip -o -q '$TEMP_DIR/bot.zip' -d '$TEMP_DIR'" \
         || { show_step_error; echo -e "\033[31mError: Failed to extract source files.\033[0m"; exit 1; }
     EXTRACTED_DIR=$(find "$TEMP_DIR" -mindepth 1 -maxdepth 1 -type d | head -1)
@@ -2752,6 +2808,7 @@ try { \$pdo = new PDO(\$dsn, \$usernamedb, \$passworddb, \$options); } catch (\P
 \$adminnumber = '${OLD_ADMIN_ID}';
 \$domainhosts = '${DOMAIN_NAME}';
 \$usernamebot = '${OLD_BOT_NAME}';
+\$fx_rate_url = '';
 ?>
 EOF
     chown -R www-data:www-data "$NEW_BOT_DIR"
@@ -2826,21 +2883,21 @@ EOF
 # ── Command-line argument parsing ────────────────────────────
 # Globals filled from flags (consumed by install/update where relevant)
 ARG_TOKEN=""    ARG_ADMIN=""   ARG_DOMAIN=""
-ARG_DBUSER=""   ARG_DBPASS=""  ARG_VERSION=""  ARG_CHANNEL=""
+ARG_DBUSER=""   ARG_DBPASS=""  ARG_VERSION=""  ARG_CHANNEL=""  ARG_AUTO=""
 
 print_usage() {
     cat <<USAGE
 
-  Mirza - management script
+  bot - management script
 
   Usage:
     mirza [command] [options]
 
   Commands:
-    install            Install Mirza
-    update             Update Mirza
-    remove             Remove Mirza
-    migrate            Migrate Free -> Pro
+    install            Install the bot
+    update             Update the bot
+    remove             Remove the bot
+    migrate            Migrate an existing install
     renew              Renew the bot domain SSL certificate
     backup             Backup database & send to Telegram
     import             Import database from SQL file (Beta)
@@ -2866,13 +2923,18 @@ USAGE
 }
 
 process_arguments() {
-    local cmd="menu"
+    # Piped one-shot run (curl ... | bash) with no explicit command -> install
+    local default_cmd="menu"
+    if [ "$NONINTERACTIVE" = "1" ]; then
+        default_cmd="install"
+    fi
+    local cmd="$default_cmd"
     # First non-flag token is the command
     case "$1" in
         install|update|remove|migrate|renew|backup|import|menu) cmd="$1"; shift ;;
         -h|--help) print_usage; exit 0 ;;
-        "") cmd="menu" ;;
-        --*) cmd="menu" ;;            # only flags given -> menu, but still parse flags
+        "") cmd="$default_cmd" ;;
+        --*) cmd="$default_cmd" ;;     # only flags given -> default, but still parse flags
         *) cmd="menu" ;;
     esac
 
@@ -2886,6 +2948,7 @@ process_arguments() {
             --db-pass) ARG_DBPASS="$2";  shift 2 ;;
             --version) ARG_VERSION="$2"; shift 2 ;;
             --channel) ARG_CHANNEL="$2"; shift 2 ;;
+            --auto)    ARG_AUTO="1"; shift ;;
             -h|--help) print_usage; exit 0 ;;
             *) echo -e "\e[91mUnknown option: $1\033[0m"; print_usage; exit 1 ;;
         esac

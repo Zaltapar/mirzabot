@@ -23,5 +23,7 @@ $APIKEY = '{API_KEY}';
 $adminnumber = '{admin_number}';
 $domainhosts = '{domain_name}';
 $usernamebot = '{username_bot}';
+// Optional: your FX rate service endpoint (returns JSON {"result": {code: rate}}). Empty = crypto rates disabled.
+$fx_rate_url = '';
 
 ?>

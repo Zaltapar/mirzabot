@@ -214,14 +214,15 @@ return [
                 'selectusername' => 'Отправьте произвольное имя пользователя
 ⚠️ Имя пользователя не должно содержать лишних символов, таких как @, пробел или дефис. 
 ⚠️ Имя пользователя должно быть на английском.
-✅ Правильные имена: ali12 | mahdi | ws1_ksdf
-❌ Неправильные имена: ali_ | tele@ | _mahdi | محسن',
+✅ Правильные имена: ali12 | user12 | ws1_ksdf
+❌ Неправильные имена: ali_ | tele@ | _user1 | محسن',
                 'text_start' => 'Здравствуйте, добро пожаловать',
                 'summary' => [
                         'title' => '📊 <b>Обзор аккаунта</b>',
                         'activeLine' => '🟢 Активные сервисы: {count}',
                         'expiredLine' => '⌛️ Истекшие сервисы: {count}',
                         'balanceLine' => '💵 Баланс кошелька: {value}',
+                        'purchasesLine' => '🛒 Покупок: {count} · Всего оплачено: {amount}',
                 ],
                 'Balance' => [
                         'addBalanceUser' => '⭕️ Ручное добавление баланса',
@@ -1839,7 +1840,7 @@ trojan://xyz',
                         'on' => 'Включено',
                         'intro' => '📌 В списке ниже вы можете управлять шлюзами.
 
-⚠️ Команда Mirza не даёт никаких гарантий по шлюзам, всё использование и ответственность лежат на вас',
+⚠️ Команда разработки не даёт никаких гарантий по шлюзам, всё использование и ответственность лежат на вас',
                         'askPlisioApi' => '⚙️ Пожалуйста, отправьте ваш API Key для Plisio.
 
 🔑 Чтобы получить API ключ, посетите следующий сайт:
@@ -2243,6 +2244,49 @@ nowpayments.io
 
 Количество оставшихся человек :  %s',
                 ],
+                'smartMsg' => [
+                        'listTitle' => '🧠 Умные правила рассылки (%s активно). Нажмите на правило, чтобы посмотреть детали:',
+                        'noRules' => '🧠 Правила ещё не созданы. Нажмите «Новое правило», чтобы создать.',
+                        'newRule' => '➕ Новое правило',
+                        'selectSegment' => 'Выберите целевую группу для сообщения:',
+                        'segments' => [
+                                'newuser' => '🆕 Новые (ещё не пользовались)',
+                                'away' => '🕐 Ушедшие пользователи',
+                                'active' => '⚡ Недавно активные',
+                                'power' => '💎 Активные (много заказов)',
+                                'expiring' => '⏳ Услуги скоро истекут',
+                                'expired' => '🚫 Истекшие услуги',
+                                'balance' => '💰 С балансом кошелька',
+                                'all' => '👥 Все пользователи',
+                                'customer' => '✅ Клиенты (есть покупки)',
+                                'nonecustomer' => '🚷 Без покупок',
+                        ],
+                        'askParam' => 'Для «%s» отправьте число (дней бездействия / дней активности / порог заказов):',
+                        'askText' => 'Отправьте текст сообщения:',
+                        'hintVars' => 'Допустимые переменные: {name} {username} {balance} {score} {service_count} {away_days}',
+                        'askButton' => 'Выберите кнопку, приложенную к сообщению:',
+                        'askFrequency' => 'Выберите, как часто правило должно работать:',
+                        'freqs' => [
+                                'once' => '🔁 Один раз',
+                                'daily' => '📅 Ежедневно',
+                                'weekly' => '🗓 Еженедельно',
+                                'monthly' => '📆 Ежемесячно',
+                        ],
+                        'saved' => '✅ Правило №%s («%s») создано. Доставка будет выполняться автоматически (с учётом тихих часов).',
+                        'details' => '🧠 Правило №%s\nГруппа: %s (параметр: %s)\nЧастота: %s\nСтатус: %s\nПоследний запуск: %s (отправлено %s)\nТекущие цели: %s\n\nТекст:\n%s',
+                        'active' => 'ВКЛ',
+                        'inactive' => 'ВЫКЛ',
+                        'never' => 'ещё не запускалось',
+                        'targets' => 'Текущие цели',
+                        'runNow' => '🚀 Отправить сейчас',
+                        'toggle' => '🔛 Вкл/выкл',
+                        'delete' => '🗑 Удалить правило',
+                        'confirmDelete' => 'Удалить правило №%s?',
+                        'deleted' => '✅ Правило удалено.',
+                        'toggled' => '✅ Статус правила обновлён (сейчас %s).',
+                        'running' => '🚀 Отправка начата; %s пользователей в очереди и получат сообщение в ближайшие минуты.',
+                        'noTargets' => '❌ Для этого правила не найдено пользователей.',
+                ],
                 'node' => [
                         'settingsUnavailable' => '❌ Настройки нод недоступны для просмотра',
                         'intro' => '📌 В этом разделе вы можете управлять нодами панели Marzban.',
@@ -2434,13 +2478,13 @@ f,n.n2',
                         'aboutBot' => '💎 | Version Bot: %s
 📌 | Version Mini App: 0.1.1
 
-<blockquote>🔹 | Этот бот полностью бесплатный и разработан командой Mirza</blockquote>
+<blockquote>🔹 | Этот бот полностью бесплатный и разработан командой разработки</blockquote>
 
 <blockquote>🔹 | Любая продажа или взимание платы за этого бота считается нарушением.</blockquote>
 
 <blockquote>🔹 | Если вы заметили продажу или взимание платы, пожалуйста, отследите и верните свои деньги.</blockquote>
 
-<blockquote>🐞 | Чтобы сообщить о проблеме, напишите в <a href="https://t.me/mirzapanel?direct">директ канала Mirza</a>.</blockquote>',
+<blockquote>🐞 | Чтобы сообщить о проблеме, используйте опцию «Сообщить о проблеме» в настройках.</blockquote>',
                         'gatewayRow' => '
 📌 Название шлюза: <code>%s</code>
  - Количество успешных платежей: <code>%s</code>
@@ -3953,6 +3997,11 @@ ID пользователя : %s
                 'firstConnection' => '📊 Первое подключение',
                 'firstConnectionTest' => '📊 Первое подключение тестового аккаунта',
                 'firstPurchaseBtn' => 'Первая покупка',
+                'randomCodeBtn' => '🎲 Случайный код',
+                'timePresetNoExpire' => '♾ Без истечения',
+                'timePresetDay' => '🕐 1 день',
+                'timePresetWeek' => '🗓 1 неделя',
+                'timePresetMonth' => '📆 1 месяц',
                 'firstPurchaseCommission' => '🎉 Комиссия только за первую покупку',
                 'firstPurchaseWheel' => '🎲 Колесо фортуны за первую покупку',
                 'fixed' => 'Фиксированный',
@@ -4016,6 +4065,7 @@ ID пользователя : %s
                 'maxCustomTime' => '📍 Максимальное произвольное время',
                 'maxCustomVolume' => '📍 Максимальный произвольный объём',
                 'messagingSection' => '📨 Раздел отправки сообщений',
+                'smartRules' => '🧠 Умные правила рассылки',
                 'mikrotik' => 'MikroTik',
                 'minAmountAqayePardakht' => '⬇️ Минимальная сумма Aghaye Pardakht',
                 'minAmountCartToCart' => '⬇️ Минимальная сумма карта на карту',
@@ -4216,7 +4266,7 @@ ID пользователя : %s
                 'zarinPalMerchant' => 'Продавец ZarinPal',
                 'zeroBalance' => '0️⃣ Обнулить баланс',
                 'panelSetting' => '🎛 Настройка панели',
-                'mirzaAgentPanel' => 'Агент Mirza',
+                'mirzaAgentPanel' => 'Агент-реселлер',
                 'setGroupName' => '🎛 Настройка имени группы',
                 'subLinkDomain' => '🔗 Домен ссылки подписки',
                 'panelTypeSanaei' => 'Sanaei один порт',
@@ -4383,10 +4433,10 @@ ID пользователя : %s
                 'jsSidebarCollapsed' => 'Свёрнутое меню включено',
                 'jsSidebarExpanded' => 'Открытое меню включено',
                 'jsThemeActivated' => 'Тема «{name}» включена',
-                'keyboardManageTitle' => 'Панель администратора Mirza Bot',
+                'keyboardManageTitle' => 'Панель администратора бота',
                 'keyboardSaveBtn' => 'Вернуться в режим по умолчанию',
                 'keyboardSortHint' => 'Вернуться в панель пользователя',
-                'layoutBrandName' => 'Панель администратора Mirza Bot',
+                'layoutBrandName' => 'Панель администратора бота',
                 'layoutDefaultAdminName' => 'Администратор',
                 'layoutFooterCopyright' => 'Панель управления',
                 'layoutFooterLinkDocs' => 'Настройки',
@@ -4403,7 +4453,7 @@ ID пользователя : %s
                 'layoutNavLogout' => 'Управление',
                 'layoutNavOrders' => 'Да, продолжить',
                 'layoutNavPayments' => '· Панель',
-                'layoutNavProducts' => 'Mirza',
+                'layoutNavProducts' => 'Товары',
                 'layoutNavServices' => 'Отмена',
                 'layoutNavSettings' => 'Панель управления',
                 'layoutNavUsers' => 'Вы уверены? Эта операция необратима.',
@@ -4416,7 +4466,7 @@ ID пользователя : %s
                 'layoutPageTitleProduct' => 'Продукты',
                 'layoutPageTitleService' => 'Сервисы',
                 'layoutPageTitleSettings' => 'Настройки',
-                'layoutPageTitleSuffix' => 'Mirza',
+                'layoutPageTitleSuffix' => '',
                 'layoutPageTitleUsers' => 'Пользователи',
                 'layoutProfileMenuLabel' => 'Настройки',
                 'layoutSearchBoxPlaceholder' => 'Транзакции',
@@ -4426,18 +4476,17 @@ ID пользователя : %s
                 'loginEnterCredentials' => 'Введите имя пользователя и пароль.',
                 'loginErrorTitle' => 'Пароль',
                 'loginFooter' => 'Имя пользователя',
-                'loginHeading' => 'Панель администратора Mirza',
+                'loginHeading' => 'Панель администратора',
                 'loginHidePassword' => 'Доступ к этой панели разрешён только авторизованным администраторам.',
-                'loginPanelTitle' => 'Вход — Панель администратора Mirza',
-                'loginPasswordLabel' => 'Панель администратора Mirza',
-                'loginPasswordPlaceholder' => '· Версия 1.0 Mirza',
+                'loginPanelTitle' => 'Вход — Панель администратора',
+                'loginPasswordLabel' => 'Панель администратора',
+                'loginPasswordPlaceholder' => '· Версия 1.0',
                 'loginRememberMe' => 'Чтобы управлять ботом, введите данные вашего аккаунта.',
                 'loginShowPassword' => 'Вход в панель',
-                'loginSubtitle' => 'Для поддержки, пожалуйста ',
+                'loginSubtitle' => 'Введите имя пользователя и пароль для входа.',
                 'loginTooManyAttempts' => 'Слишком много неудачных попыток. Пожалуйста, подождите 15 минут.',
                 'loginUsernameLabel' => 'Проект',
-                'loginUsernamePlaceholder' => 'Поставьте звезду и
-          задонатьте',
+                'loginUsernamePlaceholder' => '',
                 'loginWelcomeBack' => 'Добро пожаловать, ',
                 'loginWrongCredentials' => 'Имя пользователя или пароль неверны.',
                 'paymentAllMethods' => 'С начала деятельности',
@@ -4600,10 +4649,10 @@ ID пользователя : %s
                 'settingsPasswordStrengthLabel' => 'Изменить пароль',
                 'settingsPhpMemory' => 'Память PHP',
                 'settingsReportIssue' => 'Сообщить о проблеме',
-                'settingsReportIssueLink' => 'Директ канала Mirza',
+                'settingsReportIssueLink' => 'Сообщить о проблеме',
                 'settingsDonate' => 'Поддержка',
                 'settingsDonateLink' => 'Пожертвовать',
-                'donatePopupTitle' => '💖 Поддержите Mirza',
+                'donatePopupTitle' => '💖 Поддержите бота',
                 'donatePopupText' => 'Этот бот и панель разрабатываются бесплатно. Если они вам полезны, небольшое пожертвование поможет продолжать разработку и поддержку.',
                 'donatePopupLater' => 'Позже',
                 'settingsSaveBtn' => 'Текущий пароль',

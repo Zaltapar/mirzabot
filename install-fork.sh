@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# MirzaBot fork installer / migrator (Linux)
+# Bot fork installer / migrator (Linux)
 #
 # Works on top of a server that already has PHP 8.2+, MySQL and Apache
-# (the same prerequisites the original MirzaBot installer provisions).
+# (the same prerequisites the base installer provisions).
 #
 # Usage:
-#   sudo bash install-fork.sh update   [options]   # migrate an existing Mirza install to this fork
+#   sudo bash install-fork.sh update   [options]   # migrate an existing bot install to this fork
 #   sudo bash install-fork.sh install  [options]   # fresh install of the fork
 #
 # Options:
@@ -24,7 +24,7 @@
 #   --skip-snapshot          skip file/DB snapshots on update (not recommended)
 #   --yes                    non-interactive (accept all defaults)
 #
-# "update" is the migration path from the original (OG) MirzaBot: it runs the
+# "update" is the migration path from a running install: it runs the
 # bundled sync.php against the live install, which snapshots the database
 # (mysqldump) and the install itself (rollback archive), copies the new code
 # while PRESERVING config.php, lang/override/, vpnbot/, storage/ and vendor/,
@@ -167,12 +167,12 @@ do_update() {
       if [ "$assume_yes" = "1" ]; then
         die "No install dir given and none auto-detected (looked in /var/www/html/mirzaprobotconfig, mirzabotconfig, mirzabot)."
       fi
-      printf 'Existing Mirza install directory: '
+      printf 'Existing bot install directory: '
       read -r install_dir
       [ -n "$install_dir" ] || die "Aborted."
     fi
   fi
-  [ -f "$install_dir/table.php" ] || die "$install_dir/table.php not found - not a MirzaBot install?"
+  [ -f "$install_dir/table.php" ] || die "$install_dir/table.php not found - not a bot install?"
   [ -f "$install_dir/config.php" ] || die "$install_dir/config.php not found - not an installed bot?"
 
   resolve_source
@@ -181,7 +181,7 @@ do_update() {
   local old_ver new_ver
   old_ver="$(cat "$install_dir/version" 2>/dev/null || echo unknown)"
   new_ver="$(cat "$SRC_DIR/version" 2>/dev/null || echo unknown)"
-  log "Migrating Mirza install -> fork version"
+  log "Migrating bot install -> fork version"
   echo "    install dir : $install_dir"
   echo "    db version  : $old_ver -> $new_ver"
   echo "    source      : $SRC_DIR"

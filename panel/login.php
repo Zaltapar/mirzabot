@@ -47,7 +47,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       session_regenerate_id(true);
       $_SESSION['admin_user'] = $admin['username'];
       $_SESSION['login_time'] = time();
-      $_SESSION['show_donate'] = true;
       flash('success', $textbotlang['panel']['loginWelcomeBack'] . $admin['username']);
       header('Location: index.php');
       exit;
@@ -78,9 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <span><?= $textbotlang['panel']['loginHeading'] ?></span>
       </div>
       <div class="auth-quote">
-        <h2><?= $textbotlang['panel']['loginSubtitle'] ?> <a style="color:#a8dafd !important  "
-            href="https://github.com/mahdiMGF2/mirzabot"><?= $textbotlang['panel']['loginUsernameLabel'] ?></a>
-          <?= $textbotlang['panel']['loginUsernamePlaceholder'] ?></h2>
+        <h2><?= $textbotlang['panel']['loginSubtitle'] ?></h2>
         <cite><?= $textbotlang['panel']['loginPasswordLabel'] ?></cite>
       </div>
       <div class="auth-foot">© <?= date('Y') ?> <?= $textbotlang['panel']['loginPasswordPlaceholder'] ?></div>

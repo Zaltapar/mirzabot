@@ -70,5 +70,6 @@ return [
         ['token', null, 'VARCHAR(100)'],
         ['lang', 'fa', 'varchar(5)'],
         ['low_balance_alert_sent', '0', 'TINYINT(1)'],
+        ['terms_accepted', '0', 'VARCHAR(20)'],
     ],
 ];

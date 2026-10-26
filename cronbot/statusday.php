@@ -8,13 +8,26 @@ require_once __DIR__ . '/../function.php';
 $textbotlang = languagechange();
 $setting = select("setting","*",null,null,"select");
 
-//________________[ time 12 report]________________
+//________________[ daily report]________________
+// Two windows: an end-of-day snapshot at 23:45, and a "after midnight" report
+// of the previous full day during 00:00-00:45. Each day is reported once.
 $midnight_time = date("H:i");
 $reportnight = select("topicid","idreport","report","reportnight","select")['idreport'];
-// if(true){
-if ($midnight_time == "23:45") {
-$datefirst = date("Y-m-d") . " 00:00:00";
-$dateend = date("Y-m-d") . " 23:59:59";
+$nowMinutes = (int) date("H") * 60 + (int) date("i");
+$isAfterMidnight = $nowMinutes <= 45;
+$dayOffset = 0;
+if ($isAfterMidnight) {
+    $dayOffset = -86400;
+}
+$reportDayKey = date("Y-m-d", time() + $dayOffset);
+$stateFile = dirname(__DIR__) . "/storage/daily_report_state.json";
+$state = json_decode((string) @file_get_contents($stateFile), true);
+if (!is_array($state)) {
+    $state = [];
+}
+if (($midnight_time == "23:45" || $isAfterMidnight) && ($state["last_sent_day"] ?? "") !== $reportDayKey) {
+$datefirst = date("Y-m-d", time() + $dayOffset) . " 00:00:00";
+$dateend = date("Y-m-d", time() + $dayOffset) . " 23:59:59";
 
 // Helper function to execute a prepared statement
 function executeQuery($pdo, $sql, $params) {
@@ -56,8 +69,8 @@ $stmt = executeQuery($pdo, $sqlNewUsers, [':startDate' => $datefirst, ':endDate'
 $usernew = $stmt->fetchColumn() ?? 0;
 
 // Fetch extension data
-$datefirstextend = date("Y/m/d") . " 00:00:00";
-$dateendextend = date("Y/m/d") . " 23:59:59";
+$datefirstextend = date("Y/m/d", time() + $dayOffset) . " 00:00:00";
+$dateendextend = date("Y/m/d", time() + $dayOffset) . " 23:59:59";
 
 $sqlExtensions = "SELECT COUNT(*) AS count, SUM(price) AS total_price 
                   FROM service_other 
@@ -142,5 +155,10 @@ if (!empty($setting['Channel_Report'])) {
             'parse_mode' => "HTML"
         ]);
     }
+    $state["last_sent_day"] = $reportDayKey;
+    if (!is_dir(dirname($stateFile))) {
+        @mkdir(dirname($stateFile), 0775, true);
+    }
+    @file_put_contents($stateFile, json_encode($state));
 }
 }

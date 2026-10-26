@@ -214,14 +214,15 @@ To enable it, the bot owner needs a Telegram Premium subscription, or the bot mu
                 'selectusername' => 'Send a custom username
 ⚠️ The username must not contain extra characters such as @, space, or hyphen. 
 ⚠️ The username must be in English.
-✅ Valid usernames: ali12 | mahdi | ws1_ksdf
-❌ Invalid usernames: ali_ | tele@ | _mahdi | محسن',
+✅ Valid usernames: ali12 | user12 | ws1_ksdf
+❌ Invalid usernames: ali_ | tele@ | _user1 | محسن',
                 'text_start' => 'Hello, welcome',
                 'summary' => [
                         'title' => '📊 <b>Account overview</b>',
                         'activeLine' => '🟢 Active services: {count}',
                         'expiredLine' => '⌛️ Expired services: {count}',
                         'balanceLine' => '💵 Wallet balance: {value}',
+                        'purchasesLine' => '🛒 Purchases: {count} · Total paid: {amount}',
                 ],
                 'Balance' => [
                         'addBalanceUser' => '⭕️ Manually add balance',
@@ -673,6 +674,12 @@ You can now use the bot ✔️',
                         'autoRenewProductGone' => '❌ The service {username} was removed from the shop, so auto-renewal was disabled. You can buy a new service instead.',
                         'autoRenewNotFound' => '⚠️ The bot could not match {username} to a shop item for auto-renewal. Please contact support.',
                         'autoRenewExtendFailed' => '❌ Auto-renewal for {username} failed on the panel. Your balance was not deducted; we will retry automatically.',
+                        'autoRenewPriceAsk' => '💱 If the price of this service goes up later, should auto-renewal still run?',
+                        'autoRenewPriceYes' => '✅ Yes, renew at any price',
+                        'autoRenewPriceNo' => '🔒 No, only at the current price or lower',
+                        'autoRenewPriceLockNote' => '🔒 If this service price goes above {price} Toman, auto-renewal will not run until the price drops back to the current price or lower.',
+                        'autoRenewPriceHold' => '⏸️ Auto-renewal for {username} is on hold: the price rose from {old} to {new} Toman and you chose "current price or lower". It will renew automatically if the price drops.',
+                        'autoRenewLockedLabel' => '🔒 current price or lower',
                         'discount' => '🎁 Apply discount code',
                         'emptyServiceforExtend' => '❌ You have no service to renew.',
                         'renewalerror' => '❌ An error occurred during renewal. Please perform your renewal steps again',
@@ -1839,7 +1846,7 @@ Current value: %s Toman',
                         'on' => 'Turned on',
                         'intro' => '📌 From the list below you can manage the gateways.
 
-⚠️ The Mirza team gives no guarantee for the gateways, and all use and responsibility is on you',
+⚠️ The development team gives no guarantee for the gateways, and all use and responsibility is on you',
                         'askPlisioApi' => '⚙️ Please send your Plisio API Key.
 
 🔑 To get your API key, visit the following site:
@@ -2243,6 +2250,49 @@ Send the answer as a number',
 
 Number of remaining people :  %s',
                 ],
+                'smartMsg' => [
+                        'listTitle' => '🧠 Smart messaging rules (%s active). Tap a rule for details:',
+                        'noRules' => '🧠 No rules defined yet. Tap "New rule" to create one.',
+                        'newRule' => '➕ New rule',
+                        'selectSegment' => 'Choose the target group for the message:',
+                        'segments' => [
+                                'newuser' => '🆕 New users (not used yet)',
+                                'away' => '🕐 Away users',
+                                'active' => '⚡ Recently active users',
+                                'power' => '💎 Power users (heavy usage)',
+                                'expiring' => '⏳ Services expiring soon',
+                                'expired' => '🚫 Expired services',
+                                'balance' => '💰 Wallet balance users',
+                                'all' => '👥 All users',
+                                'customer' => '✅ Customers (have purchases)',
+                                'nonecustomer' => '🚷 No purchase yet',
+                        ],
+                        'askParam' => 'For "%s", send the number (days away / days active / purchase threshold):',
+                        'askText' => 'Send the message text:',
+                        'hintVars' => 'Allowed variables: {name} {username} {balance} {score} {service_count} {away_days}',
+                        'askButton' => 'Pick the button attached to the message:',
+                        'askFrequency' => 'Pick how often this rule should run:',
+                        'freqs' => [
+                                'once' => '🔁 Once',
+                                'daily' => '📅 Daily',
+                                'weekly' => '🗓 Weekly',
+                                'monthly' => '📆 Monthly',
+                        ],
+                        'saved' => '✅ Rule #%s ("%s") created. It will be delivered automatically by the cron (respecting quiet hours).',
+                        'details' => '🧠 Rule №%s\nGroup: %s (param: %s)\nFrequency: %s\nStatus: %s\nLast run: %s (sent to %s users)\nCurrent targets: %s users\n\nText:\n%s',
+                        'active' => 'ON',
+                        'inactive' => 'OFF',
+                        'never' => 'never run',
+                        'targets' => 'Current targets',
+                        'runNow' => '🚀 Send now',
+                        'toggle' => '🔛 Toggle on/off',
+                        'delete' => '🗑 Delete rule',
+                        'confirmDelete' => 'Delete rule #%s?',
+                        'deleted' => '✅ Rule deleted.',
+                        'toggled' => '✅ Rule status updated (now %s).',
+                        'running' => '🚀 Sending started; %s users queued and will receive the message within the next minutes.',
+                        'noTargets' => '❌ No users found for this rule.',
+                ],
                 'node' => [
                         'settingsUnavailable' => '❌ Node settings cannot be viewed',
                         'intro' => '📌 In this section you can manage the Marzban panel nodes.',
@@ -2434,13 +2484,13 @@ Current amount: %s',
                         'aboutBot' => '💎 | Version Bot: %s
 📌 | Version Mini App: 0.1.1
 
-<blockquote>🔹 | This bot is completely free and is developed by the Mirza team</blockquote>
+<blockquote>🔹 | This bot is completely free and is developed by the development team</blockquote>
 
 <blockquote>🔹 | Any sale or charging of money for this bot is considered a violation.</blockquote>
 
 <blockquote>🔹 | If you see any sale or charging of money, please track and reclaim your money.</blockquote>
 
-<blockquote>🐞 | To report a problem, message the <a href="https://t.me/mirzapanel?direct">Mirza channel direct</a>.</blockquote>',
+<blockquote>🐞 | To report a problem, use the "Report an issue" option in settings.</blockquote>',
                         'gatewayRow' => '
 📌 Gateway name: <code>%s</code>
  - Number of successful payments: <code>%s</code>
@@ -3953,6 +4003,11 @@ We hope you had a good experience with the ease and speed of your service. If yo
                 'firstConnection' => '📊 First connection',
                 'firstConnectionTest' => '📊 Test account first connection',
                 'firstPurchaseBtn' => 'First purchase',
+                'randomCodeBtn' => '🎲 Random code',
+                'timePresetNoExpire' => '♾ No expiry',
+                'timePresetDay' => '🕐 1 day',
+                'timePresetWeek' => '🗓 1 week',
+                'timePresetMonth' => '📆 1 month',
                 'firstPurchaseCommission' => '🎉 Commission only for first purchase',
                 'firstPurchaseWheel' => '🎲 First purchase wheel of fortune',
                 'fixed' => 'Fixed',
@@ -4016,6 +4071,7 @@ We hope you had a good experience with the ease and speed of your service. If yo
                 'maxCustomTime' => '📍 Maximum custom time',
                 'maxCustomVolume' => '📍 Maximum custom volume',
                 'messagingSection' => '📨 Message sending section',
+                'smartRules' => '🧠 Smart messaging rules',
                 'mikrotik' => 'MikroTik',
                 'minAmountAqayePardakht' => '⬇️ Minimum Aghaye Pardakht amount',
                 'minAmountCartToCart' => '⬇️ Minimum card-to-card amount',
@@ -4216,7 +4272,7 @@ We hope you had a good experience with the ease and speed of your service. If yo
                 'setEducationVariza' => 'Variza tutorial',
                 'zeroBalance' => '0️⃣ Reset balance to zero',
                 'panelSetting' => '🎛 Panel Settings',
-                'mirzaAgentPanel' => 'Mirza Agent',
+                'mirzaAgentPanel' => 'Reseller Agent',
                 'setGroupName' => '🎛 Set group name',
                 'subLinkDomain' => '🔗 Subscription link domain',
                 'panelTypeSanaei' => 'Sanaei single port',
@@ -4383,10 +4439,10 @@ We hope you had a good experience with the ease and speed of your service. If yo
                 'jsSidebarCollapsed' => 'Collapsed menu enabled',
                 'jsSidebarExpanded' => 'Open menu enabled',
                 'jsThemeActivated' => 'Theme «{name}» enabled',
-                'keyboardManageTitle' => 'Mirza Bot Admin Panel',
+                'keyboardManageTitle' => 'Bot Admin Panel',
                 'keyboardSaveBtn' => 'Back to default mode',
                 'keyboardSortHint' => 'Back to user panel',
-                'layoutBrandName' => 'Mirza Bot Admin Panel',
+                'layoutBrandName' => 'Bot Admin Panel',
                 'layoutDefaultAdminName' => 'Admin',
                 'layoutFooterCopyright' => 'Dashboard',
                 'layoutFooterLinkDocs' => 'Settings',
@@ -4403,7 +4459,7 @@ We hope you had a good experience with the ease and speed of your service. If yo
                 'layoutNavLogout' => 'Management',
                 'layoutNavOrders' => 'Yes, continue',
                 'layoutNavPayments' => '· Panel',
-                'layoutNavProducts' => 'Mirza',
+                'layoutNavProducts' => 'Products',
                 'layoutNavServices' => 'Cancel',
                 'layoutNavSettings' => 'Dashboard',
                 'layoutNavUsers' => 'Are you sure? This operation is irreversible.',
@@ -4416,7 +4472,7 @@ We hope you had a good experience with the ease and speed of your service. If yo
                 'layoutPageTitleProduct' => 'Products',
                 'layoutPageTitleService' => 'Services',
                 'layoutPageTitleSettings' => 'Settings',
-                'layoutPageTitleSuffix' => 'Mirza',
+                'layoutPageTitleSuffix' => '',
                 'layoutPageTitleUsers' => 'Users',
                 'layoutProfileMenuLabel' => 'Settings',
                 'layoutSearchBoxPlaceholder' => 'Transactions',
@@ -4426,18 +4482,17 @@ We hope you had a good experience with the ease and speed of your service. If yo
                 'loginEnterCredentials' => 'Enter your username and password.',
                 'loginErrorTitle' => 'Password',
                 'loginFooter' => 'Username',
-                'loginHeading' => 'Mirza Admin Panel',
+                'loginHeading' => 'Admin Panel',
                 'loginHidePassword' => 'Access to this panel is only allowed for authorized administrators.',
-                'loginPanelTitle' => 'Login — Mirza Admin Panel',
-                'loginPasswordLabel' => 'Mirza Admin Panel',
-                'loginPasswordPlaceholder' => '· Version 1.0 Mirza',
+                'loginPanelTitle' => 'Login — Admin Panel',
+                'loginPasswordLabel' => 'Admin Panel',
+                'loginPasswordPlaceholder' => '· Version 1.0',
                 'loginRememberMe' => 'To manage the bot, enter your account information.',
                 'loginShowPassword' => 'Login to panel',
-                'loginSubtitle' => 'To support, please ',
+                'loginSubtitle' => 'Enter your username and password to log in.',
                 'loginTooManyAttempts' => 'Too many failed attempts. Please wait 15 minutes.',
                 'loginUsernameLabel' => 'Project',
-                'loginUsernamePlaceholder' => 'Star and
-          donate',
+                'loginUsernamePlaceholder' => '',
                 'loginWelcomeBack' => 'Welcome, ',
                 'loginWrongCredentials' => 'The username or password is incorrect.',
                 'paymentAllMethods' => 'Since the start of activity',
@@ -4600,10 +4655,10 @@ We hope you had a good experience with the ease and speed of your service. If yo
                 'settingsPasswordStrengthLabel' => 'Change password',
                 'settingsPhpMemory' => 'PHP memory',
                 'settingsReportIssue' => 'Report a problem',
-                'settingsReportIssueLink' => 'Mirza channel direct',
+                'settingsReportIssueLink' => 'Report an issue',
                 'settingsDonate' => 'Support',
                 'settingsDonateLink' => 'Donate',
-                'donatePopupTitle' => '💖 Support Mirza',
+                'donatePopupTitle' => '💖 Support the bot',
                 'donatePopupText' => 'This bot and panel are developed for free. If you find them useful, a small donation helps keep development and support going.',
                 'donatePopupLater' => 'Later',
                 'settingsSaveBtn' => 'Current password',

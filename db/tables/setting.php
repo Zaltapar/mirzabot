@@ -14,6 +14,16 @@ $cronStatus = json_encode([
     'autoextend' => true,
 ]);
 $keyboardMain = '{"keyboard":[[{"text":"text_sell"},{"text":"text_extend"}],[{"text":"text_usertest"},{"text":"text_wheel_luck"}],[{"text":"text_Purchased_services"},{"text":"accountwallet"}],[{"text":"text_affiliates"},{"text":"text_Tariff_list"}],[{"text":"text_support"},{"text":"text_help"}],[{"text":"text_agentpanel"},{"text":"text_requestagent"}]]}';
+$miniappFeatures = json_encode([
+    'toggle_service' => true,
+    'edit_note' => true,
+    'report_issue' => true,
+    'delete_expired' => true,
+    'change_link' => true,
+    'ticket_status' => true,
+    'channel_check' => true,
+    'usertest' => true,
+]);
 
 return [
     'create' => <<<SQL
@@ -170,5 +180,7 @@ return [
         ['rich_messages', '1', 'VARCHAR(10)'],
         ['modern_buttons', '1', 'VARCHAR(10)'],
         ['force_reply', '1', 'VARCHAR(10)'],
+        ['terms_text', '', 'TEXT'],
+        ['miniapp_features', $miniappFeatures, 'TEXT'],
     ],
 ];

@@ -139,17 +139,29 @@ function mini_invoices(array $data, string $method): void
     $datauser = [];
     if (is_array($invoices)) {
         foreach ($invoices as $invoice) {
-            $DataUserOut = panelUserCached($invoice['Service_location'], $invoice['username'], 60);
+            $loc = (string) $invoice['Service_location'];
+            $u = (string) $invoice['username'];
+            // Fast path: serve the last cached snapshot (any age) with no HTTP.
+            // Mutations bust the cache for that user, so a change forces a refresh.
+            $DataUserOut = panelUserStale($loc, $u);
+            $fromLive = false;
+            if ($DataUserOut === null) {
+                $DataUserOut = panelUserCached($loc, $u, 60);
+                $fromLive = true;
+            }
             if (!is_array($DataUserOut) || ($DataUserOut['status'] ?? '') == "Unsuccessful") {
                 $expire = $textbotlang['common']['labels']['unknown'];
+                $status = "unknown";
             } else {
                 $expire = $DataUserOut['expire'] ? jdate('Y/m/d', $DataUserOut['expire']) : $textbotlang['common']['labels']['unlimited'];
+                $status = $DataUserOut['status'];
             }
             $datauser[] = [
                 'username' => $invoice['username'],
-                'status' => $DataUserOut['status'],
+                'status' => $status,
                 'expire' => $expire,
-                'note' => $invoice['note']
+                'note' => $invoice['note'],
+                'cached' => !$fromLive,
             ];
         }
     }
@@ -1175,6 +1187,368 @@ function mini_purchase(array $data, string $method): void
     ));
 }
 
+function mini_owns_service(string $user_id, string $username): ?array
+{
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT * FROM invoice WHERE id_user = :user_id AND username = :username LIMIT 1");
+    $stmt->bindValue(':user_id', $user_id, PDO::PARAM_STR);
+    $stmt->bindValue(':username', $username, PDO::PARAM_STR);
+    $stmt->execute();
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row === false ? null : $row;
+}
+
+function mini_service_toggle(array $data, string $method): void
+{
+    global $pdo, $ManagePanel, $textbotlang;
+    if ($method !== "POST") {
+        echo json_encode(['status' => false, 'msg' => "Method invalid; must be POST", 'obj' => []]);
+        return;
+    }
+    $username = (string) ($data['username'] ?? '');
+    $enabled = !empty($data['active']) || $data['active'] === true || $data['active'] === 1;
+    $invoice = mini_owns_service((string) $data['user_id'], $username);
+    if (!$invoice) {
+        http_response_code(404);
+        echo json_encode(['status' => false, 'msg' => "Service Not Found", 'obj' => []]);
+        return;
+    }
+    $panelName = (string) $invoice['Service_location'];
+    $live = panelUserCached($panelName, $username, 20, true);
+    $current = $live['status'] ?? '';
+    if (!in_array($current, ['active', 'disabled'], true)) {
+        echo json_encode(['status' => false, 'msg' => "Service cannot be toggled in its current state", 'obj' => []]);
+        return;
+    }
+    $target = $enabled ? 'active' : 'disabled';
+    if ($current === $target) {
+        echo json_encode(['status' => true, 'msg' => "already", 'obj' => ['status' => $current]]);
+        return;
+    }
+    $res = $ManagePanel->Change_status($username, $panelName);
+    $ok = is_array($res) && !empty($res['status']) && $res['status'] !== 'Unsuccessful' && $res['status'] !== false;
+    if ($ok) {
+        bustPanelDataCache($panelName, $username);
+    }
+    http_response_code($ok ? 200 : 502);
+    echo json_encode([
+        'status' => $ok,
+        'msg' => $ok ? "Successful" : (is_array($res) ? ($res['msg'] ?? "Toggle failed") : "Toggle failed"),
+        'obj' => ['status' => $ok ? $target : $current],
+    ]);
+}
+
+function mini_edit_note(array $data, string $method): void
+{
+    global $pdo, $ManagePanel;
+    if ($method !== "POST") {
+        echo json_encode(['status' => false, 'msg' => "Method invalid; must be POST", 'obj' => []]);
+        return;
+    }
+    $username = (string) ($data['username'] ?? '');
+    $note = mb_substr(trim((string) ($data['note'] ?? '')), 0, 300);
+    $invoice = mini_owns_service((string) $data['user_id'], $username);
+    if (!$invoice) {
+        http_response_code(404);
+        echo json_encode(['status' => false, 'msg' => "Service Not Found", 'obj' => []]);
+        return;
+    }
+    $stmt = $pdo->prepare("UPDATE invoice SET note = ? WHERE id_invoice = ?");
+    $stmt->execute([$note, $invoice['id_invoice']]);
+    // Best-effort mirror to the panel (not all panels accept notes).
+    $res = $ManagePanel->Modifyuser($username, (string) $invoice['Service_location'], ['note' => $note]);
+    echo json_encode([
+        'status' => true,
+        'msg' => "Successful",
+        'obj' => ['note' => $note, 'panel_synced' => is_array($res) && !empty($res['status'])],
+    ]);
+}
+
+function mini_report_issue(array $data, string $method): void
+{
+    global $pdo, $textbotlang, $setting, $errorreport, $adminnumber;
+    if ($method !== "POST") {
+        echo json_encode(['status' => false, 'msg' => "Method invalid; must be POST", 'obj' => []]);
+        return;
+    }
+    $user_id = (string) $data['user_id'];
+    $username = (string) ($data['username'] ?? '');
+    $text = mb_substr(trim((string) ($data['text'] ?? '')), 0, 2000);
+    if ($text === '') {
+        echo json_encode(['status' => false, 'msg' => "Message is required", 'obj' => []]);
+        return;
+    }
+    if ($username !== '' && !mini_owns_service($user_id, $username)) {
+        http_response_code(404);
+        echo json_encode(['status' => false, 'msg' => "Service Not Found", 'obj' => []]);
+        return;
+    }
+    $user = select('user', 'username', 'id', $user_id, 'select');
+    $tracking = bin2hex(random_bytes(4));
+    $departman = select('departman', 'name_departman', null, null, 'select');
+    $depart = $departman['name_departman'] ?? 'general';
+    $stmt = $pdo->prepare("INSERT INTO support_message (Tracking, idsupport, iduser, name_departman, text, result, time, status) VALUES (?, ?, ?, ?, ?, '', ?, 'Unseen')");
+    $timejalali = jdate('Y/m/d H:i:s');
+    $stmt->execute([$tracking, (string) ($adminnumber ?? ''), $user_id, $depart, $text, $timejalali]);
+    if (strlen((string) ($setting['Channel_Report'] ?? '')) > 0 && $errorreport) {
+        $reportText = sprintf(
+            $textbotlang['Admin']['reportgroup']['issueReportedMiniapp'] ?? "🚨 Report from %s%s: %s",
+            ($user['username'] ?? $user_id),
+            ($username !== '' ? " (service: $username)" : ''),
+            $text
+        );
+        telegram('sendmessage', [
+            'chat_id' => $setting['Channel_Report'],
+            'message_thread_id' => $errorreport,
+            'text' => $reportText,
+            'parse_mode' => "HTML",
+        ]);
+    }
+    echo json_encode(['status' => true, 'msg' => "Successful", 'obj' => ['ticket' => $tracking]]);
+}
+
+function mini_delete_expired(array $data, string $method): void
+{
+    global $pdo, $ManagePanel;
+    if ($method !== "POST") {
+        echo json_encode(['status' => false, 'msg' => "Method invalid; must be POST", 'obj' => []]);
+        return;
+    }
+    $username = (string) ($data['username'] ?? '');
+    $invoice = mini_owns_service((string) $data['user_id'], $username);
+    if (!$invoice) {
+        http_response_code(404);
+        echo json_encode(['status' => false, 'msg' => "Service Not Found", 'obj' => []]);
+        return;
+    }
+    if (!in_array($invoice['status'], ['end_of_time', 'end_of_volume'], true)) {
+        echo json_encode(['status' => false, 'msg' => "Only expired services can be deleted", 'obj' => []]);
+        return;
+    }
+    $panelName = (string) $invoice['Service_location'];
+    $res = $ManagePanel->RemoveUser($panelName, $username);
+    $removedPanel = is_array($res) && !empty($res['status']) && $res['status'] !== 'Unsuccessful' && $res['status'] !== false;
+    $stmt = $pdo->prepare("DELETE FROM invoice WHERE id_invoice = ?");
+    $stmt->execute([$invoice['id_invoice']]);
+    bustPanelDataCache($panelName, $username);
+    echo json_encode(['status' => true, 'msg' => "Successful", 'obj' => ['panel_removed' => $removedPanel]]);
+}
+
+function mini_change_link(array $data, string $method): void
+{
+    global $ManagePanel, $domainhosts;
+    if ($method !== "POST") {
+        echo json_encode(['status' => false, 'msg' => "Method invalid; must be POST", 'obj' => []]);
+        return;
+    }
+    $username = (string) ($data['username'] ?? '');
+    $invoice = mini_owns_service((string) $data['user_id'], $username);
+    if (!$invoice) {
+        http_response_code(404);
+        echo json_encode(['status' => false, 'msg' => "Service Not Found", 'obj' => []]);
+        return;
+    }
+    $panelName = (string) $invoice['Service_location'];
+    $res = $ManagePanel->Revoke_sub($panelName, $username);
+    $ok = is_array($res) && !empty($res['status']) && $res['status'] !== 'Unsuccessful' && $res['status'] !== false;
+    bustPanelDataCache($panelName, $username);
+    $newLink = '';
+    if ($ok && !empty($res['subscription_url'])) {
+        $newLink = (string) $res['subscription_url'];
+    } elseif ($ok) {
+        $newLink = "https://$domainhosts/sub/" . (string) $invoice['id_invoice'];
+    }
+    http_response_code($ok ? 200 : 502);
+    echo json_encode([
+        'status' => $ok,
+        'msg' => $ok ? "Successful" : "Link update failed",
+        'obj' => ['subscription_url' => $newLink],
+    ]);
+}
+
+function mini_feature_status(array $data, string $method): void
+{
+    global $setting, $usercheck;
+    if ($method !== "GET") {
+        echo json_encode(['status' => false, 'msg' => "Method invalid; must be GET", 'obj' => []]);
+        return;
+    }
+    $raw = $setting['miniapp_features'] ?? '';
+    $features = json_decode((string) $raw, true);
+    if (!is_array($features)) {
+        $features = [];
+    }
+    $defaults = [
+        'toggle_service' => true,
+        'edit_note' => true,
+        'report_issue' => true,
+        'delete_expired' => true,
+        'change_link' => true,
+        'ticket_status' => true,
+        'channel_check' => true,
+        'usertest' => true,
+    ];
+    $features = array_merge($defaults, $features);
+    $features['terms_required'] = strlen((string) ($setting['terms_text'] ?? '')) > 0;
+    $features['terms_accepted'] = ((string) ($usercheck['terms_accepted'] ?? '0')) === '1';
+    $features['test_account_available'] = ((int) ($usercheck['limit_usertest'] ?? 0)) > 0;
+    echo json_encode(['status' => true, 'msg' => "Successful", 'obj' => $features]);
+}
+
+function mini_ticket_status(array $data, string $method): void
+{
+    global $pdo;
+    if ($method !== "GET") {
+        echo json_encode(['status' => false, 'msg' => "Method invalid; must be GET", 'obj' => []]);
+        return;
+    }
+    $user_id = (string) $data['user_id'];
+    $stmt = $pdo->prepare("SELECT Tracking, name_departman, text, result, time, status FROM support_message WHERE iduser = :user_id ORDER BY time DESC LIMIT 50");
+    $stmt->bindValue(':user_id', $user_id, PDO::PARAM_STR);
+    $stmt->execute();
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    echo json_encode(['status' => true, 'msg' => "Successful", 'obj' => is_array($rows) ? $rows : []]);
+}
+
+function mini_channel_check(array $data, string $method): void
+{
+    global $setting;
+    if ($method !== "GET") {
+        echo json_encode(['status' => false, 'msg' => "Method invalid; must be GET", 'obj' => []]);
+        return;
+    }
+    $user_id = (string) $data['user_id'];
+    $channels = select("channels", "*", null, null, "fetchAll") ?: [];
+    $results = [];
+    $allJoined = true;
+    $required = false;
+    foreach ($channels as $row) {
+        $id = (string) ($row['link'] ?? '');
+        if ($id === '') {
+            continue;
+        }
+        $required = true;
+        $resp = telegram('getChatMember', ['chat_id' => $id, 'user_id' => $user_id]);
+        $joined = !empty($resp['ok']) && in_array($resp['result']['status'] ?? '', ['member', 'creator', 'administrator'], true);
+        if (!$joined) {
+            $allJoined = false;
+        }
+        $results[] = [
+            'id' => $id,
+            'join' => (string) ($row['linkjoin'] ?? ''),
+            'remark' => (string) ($row['remark'] ?? ''),
+            'joined' => $joined,
+        ];
+    }
+    echo json_encode([
+        'status' => true,
+        'msg' => "Successful",
+        'obj' => ['required' => $required, 'joined' => $allJoined, 'channels' => $results],
+    ]);
+}
+
+function mini_terms(array $data, string $method): void
+{
+    global $setting, $usercheck;
+    if ($method !== "GET") {
+        echo json_encode(['status' => false, 'msg' => "Method invalid; must be GET", 'obj' => []]);
+        return;
+    }
+    echo json_encode([
+        'status' => true,
+        'msg' => "Successful",
+        'obj' => [
+            'text' => (string) ($setting['terms_text'] ?? ''),
+            'required' => strlen((string) ($setting['terms_text'] ?? '')) > 0,
+            'accepted' => ((string) ($usercheck['terms_accepted'] ?? '0')) === '1',
+        ],
+    ]);
+}
+
+function mini_terms_accept(array $data, string $method): void
+{
+    global $pdo, $usercheck;
+    if ($method !== "POST") {
+        echo json_encode(['status' => false, 'msg' => "Method invalid; must be POST", 'obj' => []]);
+        return;
+    }
+    try {
+        $stmt = $pdo->prepare("UPDATE user SET terms_accepted = '1' WHERE id = ?");
+        $stmt->execute([(string) $usercheck['id']]);
+    } catch (Throwable $e) {
+        // Column may not exist on a very old schema; degrade gracefully.
+        echo json_encode(['status' => false, 'msg' => "Terms storage unavailable", 'obj' => []]);
+        return;
+    }
+    echo json_encode(['status' => true, 'msg' => "Successful", 'obj' => ['accepted' => true]]);
+}
+
+function mini_usertest(array $data, string $method): void
+{
+    global $pdo, $ManagePanel, $textbotlang, $setting, $errorreport;
+    if ($method !== "POST") {
+        echo json_encode(['status' => false, 'msg' => "Method invalid; must be POST", 'obj' => []]);
+        return;
+    }
+    $user_id = (string) $data['user_id'];
+    $user = select('user', '*', 'id', $user_id, 'select');
+    if (!$user) {
+        http_response_code(404);
+        echo json_encode(['status' => false, 'msg' => "User Not Found", 'obj' => []]);
+        return;
+    }
+    if ((int) $user['limit_usertest'] <= 0) {
+        echo json_encode(['status' => false, 'msg' => "No test-account attempts left", 'obj' => []]);
+        return;
+    }
+    $panel = select("marzban_panel", "*", "TestAccount", "ONTestAccount", "select");
+    if (!$panel || $panel['type'] === "Manualsale") {
+        echo json_encode(['status' => false, 'msg' => "No panel with test accounts enabled", 'obj' => []]);
+        return;
+    }
+    if ($panel['hide_user'] != null) {
+        $hidden = json_decode((string) $panel['hide_user'], true);
+        if (is_array($hidden) && in_array($user_id, $hidden, true)) {
+            echo json_encode(['status' => false, 'msg' => "Test accounts unavailable for you", 'obj' => []]);
+            return;
+        }
+    }
+    $randomString = bin2hex(random_bytes(4));
+    $username_ac = strtolower($user['username'] . "_" . $randomString);
+    $datac = [
+        'expire' => strtotime(date("Y-m-d H:i:s", strtotime("+" . (int) $panel['time_usertest'] . "hours"))),
+        'data_limit' => (int) $panel['val_usertest'] * 1048576,
+        'from_id' => $user_id,
+        'username' => $user['username'],
+        'type' => 'usertest',
+    ];
+    $notifctions = json_encode(['volume' => false, 'time' => false]);
+    $stmt = $pdo->prepare("INSERT IGNORE INTO invoice (id_user, id_invoice, username, time_sell, Service_location, name_product, price_product, Volume, Service_time, Status, notifctions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->execute([
+        $user_id, $randomString, $username_ac, time(), $panel['name_panel'],
+        $textbotlang['common']['labels']['testService5'] ?? 'usertest', '0',
+        $panel['val_usertest'], $panel['time_usertest'], 'active', $notifctions,
+    ]);
+    update("user", "limit_usertest", (int) $user['limit_usertest'] - 1, "id", $user_id);
+    $out = $ManagePanel->createUser($panel['name_panel'], "usertest", $username_ac, $datac);
+    if (!is_array($out) || empty($out['username'])) {
+        update("invoice", "Status", "Unsuccessful", "id_invoice", $randomString);
+        http_response_code(502);
+        echo json_encode(['status' => false, 'msg' => "Test account creation failed", 'obj' => []]);
+        return;
+    }
+    bustPanelDataCache($panel['name_panel'], $out['username']);
+    echo json_encode([
+        'status' => true,
+        'msg' => "Successful",
+        'obj' => [
+            'username' => $out['username'],
+            'subscription_url' => (string) ($out['subscription_url'] ?? ''),
+            'configs' => is_array($out['configs'] ?? null) ? $out['configs'] : [],
+        ],
+    ]);
+}
+
 match ($action) {
     'invoices' => mini_invoices($data, $method),
     'service' => mini_service($data, $method),
@@ -1185,6 +1559,17 @@ match ($action) {
     'services' => mini_services($data, $method),
     'custom_price' => mini_custom_price($data, $method),
     'purchase' => mini_purchase($data, $method),
+    'service_toggle' => mini_service_toggle($data, $method),
+    'edit_note' => mini_edit_note($data, $method),
+    'report_issue' => mini_report_issue($data, $method),
+    'delete_expired' => mini_delete_expired($data, $method),
+    'change_link' => mini_change_link($data, $method),
+    'feature_status' => mini_feature_status($data, $method),
+    'ticket_status' => mini_ticket_status($data, $method),
+    'channel_check' => mini_channel_check($data, $method),
+    'terms' => mini_terms($data, $method),
+    'terms_accept' => mini_terms_accept($data, $method),
+    'usertest' => mini_usertest($data, $method),
     default => sendJsonResponse(false, "Action Invalid", []),
 };
 

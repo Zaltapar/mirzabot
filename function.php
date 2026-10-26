@@ -2909,12 +2909,17 @@ function storeDeliveredMessage($response, $invoice_id){
 function autoExtendSpecLabel($spec, $invoice, $textbotlang): string
 {
     if (is_array($spec) && !empty($spec['code_product'])) {
-        return (string) ($spec['name_product'] ?? $spec['code_product']);
+        $label = (string) ($spec['name_product'] ?? $spec['code_product']);
+    } elseif (is_array($spec) && isset($spec['volume'])) {
+        $label = $spec['volume'] . 'G / ' . (int) ($spec['days'] ?? 0) . 'd';
+    } else {
+        $label = (string) ($textbotlang['users']['extend']['autoRenewCurrentSpec'] ?? '');
     }
-    if (is_array($spec) && isset($spec['volume'])) {
-        return $spec['volume'] . 'G / ' . (int) ($spec['days'] ?? 0) . 'd';
+    if (is_array($spec) && (int) ($spec['price_lock'] ?? 0) === 0) {
+        $locked = (string) ($textbotlang['users']['extend']['autoRenewLockedLabel'] ?? 'current price or lower');
+        $label .= $label !== '' ? ' ' . $locked : $locked;
     }
-    return (string) ($textbotlang['users']['extend']['autoRenewCurrentSpec'] ?? '');
+    return $label;
 }
 
 function startAutoExtendSpecCapture($from_id, $nameloc, $marzban, $user, $textbotlang, $backuser): void
@@ -2934,8 +2939,24 @@ function startAutoExtendSpecCapture($from_id, $nameloc, $marzban, $user, $textbo
     sendmessage($from_id, $textbotlang['users']['sell']['selectDuration'], $monthkeyboard, 'html');
 }
 
-function confirmAutoExtendSpec($from_id, $nameloc, $user, array $spec, $specPrice, $textbotlang): void
+function promptAutoExtendPricePolicy($from_id, $nameloc, $user, array $spec, $specPrice, $textbotlang): void
 {
+    $id_invoice = $nameloc['id_invoice'];
+    savedata("save", "id_invoice", $id_invoice);
+    savedata("save", "autoext_spec", json_encode($spec, JSON_UNESCAPED_UNICODE));
+    savedata("save", "autoext_price", (int) round((float) $specPrice));
+    $keyboard = json_encode(['inline_keyboard' => [
+        [['text' => $textbotlang['users']['extend']['autoRenewPriceYes'] ?? 'Yes, renew at any price', 'callback_data' => "autoextprice_1_" . $id_invoice]],
+        [['text' => $textbotlang['users']['extend']['autoRenewPriceNo'] ?? 'No, only at current price or lower', 'callback_data' => "autoextprice_0_" . $id_invoice]],
+        [['text' => $textbotlang['users']['status']['backservice'] ?? 'back', 'callback_data' => "product_" . $id_invoice]],
+    ]]);
+    sendmessage($from_id, $textbotlang['users']['extend']['autoRenewPriceAsk'] ?? 'If the price of this service goes up later, should auto-renewal still run?', $keyboard, 'html');
+}
+
+function finalizeAutoExtendSpec($from_id, $nameloc, $user, array $spec, $specPrice, bool $renewAtAnyPrice, $textbotlang): void
+{
+    $spec['price_lock'] = $renewAtAnyPrice ? 1 : 0;
+    $spec['price'] = (int) round((float) $specPrice);
     update("invoice", "auto_extend_spec", json_encode($spec, JSON_UNESCAPED_UNICODE), "id_invoice", $nameloc['id_invoice']);
     update("invoice", "auto_extend", "1", "id_invoice", $nameloc['id_invoice']);
     clearSelectCache('invoice');
@@ -2945,11 +2966,15 @@ function confirmAutoExtendSpec($from_id, $nameloc, $user, array $spec, $specPric
             [['text' => $textbotlang['users']['status']['backservice'], 'callback_data' => "product_" . $nameloc['id_invoice']]],
         ]
     ]);
-    sendmessage($from_id, strtr($textbotlang['users']['extend']['autoRenewSpecOn'], [
+    $message = strtr($textbotlang['users']['extend']['autoRenewSpecOn'], [
         '{username}' => $nameloc['username'],
         '{spec}' => $label,
         '{price}' => number_format((float) $specPrice, 0),
-    ]), $backToService, 'html');
+    ]);
+    if (!$renewAtAnyPrice) {
+        $message .= ' ' . strtr($textbotlang['users']['extend']['autoRenewPriceLockNote'] ?? '', ['{price}' => number_format((float) $specPrice, 0)]);
+    }
+    sendmessage($from_id, $message, $backToService, 'html');
     step('home', $from_id);
 }
 function sendMessageService($panel_info, $config, $sub_link, $username_service, $reply_markup, $caption, $invoice_id, $user_id = null, $image = 'images.jpg', $wireguard = [])

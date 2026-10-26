@@ -214,14 +214,15 @@ return [
                 'selectusername' => '请发送一个自定义用户名
 ⚠️ 用户名不得包含多余字符，如 @、空格或连字符。
 ⚠️ 用户名必须为英文。
-✅ 正确的用户名：ali12 | mahdi | ws1_ksdf
-❌ 错误的用户名：ali_ | tele@ | _mahdi | محسن',
+✅ 正确的用户名：ali12 | user12 | ws1_ksdf
+❌ 错误的用户名：ali_ | tele@ | _user1 | محسن',
                 'text_start' => '你好，欢迎',
                 'summary' => [
                         'title' => '📊 <b>账户概览</b>',
                         'activeLine' => '🟢 有效服务: {count}',
                         'expiredLine' => '⌛️ 已到期服务: {count}',
                         'balanceLine' => '💵 钱包余额: {value}',
+                        'purchasesLine' => '🛒 购买次数：{count} · 累计支付：{amount}',
                 ],
                 'Balance' => [
                         'addBalanceUser' => '⭕️ 手动增加余额',
@@ -1839,7 +1840,7 @@ trojan://xyz',
                         'on' => '已开启',
                         'intro' => '📌 在下方列表中，您可以管理网关。
 
-⚠️ Mirza 团队不对网关提供任何保证，所有使用和责任由您承担',
+⚠️ 开发团队不对网关提供任何保证，所有使用和责任由您承担',
                         'askPlisioApi' => '⚙️ 请发送您的 Plisio API 密钥。
 
 🔑 要获取 API 密钥，请访问以下网站：
@@ -2243,6 +2244,49 @@ support 权限级别可访问用户服务和客服消息回复部分',
 
 剩余人数：%s',
                 ],
+                'smartMsg' => [
+                        'listTitle' => '🧠 智能消息规则（%s 个已启用）。点按规则查看详情：',
+                        'noRules' => '🧠 尚未定义规则。点按“新规则”创建。',
+                        'newRule' => '➕ 新规则',
+                        'selectSegment' => '选择消息的目标分组：',
+                        'segments' => [
+                                'newuser' => '🆕 新用户（尚未使用）',
+                                'away' => '🕐 离开用户',
+                                'active' => '⚡ 近期活跃用户',
+                                'power' => '💎 重度用户',
+                                'expiring' => '⏳ 即将到期的服务',
+                                'expired' => '🚫 已过期服务',
+                                'balance' => '💰 钱包有余额',
+                                'all' => '👥 所有用户',
+                                'customer' => '✅ 客户（有购买）',
+                                'nonecustomer' => '🚷 未购买',
+                        ],
+                        'askParam' => '对于“%s”，发送数字（离开天数 / 活跃天数 / 购买阈值）：',
+                        'askText' => '发送消息文本：',
+                        'hintVars' => '可用变量：{name} {username} {balance} {score} {service_count} {away_days}',
+                        'askButton' => '选择附加到消息的按钮：',
+                        'askFrequency' => '选择规则的运行频率：',
+                        'freqs' => [
+                                'once' => '🔁 一次',
+                                'daily' => '📅 每天',
+                                'weekly' => '🗓 每周',
+                                'monthly' => '📆 每月',
+                        ],
+                        'saved' => '✅ 规则 #%s（“%s”）已创建。将由定时任务自动发送（避开安静时段）。',
+                        'details' => '🧠 规则 №%s\n分组：%s（参数：%s）\n频率：%s\n状态：%s\n上次运行：%s（已发送 %s 人）\n当前目标：%s 人\n\n文本：\n%s',
+                        'active' => '开',
+                        'inactive' => '关',
+                        'never' => '尚未运行',
+                        'targets' => '当前目标',
+                        'runNow' => '🚀 立即发送',
+                        'toggle' => '🔛 开/关',
+                        'delete' => '🗑 删除规则',
+                        'confirmDelete' => '删除规则 #%s？',
+                        'deleted' => '✅ 规则已删除。',
+                        'toggled' => '✅ 规则状态已更新（当前为 %s）。',
+                        'running' => '🚀 已开始发送；%s 位用户已排队，将在未来几分钟内收到消息。',
+                        'noTargets' => '❌ 未找到该规则对应的用户。',
+                ],
                 'node' => [
                         'settingsUnavailable' => '❌ 无法查看节点设置',
                         'intro' => '📌 在此部分，您可以管理 Marzban 面板节点。',
@@ -2434,13 +2478,13 @@ f,n.n2',
                         'aboutBot' => '💎 | Version Bot: %s
 📌 | Version Mini App: 0.1.1
 
-<blockquote>🔹 | 此机器人完全免费，由 Mirza 团队开发</blockquote>
+<blockquote>🔹 | 此机器人完全免费，由开发团队维护</blockquote>
 
 <blockquote>🔹 | 任何对此机器人的出售或收费均视为违规。</blockquote>
 
 <blockquote>🔹 | 如果您发现任何出售或收费行为，请追踪并追回您的款项。</blockquote>
 
-<blockquote>🐞 | 如需报告问题，请在 <a href="https://t.me/mirzapanel?direct">Mirza 频道私信</a> 中留言。</blockquote>',
+<blockquote>🐞 | 如需报告问题，请使用设置中的「报告问题」选项。</blockquote>',
                         'gatewayRow' => '
 📌 网关名称：<code>%s</code>
  - 成功支付次数：<code>%s</code>
@@ -3953,6 +3997,11 @@ f,n.n2',
                 'firstConnection' => '📊 首次连接',
                 'firstConnectionTest' => '📊 测试账户首次连接',
                 'firstPurchaseBtn' => '首次购买',
+                'randomCodeBtn' => '🎲 随机代码',
+                'timePresetNoExpire' => '♾ 无期限',
+                'timePresetDay' => '🕐 1 天',
+                'timePresetWeek' => '🗓 1 周',
+                'timePresetMonth' => '📆 1 个月',
                 'firstPurchaseCommission' => '🎉 仅首次购买返佣',
                 'firstPurchaseWheel' => '🎲 首次购买幸运转盘',
                 'fixed' => '固定',
@@ -4016,6 +4065,7 @@ f,n.n2',
                 'maxCustomTime' => '📍 自定义时间最大值',
                 'maxCustomVolume' => '📍 自定义流量最大值',
                 'messagingSection' => '📨 消息发送部分',
+                'smartRules' => '🧠 智能消息规则',
                 'mikrotik' => 'MikroTik',
                 'minAmountAqayePardakht' => '⬇️ Aghaye Pardakht 最低金额',
                 'minAmountCartToCart' => '⬇️ 卡对卡最低金额',
@@ -4216,7 +4266,7 @@ f,n.n2',
                 'zarinPalMerchant' => 'ZarinPal 商户',
                 'zeroBalance' => '0️⃣ 余额清零',
                 'panelSetting' => '🎛 面板设置',
-                'mirzaAgentPanel' => 'Mirza 代理',
+                'mirzaAgentPanel' => '代理商',
                 'setGroupName' => '🎛 设置群组名称',
                 'subLinkDomain' => '🔗 订阅链接域名',
                 'panelTypeSanaei' => 'Sanaei 单端口',
@@ -4600,10 +4650,10 @@ f,n.n2',
                 'settingsPasswordStrengthLabel' => '更改密码',
                 'settingsPhpMemory' => 'PHP 内存',
                 'settingsReportIssue' => '报告问题',
-                'settingsReportIssueLink' => 'Mirza 频道私信',
+                'settingsReportIssueLink' => '报告问题',
                 'settingsDonate' => '支持',
                 'settingsDonateLink' => '捐赠',
-                'donatePopupTitle' => '💖 支持 Mirza',
+                'donatePopupTitle' => '💖 支持本项目',
                 'donatePopupText' => '本机器人和面板是免费开发的。如果它们对您有帮助，一笔小额捐赠将有助于持续开发和支持。',
                 'donatePopupLater' => '稍后',
                 'settingsSaveBtn' => '当前密码',

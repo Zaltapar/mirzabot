@@ -33,4 +33,6 @@ return [
     'panel_data_cache',
     'user_action_stats',
     'callback_token',
+    'message_rules',
+    'message_rule_sent',
 ];

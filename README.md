@@ -1,20 +1,8 @@
 <div align="center">
 
-# 🤖 Mirza Bot — Enhanced Edition
+# 🤖 VPN Bot — Enhanced Edition
 
 ### A powerful Telegram bot for selling VPN services — with fully automated config creation, Pro-grade interactivity and tuned performance.
-
-<p>
-  <a href="https://t.me/mirzapanel">
-    <img src="https://img.shields.io/badge/Telegram-Channel-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Channel"/>
-  </a>
-  <a href="https://t.me/mirzapanelgroup">
-    <img src="https://img.shields.io/badge/Telegram-Group-229ED9?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Group"/>
-  </a>
-  <a href="https://mirzabot.com/docs/">
-    <img src="https://img.shields.io/badge/Docs-mirzabot.com-38BDF8?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation"/>
-  </a>
-</p>
 
 <p>
   <a href="https://github.com/Zaltapar/mirzabot/stargazers">
@@ -28,6 +16,30 @@
 </p>
 
 </div>
+
+---
+
+## ⚡ One-line install (fresh Ubuntu server)
+
+Copy this single command onto a clean Ubuntu 22.04/24.04/26.04 server and run it:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Zaltapar/mirzabot/main/install.sh | bash
+```
+
+That's it. The installer provisions PHP, Apache, MySQL and SSL, downloads the bot,
+creates the database, writes `config.php`, sets the webhook and registers the cron
+dispatcher. It only asks for **three things** (domain, bot token, admin chat id) —
+everything else uses safe automatic defaults. For a fully unattended run, pass them
+as flags:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Zaltapar/mirzabot/main/install.sh \
+  | bash -s -- install --domain bot.example.com --token 123:ABC --admin -1001234567890
+```
+
+Afterwards, `bash install.sh` (or the `mirza` command) opens a management menu
+(install / update / migrate / SSL / backup / import).
 
 ---
 
@@ -47,20 +59,19 @@
   - [Automated build health (CI)](#automated-build-health-ci)
   - [Rollback](#rollback)
 - [🌍 Languages](#-languages)
-- [💵 Support the Project](#-support-the-project)
 - [👥 Contributors](#-contributors)
 
 ---
 
 ## ✨ Overview
 
-**Mirza Bot** is a feature-rich Telegram bot for selling VPN subscriptions and automating the entire sales workflow — from purchase and payment to config creation and service management.
+**the bot** is a feature-rich Telegram bot for selling VPN subscriptions and automating the entire sales workflow — from purchase and payment to config creation and service management.
 
 It connects directly to your panels, builds configurations automatically, accepts a wide range of payment methods, and gives both customers and admins a clean experience through a **Telegram Mini App** and a **web admin panel**.
 
 This enhanced edition layers a set of interactivity, UX and performance improvements on top of the core product, plus tooling that keeps upgrades to it safe and automated.
 
-> Whether you're handing out trial accounts or running a large-scale reseller business, Mirza Bot has the tools to run it end to end.
+> Whether you're handing out trial accounts or running a large-scale reseller business, the bot has the tools to run it end to end.
 
 ---
 
@@ -100,9 +111,7 @@ This enhanced edition layers a set of interactivity, UX and performance improvem
 
 ## 📖 Documentation
 
-The complete user manual lives at **[mirzabot.com/docs](https://mirzabot.com/docs/)** — 61 pages covering every part of the bot, written in **Persian (فارسی)**.
-
-It is not a feature list: every menu is documented with the exact order of the steps the bot asks for, what each field accepts, the error message you get when it rejects your input, and the mistake that most often breaks that feature.
+Every menu is documented with the exact order of the steps the bot asks for, what each field accepts, the error message you get when it rejects your input, and the mistake that most often breaks that feature. See the API reference at `/api/` on your installation.
 
 | Section | What it covers |
 |---------|----------------|
@@ -121,7 +130,7 @@ It is not a feature list: every menu is documented with the exact order of the s
 
 ## 🧩 Supported Panels
 
-Mirza Bot integrates with the most popular VPN and network management panels:
+the bot integrates with the most popular VPN and network management panels:
 
 | Panel | Panel |
 |-------|-------|
@@ -203,7 +212,7 @@ Mirza Bot integrates with the most popular VPN and network management panels:
 
 ### Migrate a running install to this version
 
-The main path: you already run MirzaBot on the server and want to move it to
+The main path: you already run the bot on the server and want to move it to
 this enhanced edition without losing credentials, overrides, sales bots or
 runtime state.
 
@@ -236,14 +245,12 @@ Options: `--zip <path>` / `--dir <path>` / `--url <url>` for the source,
 
 ### Fresh install
 
-On a server that does not have the stack yet, first provision PHP/Apache/MySQL/SSL
-with the bundled installer:
+On a clean Ubuntu server there is **nothing to do but one line** (see
+[One-line install](#-one-line-install-fresh-ubuntu-server)): the bundled
+`install.sh` provisions the whole stack and installs this bot end to end.
 
-```bash
-curl -o install.sh -L https://raw.githubusercontent.com/Zaltapar/mirzabot/main/install.sh && bash install.sh
-```
-
-Then install this version of the bot into a fresh directory:
+On a shared host where the stack already exists, install this version into a
+fresh directory instead:
 
 ```bash
 sudo bash install-fork.sh install --domain bot.example.com \
@@ -293,27 +300,15 @@ version.
 
 ## 🌍 Languages
 
-Mirza Bot ships with full translations for:
+the bot ships with full translations for:
 
 🇬🇧 English · 🇮🇷 Persian (فارسی) · 🇷🇺 Russian (Русский) · 🇨🇳 Chinese (中文)
 
 ---
 
-## 💵 Support the Project
-
-If **Mirza Bot** helps your business, please consider supporting its development with a crypto donation:
-
-<a href="https://nowpayments.io/donation/mahdi">
-  <img src="https://img.shields.io/badge/Donate-NowPayments-1A1A2E?style=for-the-badge&logo=bitcoin&logoColor=white" alt="Donate"/>
-</a>
-
-Your support keeps the updates and improvements coming. Thank you! 🙌
-
----
-
 ## 👥 Contributors
 
-Thanks to everyone who has contributed to making Mirza Bot better:
+Thanks to everyone who has contributed to making the bot better:
 
 <a href="https://github.com/Zaltapar/mirzabot/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=Zaltapar/mirzabot" alt="Contributors"/>
@@ -323,8 +318,8 @@ Thanks to everyone who has contributed to making Mirza Bot better:
 
 <div align="center">
 
-**Maintained as a community fork · Made with ❤️ by the Mirza Panel community**
+**Maintained as a community fork · Made with ❤️**
 
-📖 [Documentation](https://mirzabot.com/docs/) · 💬 [Channel](https://t.me/mirzapanel) · 👥 [Group](https://t.me/mirzapanelgroup) · ⭐ [Star on GitHub](https://github.com/Zaltapar/mirzabot)
+⭐ [Star on GitHub](https://github.com/Zaltapar/mirzabot)
 
 </div>

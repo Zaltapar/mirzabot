@@ -83,23 +83,24 @@ for ($i = 0; $i < 20; $i++) {
     $iduser = $userid[0];
     unset($userid[0]);
     $userid = array_values($userid);
+    $msgtext = (isset($iduser->text) && is_string($iduser->text) && $iduser->text !== '') ? $iduser->text : $info['message'];
     if ($info['type'] == "unpinmessage") {
         unpinmessage($iduser->id);
     } elseif ($info['type'] == "sendmessage" or $info['type'] == "xdaynotmessage") {
         if ($info['btnmessage'] == "none") {
-            $meesage = sendmessage($iduser->id, $info['message'], null, 'HTML');
+            $meesage = sendmessage($iduser->id, $msgtext, null, 'HTML');
         } elseif ($info['btnmessage'] == "buy") {
-            $meesage = sendmessage($iduser->id, $info['message'], $keyboardbuy, 'HTML');
+            $meesage = sendmessage($iduser->id, $msgtext, $keyboardbuy, 'HTML');
         } elseif ($info['btnmessage'] == "start") {
-            $meesage = sendmessage($iduser->id, $info['message'], $keyboardstart, 'HTML');
+            $meesage = sendmessage($iduser->id, $msgtext, $keyboardstart, 'HTML');
         } elseif ($info['btnmessage'] == "usertestbtn") {
-            $meesage = sendmessage($iduser->id, $info['message'], $keyboardusertest, 'HTML');
+            $meesage = sendmessage($iduser->id, $msgtext, $keyboardusertest, 'HTML');
         } elseif ($info['btnmessage'] == "helpbtn") {
-            $meesage = sendmessage($iduser->id, $info['message'], $keyboardhelpbtn, 'HTML');
+            $meesage = sendmessage($iduser->id, $msgtext, $keyboardhelpbtn, 'HTML');
         } elseif ($info['btnmessage'] == "affiliatesbtn") {
-            $meesage = sendmessage($iduser->id, $info['message'], $keyboardaffiliates, 'HTML');
+            $meesage = sendmessage($iduser->id, $msgtext, $keyboardaffiliates, 'HTML');
         } elseif ($info['btnmessage'] == "addbalance") {
-            $meesage = sendmessage($iduser->id, $info['message'], $keyboardaddbalance, 'HTML');
+            $meesage = sendmessage($iduser->id, $msgtext, $keyboardaddbalance, 'HTML');
         }
 
         if ($meesage['ok'] == false and $meesage['description'] == "Forbidden: bot was blocked by the user") {

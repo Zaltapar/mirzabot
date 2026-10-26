@@ -1,6 +1,6 @@
 <?php
 /**
- * MirzaBot sync / upgrade script
+ * Bot sync / upgrade script
  *
  * Runs from the NEW code checkout against an INSTALLED bot directory:
  *   php sync.php                 (syncs THIS directory into ./)
@@ -9,8 +9,8 @@
  *   php sync.php /path/to/bot --no-db       (skip the DB snapshot)
  *
  * What it does (in order):
- *   1. Preflight: target is a real MirzaBot install (table.php + config.php),
- *      source is a real MirzaBot source (table.php + version + db/).
+ *   1. Preflight: target is a real bot install (table.php + config.php),
+ *      source is a real bot source (table.php + version + db/).
  *   2. DB snapshot (best-effort mysqldump of the target's database).
  *   3. File snapshot: tar/zip of the target directory (rollback point).
  *   4. Copy source -> target, protecting install-specific paths:
@@ -50,10 +50,10 @@ fail_if($srcDir === $targetDir && count($argvClean) > 0 && $targetArg !== '',
 fail_if($targetDir === null, "Target directory not found: {$targetArg}");
 
 step("Preflight checks");
-fail_if(!is_file($targetDir . '/table.php'), "Target {$targetDir} is not a MirzaBot install (no table.php).");
+fail_if(!is_file($targetDir . '/table.php'), "Target {$targetDir} is not a bot install (no table.php).");
 fail_if(!is_file($targetDir . '/config.php'), "Target has no config.php - is this an installed bot?");
 fail_if(!is_file($srcDir . '/table.php') || !is_file($srcDir . '/db/bootstrap.php'),
-    "Source directory does not look like a MirzaBot source checkout.");
+    "Source directory does not look like a bot source checkout.");
 $srcVersion = trim((string) @file_get_contents($srcDir . '/version'));
 $dstVersion = trim((string) @file_get_contents($targetDir . '/version'));
 info("Source version: " . ($srcVersion !== '' ? $srcVersion : '?') . " -> target version: " . ($dstVersion !== '' ? $dstVersion : '?'));
