@@ -1,9 +1,9 @@
 {
-    "name": "zaltapar/mirzabot",
-    "description": "Telegram VPN sales and management bot",
+    "name": "mirzapro/mirzabot",
+    "description": "Mirza Bot - Telegram VPN sales and management bot",
     "type": "project",
     "license": "AGPL-3.0-or-later",
-    "homepage": "https://github.com/Zaltapar/mirzabot",
+    "homepage": "https://github.com/mahdiMGF2/mirzabot",
     "require": {
         "php": ">=8.2",
         "endroid/qr-code": "^6.0",
