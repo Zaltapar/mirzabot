@@ -622,7 +622,12 @@ function generateUUID()
 }
 function rate_arze()
 {
-    $ch = curl_init('https://demo.mirzabot.com/b.php');
+    $fxUrl = (isset($GLOBALS['fx_rate_url']) && is_string($GLOBALS['fx_rate_url'])) ? $GLOBALS['fx_rate_url'] : '';
+    if ($fxUrl === '') {
+        error_log('rate_arze: no FX rate endpoint configured ($fx_rate_url in config.php)');
+        return null;
+    }
+    $ch = curl_init($fxUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 10);
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
@@ -754,6 +759,28 @@ function bustPanelDataCache($panelName, $username)
         // Table may not exist yet; nothing to bust.
     }
 }
+
+// Return the last successfully cached panel snapshot even if it is past TTL.
+// Used to keep list endpoints fast on cold loads instead of N live HTTP calls.
+function panelUserStale($panelName, $username)
+{
+    global $pdo;
+    if (trim((string) $panelName) === '' || trim((string) $username) === '') {
+        return null;
+    }
+    try {
+        $stmt = $pdo->prepare("SELECT data FROM panel_data_cache WHERE cache_key = ? LIMIT 1");
+        $stmt->execute([md5($panelName . "\x00" . $username)]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        return null;
+    }
+    if (empty($row) || !isset($row['data'])) {
+        return null;
+    }
+    $decoded = json_decode((string) $row['data'], true);
+    return is_array($decoded) ? $decoded : null;
+}
 function buildAccountSummary($userId)
 {
     global $pdo, $textbotlang, $setting;
@@ -784,6 +811,14 @@ function buildAccountSummary($userId)
         $lines[] = strtr($textbotlang['users']['summary']['expiredLine'], ['{count}' => $expired]);
     }
     $lines[] = strtr($textbotlang['users']['summary']['balanceLine'], ['{value}' => number_format((float) $balance, 0)]);
+    if (isset($textbotlang['users']['summary']['purchasesLine'])) {
+        $pstmt = $pdo->prepare("SELECT COUNT(*) AS c, COALESCE(SUM(price_product), 0) AS s FROM invoice WHERE id_user = :uid AND name_product != :test AND Status IN ('active', 'sendedwarn', 'send_on_hold', 'end_of_time', 'end_of_volume')");
+        $pstmt->execute([':uid' => $userId, ':test' => $testServiceName]);
+        $prow = $pstmt->fetch(PDO::FETCH_ASSOC);
+        if ($prow && (int) $prow['c'] > 0) {
+            $lines[] = strtr($textbotlang['users']['summary']['purchasesLine'], ['{count}' => (int) $prow['c'], '{amount}' => number_format((float) $prow['s'], 0)]);
+        }
+    }
     return implode("\n", $lines);
 }
 function updatePaymentMessageId($response, $orderId)
@@ -2895,7 +2930,7 @@ function startAutoExtendSpecCapture($from_id, $nameloc, $marzban, $user, $textbo
         step('autoext_volume', $from_id);
         return;
     }
-    $monthkeyboard = keyboardTimeCategory($marzban['name_panel'], $user['agent'], "autoexttime_", "product_$id_invoice", false, false, favoriteActionValue($from_id, 'duration'));
+    $monthkeyboard = keyboardTimeCategory($marzban['name_panel'], $user['agent'], "autoexttime_", "product_$id_invoice", false, false, favoriteActionValue($from_id, 'duration'), '_' . $id_invoice);
     sendmessage($from_id, $textbotlang['users']['sell']['selectDuration'], $monthkeyboard, 'html');
 }
 
@@ -3135,7 +3170,7 @@ function createPayVariza($price, $order_id)
         CURLOPT_POSTFIELDS => json_encode([
             'amount' => (int) $price,
             'return_url' => 'https://' . $domainhosts . '/payment/variza.php?order=' . $order_id,
-            'title' => 'Mirza order ' . $order_id,
+            'title' => 'Order ' . $order_id,
             'expires_in' => '1h',
         ], JSON_UNESCAPED_UNICODE),
     ]);
@@ -3314,7 +3349,7 @@ function mirzaEnsureInstallerRemoved()
     }
 
     if (!mirzaRemoveInstallerPath($installerDirectory)) {
-        mirzaStopForInstaller('Mirza install folder still exists and could not be removed automatically; delete it manually to enable the bot.');
+        mirzaStopForInstaller('Install folder still exists and could not be removed automatically; delete it manually to enable the bot.');
     }
 }
 
@@ -3428,6 +3463,178 @@ function mirzaRegisterFatalReporter(string $context): void
         }
         mirzaReportCriticalError($context, (string) $error['message'], (string) ($error['file'] ?? ''), (int) ($error['line'] ?? 0));
     });
+}
+
+// ── Smart messaging rules (segmented / scheduled outreach) ─────────
+function smart_rule_frequency_seconds(string $frequency): int
+{
+    switch ($frequency) {
+        case 'daily':
+            return 86400;
+        case 'weekly':
+            return 7 * 86400;
+        case 'monthly':
+            return 30 * 86400;
+        case 'once':
+        default:
+            return PHP_INT_MAX;
+    }
+}
+
+function smart_rule_segments(): array
+{
+    return [
+        'newuser', 'away', 'active', 'power', 'expiring',
+        'expired', 'balance', 'all', 'customer', 'nonecustomer',
+    ];
+}
+
+function smart_segment_query(string $segment, int $param, array &$params): string
+{
+    switch ($segment) {
+        case 'newuser':
+            // Registered but has not really used the bot: no purchases, barely any conversation.
+            return "u.User_Status = 'Active' AND NOT EXISTS (SELECT 1 FROM invoice i WHERE i.id_user = u.id) AND (u.message_count IS NULL OR u.message_count IN ('0', '1'))";
+        case 'away':
+            $days = max(1, $param ?: 7);
+            $params[':sm_cut'] = time() - $days * 86400;
+            return "u.User_Status = 'Active' AND u.last_message_time <> '0' AND u.last_message_time < :sm_cut";
+        case 'active':
+            $days = max(1, $param ?: 7);
+            $params[':sm_cut'] = time() - $days * 86400;
+            return "u.User_Status = 'Active' AND u.last_message_time >= :sm_cut";
+        case 'power':
+            $params[':sm_thr'] = max(1, $param ?: 3);
+            return "u.User_Status = 'Active' AND (SELECT COUNT(*) FROM invoice i WHERE i.id_user = u.id) >= :sm_thr";
+        case 'expiring':
+            return "u.User_Status = 'Active' AND EXISTS (SELECT 1 FROM invoice i WHERE i.id_user = u.id AND i.Status = 'sendedwarn')";
+        case 'expired':
+            return "u.User_Status = 'Active' AND EXISTS (SELECT 1 FROM invoice i WHERE i.id_user = u.id AND i.Status IN ('end_of_time', 'end_of_volume')) AND NOT EXISTS (SELECT 1 FROM invoice i2 WHERE i2.id_user = u.id AND i2.Status IN ('active', 'send_on_hold', 'sendedwarn'))";
+        case 'balance':
+            return "u.User_Status = 'Active' AND u.Balance > 0";
+        case 'customer':
+            return "u.User_Status = 'Active' AND EXISTS (SELECT 1 FROM invoice i WHERE i.id_user = u.id)";
+        case 'nonecustomer':
+            return "u.User_Status = 'Active' AND NOT EXISTS (SELECT 1 FROM invoice i WHERE i.id_user = u.id)";
+        case 'all':
+        default:
+            return "u.User_Status = 'Active'";
+    }
+}
+
+function smart_segment_users(string $segment, int $param, int $limit = 500): array
+{
+    global $pdo;
+    $params = [];
+    $where = smart_segment_query($segment, $param, $params);
+    $params[':lim'] = $limit;
+    $sql = "SELECT u.id, u.username, u.namecustom, u.Balance, u.score, u.last_message_time,
+                   (SELECT COUNT(*) FROM invoice i WHERE i.id_user = u.id) AS service_count
+            FROM user u WHERE {$where} ORDER BY u.id LIMIT :lim";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function smart_fill_vars(string $template, array $user): string
+{
+    $lmt = (int) ($user['last_message_time'] ?? 0);
+    $awayDays = $lmt > 0 ? (int) floor((time() - $lmt) / 86400) : 0;
+    $map = [
+        '{name}' => (string) ($user['namecustom'] ?: ($user['username'] ?: ($user['id'] ?? ''))),
+        '{username}' => (string) ($user['username'] ?? ''),
+        '{balance}' => (string) ($user['Balance'] ?? '0'),
+        '{score}' => (string) ($user['score'] ?? '0'),
+        '{service_count}' => (string) ($user['service_count'] ?? '0'),
+        '{away_days}' => (string) $awayDays,
+    ];
+    return strtr($template, $map);
+}
+
+function smart_msg_ensure_tables(): void
+{
+    global $pdo;
+    static $ensured = false;
+    if ($ensured) {
+        return;
+    }
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `message_rules` (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            title VARCHAR(200) NOT NULL,
+            segment VARCHAR(50) NOT NULL,
+            segment_param INT NOT NULL DEFAULT 0,
+            message TEXT NOT NULL,
+            button VARCHAR(50) NOT NULL DEFAULT 'none',
+            frequency VARCHAR(20) NOT NULL DEFAULT 'once',
+            active TINYINT(1) NOT NULL DEFAULT 1,
+            last_run INT NOT NULL DEFAULT 0,
+            last_count INT NOT NULL DEFAULT 0,
+            created_at INT NOT NULL DEFAULT 0,
+            updated_at INT NOT NULL DEFAULT 0
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `message_rule_sent` (
+            rule_id INT UNSIGNED NOT NULL,
+            id_user VARCHAR(500) NOT NULL,
+            sent_at INT NOT NULL,
+            PRIMARY KEY (rule_id, id_user),
+            KEY idx_rule_sent (rule_id, sent_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        $ensured = true;
+    } catch (Throwable $e) {
+        error_log('smart_msg_ensure_tables: ' . $e->getMessage());
+    }
+}
+
+// Render a shared template per-user for bulk sends (group messaging with variables).
+// Returns a JSON string of [{id, text}] the sendmessage cron understands.
+function smart_render_messages_for(array $ids, string $template): string
+{
+    global $pdo;
+    $ids = array_values(array_unique(array_map('strval', $ids)));
+    $out = [];
+    $found = [];
+    foreach (array_chunk($ids, 500) as $chunk) {
+        $in = implode(',', array_fill(0, count($chunk), '?'));
+        $sql = "SELECT u.id, u.username, u.namecustom, u.Balance, u.score, u.last_message_time,
+                       (SELECT COUNT(*) FROM invoice i WHERE i.id_user = u.id) AS service_count
+                FROM user u WHERE u.id IN ($in)";
+        try {
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($chunk);
+        } catch (Throwable $e) {
+            error_log('smart_render_messages_for: ' . $e->getMessage());
+            break;
+        }
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $uid = (string) ($row['id'] ?? '');
+            $row['id'] = $uid;
+            $out[] = ['id' => $uid, 'text' => smart_fill_vars($template, $row)];
+            $found[$uid] = true;
+        }
+    }
+    if (count($out) === 0) {
+        $fallback = [];
+        foreach ($ids as $uid) {
+            $fallback[] = ['id' => $uid, 'text' => $template];
+        }
+        return json_encode($fallback);
+    }
+    foreach ($ids as $uid) {
+        if (!isset($found[$uid])) {
+            $out[] = ['id' => $uid, 'text' => $template];
+        }
+    }
+    return json_encode($out);
+}
+
+function smart_rule_due(array $rule, int $now): bool
+{
+    $interval = smart_rule_frequency_seconds((string) ($rule['frequency'] ?? 'once'));
+    if ($interval === PHP_INT_MAX) {
+        return ((int) ($rule['last_run'] ?? 0)) === 0;
+    }
+    return $now - (int) ($rule['last_run'] ?? 0) >= $interval;
 }
 
 mirzaRegisterFatalReporter(PHP_SAPI === 'cli' ? 'cli' : basename((string) ($_SERVER['SCRIPT_NAME'] ?? 'web')));

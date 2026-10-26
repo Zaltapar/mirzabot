@@ -624,6 +624,21 @@ $lotteryFlowKeyboard = json_encode(['inline_keyboard' => [[['text' => $textbotla
 $affiliateFlowKeyboard = json_encode(['inline_keyboard' => [[['text' => $textbotlang['keyboard']['backToPreviousMenu'], 'callback_data' => "affiliatesettings"]]]]);
 $giftCodeFlowKeyboard = json_encode(['inline_keyboard' => [[['text' => $textbotlang['keyboard']['backToPreviousMenu'], 'callback_data' => "giftcode_list"]]]]);
 $discountCodeFlowKeyboard = json_encode(['inline_keyboard' => [[['text' => $textbotlang['keyboard']['backToPreviousMenu'], 'callback_data' => "discountcode_list"]]]]);
+$discountRandomCodeKeyboard = json_encode(['inline_keyboard' => [
+    [['text' => $textbotlang['keyboard']['randomCodeBtn'], 'callback_data' => "discount_random"]],
+    [['text' => $textbotlang['keyboard']['backToPreviousMenu'], 'callback_data' => "discountcode_list"]],
+]]);
+$discountTimePresetKeyboard = json_encode(['inline_keyboard' => [
+    [
+        ['text' => $textbotlang['keyboard']['timePresetNoExpire'], 'callback_data' => "discounttime_0"],
+        ['text' => $textbotlang['keyboard']['timePresetDay'], 'callback_data' => "discounttime_24"],
+    ],
+    [
+        ['text' => $textbotlang['keyboard']['timePresetWeek'], 'callback_data' => "discounttime_168"],
+        ['text' => $textbotlang['keyboard']['timePresetMonth'], 'callback_data' => "discounttime_720"],
+    ],
+    [['text' => $textbotlang['keyboard']['backToPreviousMenu'], 'callback_data' => "discountcode_list"]],
+]]);
 function editFlowMessage($text, $keyboard)
 {
     global $from_id, $message_id, $datain, $user;
@@ -1426,7 +1441,7 @@ function KeyboardCategory($location, $agent, $backuser = "backuser")
     return json_encode($list_category);
 }
 
-function keyboardTimeCategory($name_panel, $agent, $callback_data = "producttime_", $callback_data_back = "backuser", $statuscustomvolume = false, $statusbtnextend = false, ?string $favoriteDuration = null)
+function keyboardTimeCategory($name_panel, $agent, $callback_data = "producttime_", $callback_data_back = "backuser", $statuscustomvolume = false, $statusbtnextend = false, ?string $favoriteDuration = null, string $callbackSuffix = '')
 {
     global $pdo, $textbotlang;
     $stmt = $pdo->prepare("SELECT (Service_time) FROM product WHERE (Location = :name_panel OR Location = '/all') AND  agent = :agent");
@@ -1464,7 +1479,7 @@ function keyboardTimeCategory($name_panel, $agent, $callback_data = "producttime
             continue;
         $slotButton = [
             'text' => $textbotlang['common']['duration'][$labelKey],
-            'callback_data' => "{$callback_data}{$days}"
+            'callback_data' => "{$callback_data}{$days}{$callbackSuffix}"
         ];
         if (isset($slotCounts[$days]) && $slotCounts[$days]['disabled'] >= $slotCounts[$days]['total'])
             $slotButton['disabled'] = true;
