@@ -68,6 +68,29 @@ while ($order = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $markDelivered('orphan', $orderId);
             continue;
         }
+        // Never double-credit: if the admin already settled this user's wallet
+        // manually (added or deducted balance) within 30 minutes of when this
+        // order was created, treat this paid-but-unlinked order as orphaned
+        // instead of recrediting the full amount. A real top-up settles with
+        // reconciled='delivered', so reaching this branch means the order was
+        // not delivered; if admin has already compensated, do not auto-add.
+        $adminSettled = $pdo->prepare(
+            "SELECT COUNT(*) FROM Payment_report
+             WHERE id_user = ?
+               AND Payment_Method IN ('add balance by admin', 'low balance by admin')
+               AND time >= ?
+               AND time < DATE_ADD(NOW(), INTERVAL 30 MINUTE)"
+        );
+        $orderWindow = date('Y/m/d H:i:s', strtotime((string) $order['time']) - 1800);
+        $adminSettled->execute([$order['id_user'], $orderWindow]);
+        if ((int) $adminSettled->fetchColumn() > 0) {
+            $markDelivered('orphan', $orderId);
+            mirzaReportCriticalError(
+                'payment-reconcile',
+                'order=' . $orderId . ' paid top-up of ' . $amount . ' skipped: user ' . $order['id_user'] . ' already has a settled admin balance entry within 30 minutes of order creation; manual review recommended'
+            );
+            continue;
+        }
         try {
             $pdo->beginTransaction();
             $claim = $pdo->prepare(
