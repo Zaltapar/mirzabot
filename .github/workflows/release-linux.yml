@@ -1,0 +1,101 @@
+name: Release Linux binaries (amd64 & arm64)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build the Linux binaries for
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+            php_binary_url: "https://github.com/static-php/static-php-cli/releases/download/php-8.2.14/static-linux-x86_64.tar.gz"
+          - arch: arm64
+            # Self-hosted ARM runner. If it's offline, switch this to a
+            # QEMU-emulated docker job (see the note at the bottom of this file).
+            runner: self-hosted-arm
+            php_binary_url: "https://github.com/static-php/static-php-cli/releases/download/php-8.2.14/static-linux-aarch64.tar.gz"
+    runs-on: ${{ matrix.runner }}
+    env:
+      ARCH: ${{ matrix.arch }}
+      PHP_BINARY_URL: ${{ matrix.php_binary_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify PHP binary exists
+        run: |
+          echo "Checking $PHP_BINARY_URL ..."
+          curl -fsI "$PHP_BINARY_URL" -o /dev/null -w 'HTTP %{http_code}\n'
+
+      - name: Download static PHP binary
+        run: |
+          set -e
+          ARCH_TAG="x86_64"
+          [ "$ARCH" = "arm64" ] && ARCH_TAG="aarch64"
+          curl -fsSL "https://github.com/static-php/static-php-cli/releases/download/php-8.2.14/static-linux-${ARCH_TAG}.tar.gz" -o /tmp/php.tar.gz
+          tar -xzf /tmp/php.tar.gz -C /tmp
+          # The tarball extracts to a directory containing the 'php' binary.
+          PHP_BIN="$(find /tmp -maxdepth 2 -type f -name 'php' | head -1)"
+          [ -n "$PHP_BIN" ] || { echo "No php binary found in the tarball"; find /tmp -maxdepth 2 -type f; exit 1; }
+          file "$PHP_BIN"
+          mv -f "$PHP_BIN" /tmp/php
+
+      - name: Compose per-arch bundle
+        id: bundle
+        run: |
+          set -e
+          TAG="${TAG#v}"
+          OUT="mirzabot-linux-${ARCH}-${TAG}"
+          STAGE="/tmp/${OUT}"
+          mkdir -p "$STAGE"
+          # Bot source (without dev-only bits)
+          rsync -a --exclude '.git' --exclude '.github' ./ "$STAGE/"
+          # Static PHP binary
+          cp /tmp/php "$STAGE/php"
+          chmod +x "$STAGE/php"
+          # Launcher that boots the schema + webhook using the bundled PHP.
+          printf '%s\n' \
+            '#!/usr/bin/env bash' \
+            '# Boots the bot schema (table.php) with the bundled static PHP.' \
+            '# For an Apache/PHP-FPM deployment, copy the source tree and' \
+            '# point the vhost at it instead.' \
+            'set -e' \
+            'cd "$(dirname "$0")"' \
+            './php -d "memory_limit=512M" -d "max_execution_time=300" table.php' \
+            > "$STAGE/run-bot.sh"
+          chmod +x "$STAGE/run-bot.sh"
+          tar -czf "${OUT}.tar.gz" -C /tmp "${OUT}"
+          echo "file=${OUT}.tar.gz" >> "$GITHUB_OUTPUT"
+          ls -lh "${OUT}.tar.gz"
+
+      - name: Attach Linux binary to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          FILE: ${{ steps.bundle.outputs.file }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --generate-notes
+          gh release upload "$TAG" "$FILE" --clobber
+
+      # ── Fallback: when the self-hosted ARM runner is not available ──
+      # Replace `runner: self-hosted-arm` above with a QEMU-based job:
+      #   - name: arm64 (QEMU)
+      #     runs-on: ubuntu-latest
+      #     container:
+      #       image: qemulabs/php-static:8.2-aarch64
+      #       options: --platform linux/arm64
+      # and drop the `self-hosted-arm` label requirement.

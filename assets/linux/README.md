@@ -1,0 +1,3 @@
+-- placeholder so git tracks the assets/ directory; the real Linux binaries
+-- (mirzabot-linux-amd64, mirzabot-linux-arm64) are attached to the release
+-- by .github/workflows/release.yml after each tag push.
