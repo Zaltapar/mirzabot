@@ -240,6 +240,7 @@ if (strpos($text, "/start ") !== false && $user['step'] != "gettextSystemMessage
             sendmessage($affiliatesid, sprintf($textbotlang['users']['affiliates']['newReferralJoined'], $username), $keyboard, 'html');
             $addcountaffiliates = intval($useraffiliates['affiliatescount']) + 1;
             update("user", "affiliatescount", $addcountaffiliates, "id", $affiliatesid);
+            maybeRewardReferrer($affiliatesid, $addcountaffiliates);
             $stmt = $pdo->prepare("INSERT IGNORE INTO reagent_report (user_id, get_gift,time,reagent) VALUES (?, ?,?, ?)");
             $dateacc = date('Y/m/d H:i:s');
             $type_gift = false;
@@ -331,6 +332,7 @@ if ($user['joinchannel'] != "active") {
                 update("user", "affiliates", $affiliatesid, "id", $from_id);
                 update("user", "Processing_value_four", "none", "id", $from_id);
                 update("user", "affiliatescount", $addcountaffiliates, "id", $affiliatesid);
+                maybeRewardReferrer($affiliatesid, $addcountaffiliates);
             }
             return;
         }
@@ -1077,6 +1079,10 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
             unset($keyboarddate['Extra_volume']);
             unset($keyboarddate['extend']);
         }
+        if (($marzban['extravol_status'] ?? 'onextravol') == "offextravol")
+            unset($keyboarddate['Extra_volume']);
+        if (($marzban['extratime_status'] ?? 'onextratime') == "offextratime")
+            unset($keyboarddate['Extra_time']);
         if ($statusremoveserveice == "off")
             unset($keyboarddate['removeservice']);
         if ($statusshowconfig == "offconfig")
@@ -2252,6 +2258,19 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         Editmessagetext($from_id, $message_id, $textconfig, $bakinfos);
     }
     sendWireguardFiles($from_id, $DataUserOut['wireguard'] ?? [], $nameloc['username']);
+    if ($marzban_list_get['sublink'] == "onsublink" && !empty($DataUserOut['subscription_url'])) {
+        $sublinkStmt = $pdo->prepare("INSERT IGNORE INTO service_other (id_user, username, value, type, time, price, output) VALUES (:uid, :uname, :val, :type, :time, :price, :output)");
+        $sublinkStmt->execute([
+            ':uid' => $nameloc['id_user'],
+            ':uname' => $nameloc['username'],
+            ':val' => $DataUserOut['subscription_url'],
+            ':type' => 'custom_service',
+            ':time' => date('Y/m/d H:i:s'),
+            ':price' => 0,
+            ':output' => json_encode(['status' => 'attached']),
+        ]);
+        clearSelectCache('service_other');
+    }
     $timejalali = jdate('Y/m/d H:i:s');
     $text_report = sprintf($textbotlang['Admin']['reportgroup']['linkChanged'], $from_id, $username, $nameloc['username'], $first_name, $marzban_list_get['name_panel'], $user['agent'], $timejalali);
     if (strlen($setting['Channel_Report']) > 0) {
@@ -2270,7 +2289,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         return;
     }
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
-    if ($marzban_list_get['status_extend'] == "off_extend") {
+    if ($marzban_list_get['status_extend'] == "off_extend" || ($marzban_list_get['extravol_status'] ?? 'onextravol') == "offextravol") {
         sendmessage($from_id, $textbotlang['users']['extraVolume']['notSupportedPanel'], null, 'html');
         return;
     }
@@ -2820,7 +2839,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         return;
     }
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
-    if ($marzban_list_get['status_extend'] == "off_extend") {
+    if ($marzban_list_get['status_extend'] == "off_extend" || ($marzban_list_get['extratime_status'] ?? 'onextratime') == "offextratime") {
         sendmessage($from_id, $textbotlang['users']['extraTime']['notSupportedPanel'], null, 'html');
         return;
     }
@@ -3550,6 +3569,17 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     ]);
     sendmessage($departeman['idsupport'], $textsuppoer, $Response, 'HTML');
     sendmessage($from_id, $textbotlang['users']['support']['sentForReview'], $keyboard, 'HTML');
+    if (strlen($setting['Channel_Report']) > 0 && function_exists('topicId')) {
+        $ticketReportTopic = topicId('ticketreport');
+        $ticketReportText = sprintf($textbotlang['Admin']['reportgroup']['ticketNew'] ?? "\n🎫 New support ticket\n\nTicket : <code>%s</code>\nUser : <a href=\"tg://user?id=%s\">%s</a> (@%s)\nDepartment : %s", $randomString, $from_id, $from_id, $username, $departeman['name_departman']);
+        telegram('sendmessage', [
+            'chat_id' => $setting['Channel_Report'],
+            'message_thread_id' => $ticketReportTopic,
+            'text' => $ticketReportText,
+            'parse_mode' => "HTML",
+            'disable_web_page_preview' => true,
+        ]);
+    }
     step("home", $from_id);
     step("home", $departeman['idsupport']);
 } elseif (preg_match('/Responsesupport_(\w+)/', $datain, $dataget)) {
@@ -4055,7 +4085,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $maintime = $maintime[$user['agent']];
         $maxtime = json_decode($marzban_list_get['maxtime'], true);
         $maxtime = $maxtime[$user['agent']];
-        if (intval($text) > intval($maxtime) || intval($text) < intval($maintime)) {
+        if (intval($text) != 0 && (intval($text) > intval($maxtime) || intval($text) < intval($maintime))) {
             $texttime = strtr($textbotlang['users']['customSellVolume']['invalidTimeRange'], ['{maintime}' => $maintime, '{maxtime}' => $maxtime]);
             sendmessage($from_id, $texttime, $backuser, 'HTML');
             return;
@@ -4158,6 +4188,30 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         Editmessagetext($from_id, $message_id, $textin, $payment);
     } else {
         sendmessage($from_id, $textin, $payment, 'HTML');
+    }
+    if ($info_product['Service_time'] == 0 && ($setting['customtime_zero_approval'] ?? '1') == '1') {
+        $adminIds = select("admin", "id_admin", null, null, "FETCH_COLUMN") ?? [];
+        foreach ($adminIds as $aid) {
+            $approvalMsg = $textbotlang['users']['customTime']['zeroUnlimitedApproval'] ?? 'Unlimited time requested by user %s';
+            sendmessage($aid, sprintf($approvalMsg, $from_id), null, 'HTML');
+        }
+        update("user", "Processing_value_five", "customtime0_pending", "id", $from_id);
+        $adminSupport = select("departman", "idsupport", "id", 1, "select");
+        if (!empty($adminSupport['idsupport'])) {
+            $track = bin2hex(random_bytes(4));
+            $stmt2 = $pdo->prepare("INSERT IGNORE INTO support_message (Tracking,idsupport,iduser,name_departman,text,time,status) VALUES (:t,:i,:u,:d,:x,:now,'Pending')");
+            $stmt2->execute([
+                ':t' => $track,
+                ':i' => $adminSupport['idsupport'],
+                ':u' => $from_id,
+                ':d' => 'Custom time 0',
+                ':x' => $user['Processing_value_one'],
+                ':now' => date('Y/m/d H:i:s'),
+            ]);
+        }
+        sendmessage($from_id, $textbotlang['users']['customTime']['zeroUnlimitedPending'] ?? 'Your unlimited time request has been sent for admin approval.', null, 'HTML');
+        step('home', $from_id);
+        return;
     }
     step('payment', $from_id);
 } elseif ($user['step'] == "payment" && ($datain == "confirmandgetservice" || $datain == "confirmandgetserviceDiscount")) {
@@ -5037,6 +5091,9 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $PaySettingname = $card_info['namecard'];
         /* freed */
         $cardQuery = null;
+        if (($setting['cardprotect'] ?? '0') == '1') {
+            $card_number = str_repeat('•', 4) . ' ' . substr($card_number, -4);
+        }
         $price_copy = $user['Processing_value'];
         $valueprice = number_format($user['Processing_value']);
         $replacements = [

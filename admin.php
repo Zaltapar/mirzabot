@@ -7477,6 +7477,25 @@ elseif ($text == $textbotlang['keyboard']['hidePanelForUser'] && $adminrulecheck
     $hideuserid = json_encode($hideuserid);
     update("marzban_panel", "hide_user", $hideuserid, "name_panel", $user['Processing_value']);
     outtypepanel($typepanel['type'], $textbotlang['Admin']['managepanel']['userRemovedFromList']);
+} elseif ($text == $textbotlang['keyboard']['hidePanelForTier'] && $adminrulecheck['rule'] == "administrator") {
+    sendmessage($from_id, $textbotlang['Admin']['managepanel']['askHideTier'] ?? 'Enter the user tier to hide the panel from (f, n, or n2)', $backadmin, 'HTML');
+    step('gettierhide', $from_id);
+} elseif ($user['step'] == "gettierhide") {
+    $validTiers = ['f', 'n', 'n2'];
+    $tier = strtolower(trim($text));
+    if (!in_array($tier, $validTiers, true)) {
+        outtypepanel(select("marzban_panel", "type", "name_panel", $user['Processing_value'], "select")['type'] ?? '', $textbotlang['common']['invalidInput']);
+        return;
+    }
+    $typepanel = select("marzban_panel", "*", "name_panel", $user['Processing_value'], "select");
+    $hideTiers = json_decode((string) ($typepanel['hide_tiers'] ?? ''), true) ?: [];
+    if (!in_array($tier, $hideTiers, true)) {
+        $hideTiers[] = $tier;
+    }
+    update("marzban_panel", "hide_tiers", json_encode($hideTiers), "name_panel", $user['Processing_value']);
+    clearSelectCache('marzban_panel');
+    outtypepanel($typepanel['type'], $textbotlang['Admin']['managepanel']['tierHidden'] ?? "Panel is now hidden for tier $tier");
+    step('home', $from_id);
 } elseif ($datain == "lotterysettings" && $adminrulecheck['rule'] == "administrator") {
     step("home", $from_id);
     [$lotteryText, $lotteryKeyboard] = lotterySettingsMenu();
@@ -7540,6 +7559,47 @@ elseif ($text == $textbotlang['keyboard']['hidePanelForUser'] && $adminrulecheck
     step("home", $from_id);
     [$affiliateText, $affiliateKeyboard] = affiliateSettingsMenu();
     editFlowMessage($textbotlang['Admin']['affiliates']['saved'] . "\n\n" . $affiliateText, $affiliateKeyboard);
+} elseif ($datain == "affiliate-rewardconfig" && $adminrulecheck['rule'] == "administrator") {
+    $rr = json_decode((string) ($setting['referral_rewards'] ?? '{}'), true);
+    $rrState = (($rr['status'] ?? 'off') == 'on') ? $textbotlang['keyboard']['onState'] : $textbotlang['keyboard']['offState'];
+    $rrText = sprintf($textbotlang['Admin']['affiliates']['rewardConfigTitle'] ?? '', (int) ($rr['threshold'] ?? 0), (int) ($rr['volume'] ?? 0), (int) ($rr['time'] ?? 0));
+    $rrRows = [
+        [['text' => $rrState, 'callback_data' => "affiliate-rewardtoggle"], ['text' => $textbotlang['keyboard']['referralRewardStatus'] ?? '', 'callback_data' => "affiliate-rewardtoggle"]],
+        [['text' => (string) ($rr['threshold'] ?? 0), 'callback_data' => "affiliate-rewardthreshold"], ['text' => $textbotlang['keyboard']['referralRewardThreshold'] ?? '', 'callback_data' => "affiliate-rewardthreshold"]],
+        [['text' => (string) ($rr['volume'] ?? 0) . ' GB', 'callback_data' => "affiliate-rewardvolume"], ['text' => $textbotlang['keyboard']['referralRewardVolume'] ?? '', 'callback_data' => "affiliate-rewardvolume"]],
+        [['text' => (string) ($rr['time'] ?? 0) . ' h', 'callback_data' => "affiliate-rewardtime"], ['text' => $textbotlang['keyboard']['referralRewardTime'] ?? '', 'callback_data' => "affiliate-rewardtime"]],
+        [['text' => $textbotlang['keyboard']['backToPreviousMenu'] ?? '', 'callback_data' => "affiliatesettings"]],
+    ];
+    Editmessagetext($from_id, $message_id, $rrText, json_encode(['inline_keyboard' => $rrRows]));
+} elseif (preg_match('/^affiliate-reward(toggle|threshold|volume|time)$/', $datain, $dataget) && $adminrulecheck['rule'] == "administrator") {
+    $rr = json_decode((string) ($setting['referral_rewards'] ?? '{}'), true) ?: ['threshold' => 0, 'volume' => 0, 'time' => 0, 'status' => 'off'];
+    if ($dataget[1] == "toggle") {
+        $rr['status'] = ($rr['status'] ?? 'off') == 'on' ? 'off' : 'on';
+        update("setting", "referral_rewards", json_encode($rr));
+        clearSelectCache('setting');
+    } else {
+        savedata("clear", "message_id", $message_id);
+        $stepMap = ['threshold' => 'getreferralthreshold', 'volume' => 'getreferrerewardvolume', 'time' => 'getreferrerewardtime'];
+        step($stepMap[$dataget[1]], $from_id);
+        $ask = [
+            'threshold' => $textbotlang['Admin']['affiliates']['askThreshold'] ?? 'Enter threshold',
+            'volume' => $textbotlang['Admin']['affiliates']['askRewardVolume'] ?? 'Enter reward volume (GB)',
+            'time' => $textbotlang['Admin']['affiliates']['askRewardTime'] ?? 'Enter reward time (hours)',
+        ][$dataget[1]];
+        Editmessagetext($from_id, $message_id, $ask, $affiliateFlowKeyboard);
+    }
+} elseif (in_array($user['step'], ['getreferralthreshold', 'getreferrerewardvolume', 'getreferrerewardtime'])) {
+    if (!ctype_digit($text)) {
+        editFlowMessage($textbotlang['common']['invalidInput'], $affiliateFlowKeyboard);
+        return;
+    }
+    $rr = json_decode((string) ($setting['referral_rewards'] ?? '{}'), true) ?: ['threshold' => 0, 'volume' => 0, 'time' => 0, 'status' => 'off'];
+    $key = ['getreferralthreshold' => 'threshold', 'getreferrerewardvolume' => 'volume', 'getreferrerewardtime' => 'time'][$user['step']];
+    $rr[$key] = (int) $text;
+    update("setting", "referral_rewards", json_encode($rr));
+    clearSelectCache('setting');
+    step("home", $from_id);
+    Editmessagetext($from_id, $message_id, $textbotlang['Admin']['affiliates']['saved'] ?? 'Saved', $affiliateFlowKeyboard);
 } elseif ($datain == "wheelsettings" && $adminrulecheck['rule'] == "administrator") {
     step("home", $from_id);
     [$wheelText, $wheelKeyboard] = wheelSettingsMenu();
@@ -8466,6 +8526,16 @@ if ($datain == "settimecornday" && $adminrulecheck['rule'] == "administrator") {
             ['text' => $subvip, 'callback_data' => "editpanel-subvip-{$panel['subvip']}-{$panel['code_panel']}"],
             ['text' => $textbotlang['keyboard']['exclusiveSubLink'], 'callback_data' => "none"],
         ];
+        $extravolState = ((string) ($panel['extravol_status'] ?? 'onextravol') === 'onextravol') ? $textbotlang['keyboard']['onState'] : $textbotlang['keyboard']['offState'];
+        $extratimeState = ((string) ($panel['extratime_status'] ?? 'onextratime') === 'onextratime') ? $textbotlang['keyboard']['onState'] : $textbotlang['keyboard']['offState'];
+        $Bot_Status['inline_keyboard'][] = [
+            ['text' => $extravolState, 'callback_data' => "editpanel-extravol-" . ($panel['extravol_status'] ?? 'onextravol') . "-{$panel['code_panel']}"],
+            ['text' => $textbotlang['keyboard']['extraVolumeBuy'], 'callback_data' => "none"],
+        ];
+        $Bot_Status['inline_keyboard'][] = [
+            ['text' => $extratimeState, 'callback_data' => "editpanel-extratime-" . ($panel['extratime_status'] ?? 'onextratime') . "-{$panel['code_panel']}"],
+            ['text' => $textbotlang['keyboard']['extraTimeBuy'], 'callback_data' => "none"],
+        ];
     }
     if (in_array($panel['type'], ["marzban"])) {
         $Bot_Status['inline_keyboard'][] = [
@@ -8553,6 +8623,12 @@ if ($datain == "settimecornday" && $adminrulecheck['rule'] == "administrator") {
             $valuenew = "onsubvip";
         }
         update("marzban_panel", "subvip", $valuenew, "code_panel", $code_panel);
+    } elseif ($type == "extravol") {
+        $valuenew = ($value == "onextravol") ? "offextravol" : "onextravol";
+        update("marzban_panel", "extravol_status", $valuenew, "code_panel", $code_panel);
+    } elseif ($type == "extratime") {
+        $valuenew = ($value == "onextratime") ? "offextratime" : "onextratime";
+        update("marzban_panel", "extratime_status", $valuenew, "code_panel", $code_panel);
     } elseif ($type == "customstatusf") {
         $panel = select("marzban_panel", "*", "code_panel", $code_panel, "select");
         $customvlume = json_decode($panel['customvolume'], true);
@@ -8703,6 +8779,16 @@ if ($datain == "settimecornday" && $adminrulecheck['rule'] == "administrator") {
         $Bot_Status['inline_keyboard'][] = [
             ['text' => $subvip, 'callback_data' => "editpanel-subvip-{$panel['subvip']}-{$panel['code_panel']}"],
             ['text' => $textbotlang['keyboard']['exclusiveSubLink'], 'callback_data' => "none"],
+        ];
+        $extravolState = ((string) ($panel['extravol_status'] ?? 'onextravol') === 'onextravol') ? $textbotlang['keyboard']['onState'] : $textbotlang['keyboard']['offState'];
+        $extratimeState = ((string) ($panel['extratime_status'] ?? 'onextratime') === 'onextratime') ? $textbotlang['keyboard']['onState'] : $textbotlang['keyboard']['offState'];
+        $Bot_Status['inline_keyboard'][] = [
+            ['text' => $extravolState, 'callback_data' => "editpanel-extravol-" . ($panel['extravol_status'] ?? 'onextravol') . "-{$panel['code_panel']}"],
+            ['text' => $textbotlang['keyboard']['extraVolumeBuy'], 'callback_data' => "none"],
+        ];
+        $Bot_Status['inline_keyboard'][] = [
+            ['text' => $extratimeState, 'callback_data' => "editpanel-extratime-" . ($panel['extratime_status'] ?? 'onextratime') . "-{$panel['code_panel']}"],
+            ['text' => $textbotlang['keyboard']['extraTimeBuy'], 'callback_data' => "none"],
         ];
     }
     if (in_array($panel['type'], ["marzban"])) {

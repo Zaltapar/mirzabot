@@ -52,7 +52,10 @@ return [
         version_panel varchar(60) NOT NULL,
         customvolume TEXT NULL,
         hide_user TEXT NULL,
-        display_order INT NOT NULL DEFAULT 0
+        display_order INT NOT NULL DEFAULT 0,
+        extravol_status varchar(60) NULL,
+        extratime_status varchar(60) NULL,
+        hide_tiers TEXT NULL
         SQL,
     'columns' => [
         ['code_panel', null, 'VARCHAR(50)'],
@@ -94,5 +97,8 @@ return [
         ['customvolume', $zeroVolume, 'TEXT'],
         ['hide_user', null, 'TEXT'],
         ['display_order', null, 'INT NOT NULL DEFAULT 0'],
+        ['extravol_status', 'onextravol', 'VARCHAR(60)'],
+        ['extratime_status', 'onextratime', 'VARCHAR(60)'],
+        ['hide_tiers', null, 'TEXT'],
     ],
 ];

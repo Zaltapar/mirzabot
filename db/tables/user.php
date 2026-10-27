@@ -71,5 +71,6 @@ return [
         ['lang', 'fa', 'varchar(5)'],
         ['low_balance_alert_sent', '0', 'TINYINT(1)'],
         ['terms_accepted', '0', 'VARCHAR(20)'],
+        ['Processing_value_five', '', 'TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'],
     ],
 ];

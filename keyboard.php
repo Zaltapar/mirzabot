@@ -434,12 +434,14 @@ $featureCategories = [
         'features' => [
             'bulkbuy' => ['label' => $textbotlang['keyboard']['bulkPurchaseStatus'], 'setting' => 'bulkbuy', 'on' => 'onbulk', 'off' => 'offbulk'],
             'compycart' => ['label' => $textbotlang['keyboard']['copyCard'], 'setting' => 'statuscopycart', 'on' => '1', 'off' => '0'],
+            'cardprotect' => ['label' => $textbotlang['keyboard']['protectCardContent'], 'setting' => 'cardprotect', 'on' => '1', 'off' => '0'],
             'Debtsettlement' => ['label' => $textbotlang['keyboard']['settleDebt'], 'setting' => 'Debtsettlement', 'on' => '1', 'off' => '0'],
             'alert_balance' => ['label' => $textbotlang['keyboard']['lowBalanceAlert'], 'setting' => 'alert_balance', 'on' => '1', 'off' => '0', 'config' => 'setlowbalancealert'],
             'changeloc' => ['label' => $textbotlang['keyboard']['locationChangeLimit'], 'setting' => 'statuslimitchangeloc', 'on' => '1', 'off' => '0', 'config' => 'changeloclimit'],
             'statusnamecustom' => ['label' => $textbotlang['keyboard']['configNote'], 'setting' => 'statusnamecustom', 'on' => 'onnamecustom', 'off' => 'offnamecustom'],
             'statusnamecustomf' => ['label' => $textbotlang['keyboard']['userNote'], 'setting' => 'statusnoteforf', 'on' => '1', 'off' => '0'],
             'affiliates' => ['label' => $textbotlang['keyboard']['affiliateGift'], 'config' => 'affiliatesettings'],
+            'customtime_zero_approval' => ['label' => $textbotlang['keyboard']['customTimeZeroApproval'] ?? '', 'setting' => 'customtime_zero_approval', 'on' => '1', 'off' => '0'],
             'wheel_luck' => ['label' => $textbotlang['keyboard']['wheelOfLuck'], 'config' => 'wheelsettings'],
             'score' => $lotteryFeatures['score'] + ['config' => 'lotterysettings'],
         ],
@@ -556,6 +558,7 @@ function affiliateSettingsMenu()
         [['text' => $percentText, 'callback_data' => "affiliate-percent"], ['text' => $textbotlang['keyboard']['setAffiliatePercent'], 'callback_data' => "affiliate-percent"]],
         [['text' => $startGiftText, 'callback_data' => "affiliate-startgift"], ['text' => $textbotlang['keyboard']['startGift'], 'callback_data' => "affiliate-startgift"]],
         [['text' => $giftAmountText, 'callback_data' => "affiliate-giftamount"], ['text' => $textbotlang['keyboard']['startGiftAmount'], 'callback_data' => "affiliate-giftamount"]],
+        [['text' => $textbotlang['keyboard']['referralRewardConfig'], 'callback_data' => "affiliate-rewardconfig"]],
         [['text' => $textbotlang['keyboard']['setAffiliateBanner'], 'callback_data' => "affiliate-banner"]],
         [['text' => $textbotlang['keyboard']['backToPreviousMenu'], 'callback_data' => "featurecat-sales"]],
     ];
@@ -905,7 +908,7 @@ $helpappremove['keyboard'][] = [
 ];
 $json_list_remove_helpـlink = json_encode($helpappremove);
 //------------------  [ listpanelusers ]----------------//
-$activePanelRows = array_filter($allPanelRows, fn($panel) => $panel['status'] == "active" && in_array($panel['agent'], [$users['agent'], "all"]));
+$activePanelRows = array_filter($allPanelRows, fn($panel) => $panel['status'] == "active" && in_array($panel['agent'], [$users['agent'], "all"]) && !panelHiddenForTier($panel, $users['agent']));
 $manualsellCounts = [];
 if (in_array('Manualsale', array_column($activePanelRows, 'type'))) {
     foreach ($pdo->query("SELECT codepanel, COUNT(*) AS c FROM manualsell WHERE status = 'active' GROUP BY codepanel")->fetchAll(PDO::FETCH_ASSOC) as $msRow) {
@@ -1023,6 +1026,8 @@ $list_marzban_panel_usertest = ['inline_keyboard' => []];
 foreach ($allPanelRows as $result) {
     if ($result['TestAccount'] != "ONTestAccount" || !in_array($result['agent'], [$users['agent'], "all"]))
         continue;
+    if (panelHiddenForTier($result, $users['agent']))
+        continue;
     if ($result['hide_user'] != null and in_array($from_id, json_decode($result['hide_user'], true)))
         continue;
     $list_marzban_panel_usertest['inline_keyboard'][] = [
@@ -1133,6 +1138,7 @@ foreach ($panelOptionRows as $panelType => $panelRows) {
     }
     $panelKeyboardRows[] = [['text' => $textbotlang['keyboard']['hidePanelForUser']]];
     $panelKeyboardRows[] = [['text' => $textbotlang['keyboard']['removeFromHiddenList']]];
+    $panelKeyboardRows[] = [['text' => $textbotlang['keyboard']['hidePanelForTier'] ?? '🔒 Hide for tier']];
     $panelKeyboardRows[] = [['text' => $textbotlang['Admin']['backAdminBtn']], ['text' => $textbotlang['Admin']['backMenuBtn']]];
     $panelOptions[$panelType] = json_encode(['keyboard' => $panelKeyboardRows, 'resize_keyboard' => true]);
 }

@@ -182,5 +182,8 @@ return [
         ['force_reply', '1', 'VARCHAR(10)'],
         ['terms_text', '', 'TEXT'],
         ['miniapp_features', $miniappFeatures, 'TEXT'],
+        ['cardprotect', '0', 'VARCHAR(20)'],
+        ['referral_rewards', json_encode(['threshold' => 0, 'volume' => 0, 'time' => 0, 'status' => 'off']), 'TEXT'],
+        ['customtime_zero_approval', '1', 'VARCHAR(10)'],
     ],
 ];

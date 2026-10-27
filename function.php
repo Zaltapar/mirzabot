@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once 'vendor/autoload.php';
 require 'config.php';
 ini_set('error_log', 'error_log');
@@ -289,6 +289,7 @@ function syncReportTopics($chatId, $textbotlang)
         'otherreport' => $textbotlang['Admin']['report']['btnOther'],
         'errorreport' => $textbotlang['Admin']['report']['btnErrors'],
         'paymentreport' => $textbotlang['Admin']['report']['btnFinancial'],
+        'ticketreport' => $textbotlang['Admin']['report']['btnTickets'] ?? 'ðŸŽ« Support tickets',
         'porsantreport' => $textbotlang['Admin']['affiliates']['titleTopic'],
         'reportnight' => $textbotlang['Admin']['report']['reportNight'],
         'reportcron' => $textbotlang['Admin']['report']['reportCron'],
@@ -697,11 +698,11 @@ function locale_date($timestamp = null, string $mode = 'date')
 function serviceStatusChip($status)
 {
     $chips = [
-        'active' => ' 🟢',
-        'sendedwarn' => ' ⚠️',
-        'send_on_hold' => ' ⏸️',
-        'end_of_time' => ' ⌛️',
-        'end_of_volume' => ' 📊',
+        'active' => ' ðŸŸ¢',
+        'sendedwarn' => ' âš ï¸',
+        'send_on_hold' => ' â¸ï¸',
+        'end_of_time' => ' âŒ›ï¸',
+        'end_of_volume' => ' ðŸ“Š',
     ];
     return $chips[$status] ?? '';
 }
@@ -958,7 +959,7 @@ function cubepayFeeValue()
 {
     $raw = select("PaySetting", "ValuePay", "NamePay", "feeternado", "select")['ValuePay'] ?? '0';
 
-    return (float) str_replace([',', '،'], '', (string) $raw);
+    return (float) str_replace([',', 'ØŒ'], '', (string) $raw);
 }
 function cubepayApplyFee($base, $fee)
 {
@@ -1360,8 +1361,8 @@ function DirectPayment($order_id, $image = 'images.jpg')
         if (!is_array($info_product)) {
             addBalance($Balance_id['id'], $orderPrice);
             mirzaMarkPaymentRefunded($order_id);
-            sendmessage($Balance_id['id'], $textbotlang['users']['sell']['productGoneAfterPay'] ?? '❌ The purchased product is no longer available. Your balance has been refunded; contact support to buy a new service.', null, 'HTML');
-            $texterros = sprintf($textbotlang['Admin']['reportgroup']['errorProductGone'] ?? '⚠️ Product "%1$s" (invoice %2$s, user %3$s) no longer exists; payment was refunded', $get_invoice['name_product'], $get_invoice['id_invoice'], $Balance_id['id']);
+            sendmessage($Balance_id['id'], $textbotlang['users']['sell']['productGoneAfterPay'] ?? 'âŒ The purchased product is no longer available. Your balance has been refunded; contact support to buy a new service.', null, 'HTML');
+            $texterros = sprintf($textbotlang['Admin']['reportgroup']['errorProductGone'] ?? 'âš ï¸ Product "%1$s" (invoice %2$s, user %3$s) no longer exists; payment was refunded', $get_invoice['name_product'], $get_invoice['id_invoice'], $Balance_id['id']);
             if (strlen($setting['Channel_Report']) > 0 && isset($errorreport)) {
                 telegram('sendmessage', [
                     'chat_id' => $setting['Channel_Report'],
@@ -1397,7 +1398,7 @@ function DirectPayment($order_id, $image = 'images.jpg')
             sendmessage($Balance_id['id'], sprintf($textbotlang['users']['Balance']['addedNotice5'], number_format($orderPrice)), $keyboard, 'HTML');
             return;
         }
-        startBotDraft($Balance_id['id'], '⚙️ …');
+        startBotDraft($Balance_id['id'], 'âš™ï¸ â€¦');
         $dataoutput = $ManagePanel->createUser($marzban_list_get['name_panel'], $info_product['code_product'], $username_ac, $datac);        if (!is_array($dataoutput) || empty($dataoutput['username'])) {
             update("invoice", "Status", $invoiceStatusBefore, "id_invoice", $get_invoice['id_invoice']);
             $dataoutput['msg'] = json_encode($dataoutput['msg'] ?? $dataoutput ?? 'unknown error');
@@ -1855,7 +1856,7 @@ function savedata($type, $namefiled, $valuefiled)
     } elseif ($type == "save") {
         $userdata = select("user", "*", "id", $from_id, "select");
         // Processing_value must be a JSON object string. It can also be null, "", or a
-        // plain scalar left over from older flows — those decode to null/int/string.
+        // plain scalar left over from older flows â€” those decode to null/int/string.
         $dataperevieos = json_decode((string) ($userdata['Processing_value'] ?? ''), true);
         if (!is_array($dataperevieos)) {
             $dataperevieos = [];
@@ -1913,7 +1914,7 @@ function finishAddPanel()
     $stmt->execute($panelData);
     $pdo->prepare("UPDATE marzban_panel SET display_order = id WHERE id = ?")->execute([$pdo->lastInsertId()]);
     step("home", $from_id);
-    sendmessage($from_id, $textbotlang['Admin']['managepanel']['addedPanel'] . " 🥳", $keyboardadmin, 'HTML');
+    sendmessage($from_id, $textbotlang['Admin']['managepanel']['addedPanel'] . " ðŸ¥³", $keyboardadmin, 'HTML');
     $panelNotes = [
         "x-ui_single" => "noteSetInboundAndDomain",
         "marzban" => "noteSetProtocolInbound",
@@ -3060,7 +3061,7 @@ function sendMessageService($panel_info, $config, $sub_link, $username_service, 
                         if (!is_string($configUrl) || trim($configUrl) === '') {
                             continue;
                         }
-                        $copyButtons[] = '<tg-button type="copy_text" text="' . htmlspecialchars(trim($configUrl), ENT_QUOTES) . '">✅ ' . $copyIndex++ . '</tg-button>';
+                        $copyButtons[] = '<tg-button type="copy_text" text="' . htmlspecialchars(trim($configUrl), ENT_QUOTES) . '">âœ… ' . $copyIndex++ . '</tg-button>';
                     }
                     $richCard = '<details open><summary>' . htmlspecialchars($hintTitle, ENT_QUOTES) . '</summary>'
                         . '<ul><li>' . implode('</li><li>', $configRows) . '</li></ul>'
@@ -3446,10 +3447,10 @@ function mirzaPaymentFailurePage(string $title = '', string $message = '', $orde
         header('Content-Type: text/html; charset=utf-8');
     }
     if ($title === '') {
-        $title = 'پرداخت دریافت شد / Payment received';
+        $title = 'Ù¾Ø±Ø¯Ø§Ø®Øª Ø¯Ø±ÛŒØ§ÙØª Ø´Ø¯ / Payment received';
     }
     if ($message === '') {
-        $message = 'مبلغ از حساب شما کسر شد اما تحویل سرویس با خطا مواجه شد. مبلغ به کیف پول شما بازگردانده می‌شود و پشتیبانی در جریان است.'
+        $message = 'Ù…Ø¨Ù„Øº Ø§Ø² Ø­Ø³Ø§Ø¨ Ø´Ù…Ø§ Ú©Ø³Ø± Ø´Ø¯ Ø§Ù…Ø§ ØªØ­ÙˆÛŒÙ„ Ø³Ø±ÙˆÛŒØ³ Ø¨Ø§ Ø®Ø·Ø§ Ù…ÙˆØ§Ø¬Ù‡ Ø´Ø¯. Ù…Ø¨Ù„Øº Ø¨Ù‡ Ú©ÛŒÙ Ù¾ÙˆÙ„ Ø´Ù…Ø§ Ø¨Ø§Ø²Ú¯Ø±Ø¯Ø§Ù†Ø¯Ù‡ Ù…ÛŒâ€ŒØ´ÙˆØ¯ Ùˆ Ù¾Ø´ØªÛŒØ¨Ø§Ù†ÛŒ Ø¯Ø± Ø¬Ø±ÛŒØ§Ù† Ø§Ø³Øª.'
             . ' Your payment was received but delivery failed. The amount will be refunded to your wallet and support has been notified.';
     }
     $e = static fn($value) => htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -3490,7 +3491,7 @@ function mirzaRegisterFatalReporter(string $context): void
     });
 }
 
-// ── Smart messaging rules (segmented / scheduled outreach) ─────────
+// â”€â”€ Smart messaging rules (segmented / scheduled outreach) â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function smart_rule_frequency_seconds(string $frequency): int
 {
     switch ($frequency) {
@@ -3663,3 +3664,70 @@ function smart_rule_due(array $rule, int $now): bool
 }
 
 mirzaRegisterFatalReporter(PHP_SAPI === 'cli' ? 'cli' : basename((string) ($_SERVER['SCRIPT_NAME'] ?? 'web')));
+
+function maybeRewardReferrer(int $referrerId, int $newCount): void
+{
+    global $pdo, $setting, $ManagePanel;
+
+    $config = json_decode((string) ($setting['referral_rewards'] ?? '{}'), true);
+    $threshold = (int) ($config['threshold'] ?? 0);
+    $volume = (int) ($config['volume'] ?? 0);
+    $time = (int) ($config['time'] ?? 0);
+    if ((string) ($config['status'] ?? 'off') !== 'on' || $threshold <= 0 || $newCount < $threshold) {
+        return;
+    }
+    if ($volume <= 0 && $time <= 0) {
+        return;
+    }
+    $invoices = select('invoice', 'username, Service_location', 'id_user', $referrerId, 'fetchAll');
+    if (!is_array($invoices) || $invoices === []) {
+        return;
+    }
+    $username = (string) ($invoices[0]['username'] ?? '');
+    $panelName = (string) ($invoices[0]['Service_location'] ?? '');
+    if ($username === '' || $panelName === '') {
+        return;
+    }
+    $panel = select('marzban_panel', '*', 'name_panel', $panelName, 'select');
+    if (empty($panel['code_panel']) || !isset($ManagePanel)) {
+        return;
+    }
+    $dataForDatabase = json_encode([
+        'volume_value' => $volume,
+        'time_value' => $time,
+    ]);
+    $output = ['status' => true];
+    if ($volume > 0) {
+        $output['volume'] = $ManagePanel->extra_volume($username, $panel['code_panel'], $volume);
+    }
+    if ($time > 0) {
+        $output['time'] = $ManagePanel->extra_time($username, $panel['code_panel'], $time);
+    }
+    $stmt = $pdo->prepare('INSERT IGNORE INTO service_other (id_user, username, value, type, time, price, output) VALUES (:id_user, :username, :value, :type, :time, :price, :output)');
+    $stmt->execute([
+        ':id_user' => $referrerId,
+        ':username' => $username,
+        ':value' => $dataForDatabase,
+        ':type' => 'referral_reward',
+        ':time' => date('Y/m/d H:i:s'),
+        ':price' => 0,
+        ':output' => json_encode($output),
+    ]);
+    clearSelectCache('service_other');
+    try {
+        $lang = languagechange();
+        $text = sprintf($lang['users']['affiliates']['referralReward'] ?? 'ðŸŽ Referral reward', $newCount, $volume, $time);
+        sendmessage($referrerId, $text, null, 'html');
+    } catch (\Throwable $e) {
+        error_log('Referral reward notify failed: ' . $e->getMessage());
+    }
+}
+
+function panelHiddenForTier(array $panel, string $agentTier): bool
+{
+    $hideTiers = json_decode((string) ($panel['hide_tiers'] ?? ''), true);
+    if (!is_array($hideTiers) || $hideTiers === []) {
+        return false;
+    }
+    return in_array($agentTier, $hideTiers, true);
+}
