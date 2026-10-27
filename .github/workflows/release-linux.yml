@@ -86,8 +86,11 @@ jobs:
           FILE: ${{ steps.bundle.outputs.file }}
         run: |
           set -e
-          gh release view "$TAG" >/dev/null 2>&1 || \
+          # Create the release only if it does not exist yet. (A tag push can
+          # race with a sibling workflow that creates it first.)
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --title "$TAG" --generate-notes
+          fi
           gh release upload "$TAG" "$FILE" --clobber
 
   # ── OPT-IN: full bundle with a bundled static PHP binary (arm64) ──────
