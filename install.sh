@@ -1356,6 +1356,230 @@ function import_bot() {
     show_menu
 }
 
+# ── What's New / release notes ────────────────────────────────
+# Local, version-keyed notes so the menu can answer "what changed"
+# without hitting GitHub. The release workflow keeps this list in
+# sync with the git log on each tag.
+get_whats_new() {
+    local inst="$1"
+    case "$inst" in
+        1.2) cat <<'NOTES'
+v1.2
+- Support tickets API (api/tickets.php): list / view / reply / close
+  customer tickets from the admin panel and the bot menu.
+- Per-panel extra volume & time toggles: admins can enable or hide the
+  "extra volume" / "extra time" upsell buttons independently per panel.
+- Card number protection: card numbers in payment reports are masked
+  (**** **** **** 1234) when the setting is enabled.
+- Referral rewards: a threshold-based reward paid to referrers who hit
+  the configured count of sign-ups, as a bonus balance.
+- Tier-based panel hiding: admins can hide a panel from specific agent
+  tiers (f / n / n2) so it does not appear in their panel list.
+- Unlimited-time (time=0) approval gate: purchases with time 0 can be
+  routed to an admin approval flow instead of auto-delivering.
+- Sub-link attach: "attach subscription URL" service rows for marzban
+  sublink-enabled panels.
+- Smart-messaging language keys added for fa / en / ru / zh.
+- Incident fix: a paid top-up that an admin had already settled manually
+  can no longer be double-credited by the payment-reconcile cron; the
+  order is marked "orphan" and reported to the error channel instead.
+NOTES
+            ;;
+        1.1) cat <<'NOTES'
+v1.1
+- Smart suggestions: the bot learns each customer's most-used renewal
+  plan, plan duration and service action; the favourite is marked with
+  a flame and surfaced first.
+- Auto-renewal with reserved spec: renewals use exactly the spec the
+  customer reserved.
+- Telegram copyMessage resend from the service page.
+- Rich messages & drafts (opt-in) with automatic fallback.
+- Force-reply prompts on every numeric input.
+- Modern button styles (primary/success/danger, sold-out disabled).
+- Spreadsheet exports (.xlsx) for payments, users, invoices, summary.
+- restore.php: roll back to any sync.php snapshot.
+NOTES
+            ;;
+        *)
+            echo "(no release notes bundled for version $inst)"
+            ;;
+    esac
+}
+
+# ── CLI (non-interactive) variants of the config change functions ──
+# Used by `mirza config --new-token ...` etc. Print a report and exit.
+change_bot_token_cli() {
+    local new="$1"
+    echo -e "Changing bot token (from --new-token)..."
+    if [ ! -f "$CONFIG_FILE_DEFAULT" ]; then
+        echo -e "  ${C_BAD}Bot not installed.${CR}"; return 1
+    fi
+    if ! curl -fsSL --max-time 8 "https://api.telegram.org/bot${new}/getMe" | grep -q '"ok":true'; then
+        echo -e "  ${C_BAD}Telegram rejected this token. Aborting.${CR}"; return 1
+    fi
+    _cfg_backup
+    _cfg_set_var APIKEY "$new"
+    local dom; dom="$(_cfg_read_var domainhosts)"
+    curl -s -F "url=https://${dom}/index.php" "https://api.telegram.org/bot${new}/setWebhook" >/dev/null
+    echo -e "  ${C_OK}Token updated and webhook re-set.${CR}"
+}
+
+change_admin_chat_cli() {
+    local new="$1"
+    echo -e "Changing admin chat id (from --new-admin)..."
+    if [ ! -f "$CONFIG_FILE_DEFAULT" ]; then
+        echo -e "  ${C_BAD}Bot not installed.${CR}"; return 1
+    fi
+    _cfg_backup
+    _cfg_set_var adminnumber "$new"
+    echo -e "  ${C_OK}Admin chat updated to ${C_KEY}${new}${CR}."
+}
+
+change_bot_domain_cli() {
+    local new="$1"
+    echo -e "Changing bot domain (from --new-domain)..."
+    if [ ! -f "$CONFIG_FILE_DEFAULT" ]; then
+        echo -e "  ${C_BAD}Bot not installed.${CR}"; return 1
+    fi
+    _cfg_backup
+    _cfg_set_var domainhosts "$new"
+    echo -e "  ${C_OK}Domain set to ${C_KEY}${new}${CR}."
+    echo -e "  ${C_DIM}Next: issue a certificate ('mirza renew') and re-point Apache.${CR}"
+}
+
+# ── Config editing helpers (in-place, on an existing install) ──
+# All of these operate on the live config.php and keep a backup first.
+_cfg_backup() {
+    cp -a "$CONFIG_FILE_DEFAULT" "$CONFIG_FILE_DEFAULT.bak.$(date +%Y%m%d%H%M%S)" 2>/dev/null
+}
+
+# Read a PHP string variable out of config.php (single-quoted value).
+# Usage: _cfg_read_var APIKEY   -> prints the value (empty if missing)
+_cfg_read_var() {
+    grep -E "^\\$$1[[:space:]]*=[[:space:]]*'" "$CONFIG_FILE_DEFAULT" 2>/dev/null \
+        | head -1 | sed -E "s/^[[:space:]]*\\$$1[[:space:]]*=[[:space:]]*'([^']*)'.*/\1/"
+}
+
+_cfg_set_var() {
+    # _cfg_set_var <varname> <value> — replace the assignment line for $varname.
+    # Values must not contain single quotes, backslashes, & or / (sed would break).
+    local var="$1" val="$2"
+    if grep -qE "^\\$$var[[:space:]]*=" "$CONFIG_FILE_DEFAULT" 2>/dev/null; then
+        sed -i "s/^\\$$var[[:space:]]*=.*/\\$$var = '$val';/" "$CONFIG_FILE_DEFAULT"
+    else
+        sed -i "/^?>/i \\$$var = '$val';" "$CONFIG_FILE_DEFAULT"
+    fi
+}
+
+function change_bot_token() {
+    clear; banner
+    _sec "Change bot token"
+    if [ ! -f "$CONFIG_FILE_DEFAULT" ]; then
+        echo -e "  ${C_BAD}●${CR} ${C_BAD}Bot not installed. Nothing to change.${CR}\n"
+        _press_enter_back; return 1
+    fi
+    local old new
+    old="$(_cfg_read_var APIKEY)"
+    _kv "Current" "${C_DIM}${old:0:8}...${CR}"
+    printf "  ${C_PROMPT}❯${CR} New bot token: "
+    read -r new
+    while [[ ! "$new" =~ ^[0-9]{8,10}:[a-zA-Z0-9_-]{35}$ ]]; do
+        echo -e "  ${C_BAD}Invalid token format.${CR}"; printf "  ${C_PROMPT}❯${CR} New bot token: "
+        read -r new
+    done
+    if ! curl -fsSL --max-time 8 "https://api.telegram.org/bot${new}/getMe" | grep -q '"ok":true'; then
+        echo -e "  ${C_BAD}Telegram rejected this token (or API unreachable). Aborting.${CR}\n"
+        _press_enter_back; return 1
+    fi
+    _cfg_backup
+    _cfg_set_var APIKEY "$new"
+    echo -e "  ${C_OK}Token updated. Re-setting the webhook..."
+    local dom; dom="$(_cfg_read_var domainhosts)"
+    curl -s -F "url=https://${dom}/index.php" "https://api.telegram.org/bot${new}/setWebhook" >/dev/null
+    _press_enter_back
+}
+
+function change_admin_chat() {
+    clear; banner
+    _sec "Change admin chat id"
+    if [ ! -f "$CONFIG_FILE_DEFAULT" ]; then
+        echo -e "  ${C_BAD}●${CR} ${C_BAD}Bot not installed. Nothing to change.${CR}\n"
+        _press_enter_back; return 1
+    fi
+    local old new
+    old="$(_cfg_read_var adminnumber)"
+    _kv "Current" "${C_DIM}${old}${CR}"
+    printf "  ${C_PROMPT}❯${CR} New admin chat id: "
+    read -r new
+    while ! [[ "$new" =~ ^-?[0-9]+$ ]]; do
+        echo -e "  ${C_BAD}Invalid chat id (numeric only).${CR}"; printf "  ${C_PROMPT}❯${CR} New admin chat id: "
+        read -r new
+    done
+    _cfg_backup
+    _cfg_set_var adminnumber "$new"
+    echo -e "  ${C_OK}Admin chat updated.${CR}\n"
+    _press_enter_back
+}
+
+function change_bot_domain() {
+    clear; banner
+    _sec "Change bot domain"
+    if [ ! -f "$CONFIG_FILE_DEFAULT" ]; then
+        echo -e "  ${C_BAD}●${CR} ${C_BAD}Bot not installed. Nothing to change.${CR}\n"
+        _press_enter_back; return 1
+    fi
+    local old new
+    old="$(_cfg_read_var domainhosts)"
+    _kv "Current" "${C_DIM}${old}${CR}"
+    printf "  ${C_PROMPT}❯${CR} New domain: "
+    read -r new
+    while ! validate_domain "$new"; do
+        echo -e "  ${C_BAD}Invalid domain (use bot.example.com, no http://, no slash).${CR}"
+        printf "  ${C_PROMPT}❯${CR} New domain: "; read -r new
+    done
+    _cfg_backup
+    _cfg_set_var domainhosts "$new"
+    echo -e "  ${C_OK}Domain updated to ${C_KEY}${new}${CR}.${CR}"
+    echo -e "  ${C_DIM}Next: issue a certificate and re-point Apache (or pick option 7).${CR}\n"
+    _press_enter_back
+}
+
+function add_config_key() {
+    clear; banner
+    _sec "Add a custom config key"
+    if [ ! -f "$CONFIG_FILE_DEFAULT" ]; then
+        echo -e "  ${C_BAD}●${CR} ${C_BAD}Bot not installed. Nothing to change.${CR}\n"
+        _press_enter_back; return 1
+    fi
+    printf "  ${C_PROMPT}❯${CR} Key name  (e.g. request_exec_timeout): "
+    read -r key
+    while ! [[ "$key" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; do
+        echo -e "  ${C_BAD}Invalid identifier.${CR}"; printf "  ${C_PROMPT}❯${CR} Key name: "; read -r key
+    done
+    printf "  ${C_PROMPT}❯${CR} Value (PHP literal, e.g. null / '1' / 300): "
+    read -r val
+    [ -z "$val" ] && val="null"
+    _cfg_backup
+    local esc_key; esc_key=$(printf '%s' "$key" | sed 's/[&/\\]/\\&/g')
+    local esc_val; esc_val=$(printf '%s' "$val"  | sed 's/[&/\\]/\\&/g')
+    if grep -qE "^\\$$key[[:space:]]*=" "$CONFIG_FILE_DEFAULT"; then
+        _cfg_set_var "$key" "$val"
+        echo -e "  ${C_OK}\$$key updated to: ${C_KEY}${val}${CR}"
+    else
+        sed -i "s|^?>|\\$$key = ${esc_val};\n?>" "$CONFIG_FILE_DEFAULT"
+        echo -e "  ${C_OK}Added \$$key = ${C_KEY}${val}${CR} to config.php"
+    fi
+    _press_enter_back
+}
+
+# Shared footer: wait for Enter, return to the menu.
+_press_enter_back() {
+    echo ""
+    printf "  ${C_PROMPT}❯${CR} Press Enter to return to the menu... "
+    read -r _
+    show_menu
+}
+
 function show_menu() {
     if [ "$NONINTERACTIVE" = "1" ] && [ "$HAVE_TTY" = "0" ]; then
         echo -e "  ${C_BAD}●${CR} No terminal is available for the interactive menu."
@@ -1367,29 +1591,241 @@ function show_menu() {
     _sec "Menu"
     _mi "1" "Install the bot"
     _mi "2" "Update the bot"
-    _mi "3" "Remove the bot"
-    _mi "4" "Migrate an existing install"
-    _mi "5" "Renew SSL certificate"
+    _mi "3" "Migrate an existing install"
+    _mi "4" "Health-check  ${C_DIM}(services, SSL, webhook, cron)${CR}"
+    _mi "5" "What's new in this version"
     _mi "6" "Backup Database"
     _mi "7" "Import Database  ${C_WARN}(Beta)${CR}"
-    _mi "8" "Help & Parameters"
-    _mi "9" "Exit"
+    _mi "8" "Configuration  ${C_DIM}(token / admin / domain / SSL / keys)${CR}"
+    _mi "9" "Remove the bot"
+    _mi "0" "Help & Parameters"
+    _mi "X" "Exit"
     _rule
     echo ""
-    printf  "  ${C_PROMPT}❯${CR} Select an option ${C_DIM}[1-9]${CR}: "
+    printf  "  ${C_PROMPT}❯${CR} Select an option ${C_DIM}[0-9, X]${CR}: "
     read -r option
     case $option in
         1) install_bot ;;
         2) update_bot ;;
-        3) remove_bot ;;
-        4) migrate_to_pro ;;
-        5) renew_ssl ;;
+        3) migrate_to_pro ;;
+        4) run_health_check ;;
+        5) show_whats_new ;;
         6) backup_bot ;;
         7) import_bot ;;
-        8) show_help_screen ;;
-        9) echo -e "\n${C_OK}Exiting...${CR}"; exit 0 ;;
+        8) show_config_menu ;;
+        9) remove_bot ;;
+        0) show_help_screen ;;
+        x|X) echo -e "\n${C_OK}Exiting...${CR}"; exit 0 ;;
+        h|H) show_help_screen ;;
         *) echo -e "\n${C_BAD}Invalid option. Please try again.${CR}"; sleep 1; show_menu ;;
     esac
+}
+
+# ── Health check: one command that tells you everything that's wrong ──
+# Covers: services (mysql/apache/php), SSL cert validity, webhook
+# reachability, cron dispatcher presence, config.php sanity, and
+# version freshness. Prints a clean report; exits 0 if all green.
+function run_health_check() {
+    clear; banner
+    _sec "Health-check"
+    local fail=0 warn=0
+
+    # ── Bot installed? ──
+    if [ ! -f "$CONFIG_FILE_DEFAULT" ]; then
+        _kv "Install" "$(_dot bad) ${C_BAD}not installed${CR} ${C_DIM}(menu 1)${CR}"
+        _press_enter_back; return 1
+    fi
+    _kv "Install" "$(_dot ok) ${C_OK}config.php present${CR}"
+
+    # ── PHP + required extensions ──
+    local php_v
+    php_v=$(php -r 'echo PHP_VERSION;' 2>/dev/null)
+    if [ -z "$php_v" ]; then
+        _kv "PHP" "$(_dot bad) ${C_BAD}php CLI not found${CR}"; fail=$((fail+1))
+    else
+        _kv "PHP" "$(_dot ok) ${C_OK}${php_v}${CR}"
+        local missing=""
+        for ext in pdo_mysql mbstring dom xml zip gd curl; do
+            php -m 2>/dev/null | grep -qi "^${ext}\$" || missing="$missing $ext"
+        done
+        if [ -n "$missing" ]; then
+            _kv "PHP ext" "$(_dot warn) ${C_WARN}missing:${CR} ${C_DIM}${missing}${CR} ${C_DIM}(apt install php-X${missing%% *})${CR}"
+            warn=$((warn+1))
+        else
+            _kv "PHP ext" "$(_dot ok) ${C_OK}pdo_mysql mbstring dom xml zip gd curl${CR}"
+        fi
+    fi
+
+    # ── config.php parses & connects ──
+    # config.php dies() itself on a bad DB connection, so we cannot rely on
+    # exit codes. Instead include it and report via $pdo: a live PDO means
+    # the file parsed AND the DB is reachable.
+    local cfg_check
+    cfg_check=$(php -r '
+        $f = "/var/www/html/mirzaprobotconfig/config.php";
+        if (!is_readable($f)) { fwrite(STDERR, "config.php unreadable"); exit(0); }
+        if (system("php -l " . escapeshellarg($f) . " 2>&1") !== 0) { fwrite(STDERR, "config.php syntax error"); exit(0); }
+        $pdo = null;
+        include $f;
+        if (!($pdo instanceof PDO)) { fwrite(STDERR, "database connection failed"); exit(0); }
+        try { $pdo->query("SELECT 1"); fwrite(STDOUT, "ok"); }
+        catch (Throwable $e) { fwrite(STDERR, "db: " . $e->getMessage()); }
+    ' 2>&1)
+    if [ "$cfg_check" = "ok" ]; then
+        _kv "DB conn" "$(_dot ok) ${C_OK}connects, schema reachable${CR}"
+    else
+        _kv "DB conn" "$(_dot bad) ${C_BAD}${cfg_check:-php error}${CR}"
+        echo -e "    ${C_DIM}Fix: menu 8 (Configuration) or re-run the DB section of the installer.${CR}\n"
+        fail=$((fail+1))
+    fi
+
+    # ── Services ──
+    for svc in mysql apache2; do
+        local st; st=$(systemctl is-active "$svc" 2>/dev/null)
+        if [ "$st" = "active" ]; then _kv "$svc" "$(_dot ok) ${C_OK}active${CR}"; else _kv "$svc" "$(_dot bad) ${C_BAD}${st} — systemctl start $svc${CR}"; fail=$((fail+1)); fi
+    done
+    local cronst; cronst=$(systemctl is-active cron 2>/dev/null || systemctl is-active crond 2>/dev/null)
+    if [ "$cronst" = "active" ]; then _kv "cron" "$(_dot ok) ${C_OK}active${CR}"; else _kv "cron" "$(_dot bad) ${C_BAD}${cronst:-not found} — menu: installer cron step${CR}"; fail=$((fail+1)); fi
+
+    # ── Cron dispatcher actually registered? ──
+    local dispatcher_found=0
+    if crontab -l 2>/dev/null | grep -q "cronbot/run.php"; then dispatcher_found=1; fi
+    if [ ! -f /etc/cron.allow ] && crontab -u www-data -l 2>/dev/null | grep -q "cronbot/run.php"; then dispatcher_found=1; fi
+    if [ "$dispatcher_found" = 1 ]; then
+        _kv "Dispatcher" "$(_dot ok) ${C_OK}cronbot/run.php registered${CR}"
+    else
+        _kv "Dispatcher" "$(_dot warn) ${C_WARN}cronbot/run.php not in any crontab — cron jobs won't fire${CR}"
+        echo -e "    ${C_DIM}Fix: run 'mirza install' once more (the cron step) or add the dispatcher line manually.${CR}\n"
+        warn=$((warn+1))
+    fi
+
+    # ── SSL certificate ──
+    local ssl_dom
+    ssl_dom=$(grep '^\$domainhosts' "$CONFIG_FILE_DEFAULT" | cut -d"'" -f2 | cut -d'/' -f1)
+    if [ -n "$ssl_dom" ] && [ -f "/etc/letsencrypt/live/$ssl_dom/cert.pem" ]; then
+        local exp days
+        exp=$(openssl x509 -enddate -noout -in "/etc/letsencrypt/live/$ssl_dom/cert.pem" 2>/dev/null | cut -d= -f2)
+        days=$(( ( $(date -d "$exp" +%s 2>/dev/null || echo 0) - $(date +%s) ) / 86400 ))
+        if [ "$days" -gt 14 ]; then
+            _kv "SSL" "$(_dot ok) ${C_OK}valid (${days} days left)${CR}"
+        elif [ "$days" -gt 0 ]; then
+            _kv "SSL" "$(_dot warn) ${C_WARN}valid (${days} days left — renew soon, menu 8)${CR}"
+            warn=$((warn+1))
+        else
+            _kv "SSL" "$(_dot bad) ${C_BAD}expired — menu 8 → Renew SSL${CR}"
+            fail=$((fail+1))
+        fi
+    else
+        _kv "SSL" "$(_dot warn) ${C_WARN}no certificate found for ${ssl_dom:-?}${CR}"
+        warn=$((warn+1))
+    fi
+
+    # ── Webhook reachable? ──
+    local token
+    token=$(grep '^\$APIKEY' "$CONFIG_FILE_DEFAULT" | cut -d"'" -f2)
+    if [ -z "$token" ]; then
+        _kv "Webhook" "$(_dot bad) ${C_BAD}no token in config.php${CR}"; fail=$((fail+1))
+    else
+        local whinfo whok
+        whinfo=$(curl -fsSL --max-time 8 "https://api.telegram.org/bot${token}/getWebhookInfo" 2>/dev/null)
+        if [ -z "$whinfo" ]; then
+            _kv "Webhook" "$(_dot warn) ${C_WARN}cannot reach api.telegram.org (offline or blocked)${CR}"
+            warn=$((warn+1))
+        else
+            whok=$(echo "$whinfo" | grep -oE '"ok":[[:space:]]*(true|false)' | grep -oE '(true|false)')
+            local whurl
+            whurl=$(echo "$whinfo" | sed -n 's/.*"url":[[:space:]]*"\([^"]*\)".*/\1/p')
+            local lasterr
+            lasterr=$(echo "$whinfo" | sed -n 's/.*"last_error_message":[[:space:]]*"\([^"]*\)".*/\1/p')
+            if [ "$whok" = "true" ] && [ -n "$whurl" ]; then
+                _kv "Webhook" "$(_dot ok) ${C_OK}set (${whurl})${CR}"
+                [ -n "$lasterr" ] && { _kv "Last error" "$(_dot warn) ${C_WARN}${lasterr}${CR}"; warn=$((warn+1)); }
+            else
+                _kv "Webhook" "$(_dot bad) ${C_BAD}not set or API error${CR} ${C_DIM}($whinfo)${CR}"
+                fail=$((fail+1))
+            fi
+        fi
+    fi
+
+    # ── Bot reachable via its own domain? (web serving works end-to-end) ──
+    if [ -n "$ssl_dom" ]; then
+        local http_code
+        http_code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "https://${ssl_dom}/" 2>/dev/null)
+        case "$http_code" in
+            200|301|302) _kv "HTTPS" "$(_dot ok) ${C_OK}reachable (${http_code})${CR}" ;;
+            000|'') _kv "HTTPS" "$(_dot bad) ${C_BAD}unreachable — firewall, Apache, or DNS issue${CR}"; fail=$((fail+1)) ;;
+            500) _kv "HTTPS" "$(_dot bad) ${C_BAD}HTTP 500 — check /var/log/apache2/error.log${CR}"; fail=$((fail+1)) ;;
+            404) _kv "HTTPS" "$(_dot warn) ${C_WARN}HTTP 404 — DocumentRoot may not point at the bot${CR}"; warn=$((warn+1)) ;;
+            *) _kv "HTTPS" "$(_dot warn) ${C_WARN}HTTP ${http_code}${CR}"; warn=$((warn+1)) ;;
+        esac
+    fi
+
+    # ── Version freshness ──
+    local inst latest
+    inst=$(get_installed_version)
+    latest=$(get_latest_version)
+    if [ -n "$inst" ] && [ -n "$latest" ] && [ "$inst" = "$latest" ]; then
+        _kv "Version" "$(_dot ok) ${C_OK}${inst} (latest)${CR}"
+    elif [ -n "$inst" ] && [ -n "$latest" ]; then
+        _kv "Version" "$(_dot warn) ${C_WARN}${inst} → ${latest} available (menu 2)${CR}"
+        warn=$((warn+1))
+    else
+        _kv "Version" "$(_dot warn) ${C_WARN}installed=${inst:-unknown} latest=${latest:-offline}${CR}"
+    fi
+
+    # ── Summary ──
+    _rule
+    echo ""
+    if [ "$fail" -eq 0 ] && [ "$warn" -eq 0 ]; then
+        echo -e "  ${C_OK}✔ All checks passed. The bot is healthy.${CR}\n"
+    else
+        echo -e "  ${C_BAD}✘ ${fail} failure(s), ${warn} warning(s).${CR}\n"
+    fi
+    _press_enter_back
+    [ "$fail" -eq 0 ]
+}
+
+# ── Configuration submenu ─────────────────────────────────────
+function show_config_menu() {
+    clear; banner
+    _sec "Configuration"
+    _mi "1" "Change bot token"
+    _mi "2" "Change admin chat id"
+    _mi "3" "Change bot domain"
+    _mi "4" "Renew SSL certificate"
+    _mi "5" "Add / edit a custom config key"
+    _mi "0" "Back to menu"
+    _rule
+    echo ""
+    printf "  ${C_PROMPT}❯${CR} Select ${C_DIM}[0-5]${CR}: "
+    read -r c
+    case $c in
+        1) change_bot_token ;;
+        2) change_admin_chat ;;
+        3) change_bot_domain ;;
+        4) renew_ssl ;;
+        5) add_config_key ;;
+        0) show_menu ;;
+        *) echo -e "\n${C_BAD}Invalid option.${CR}"; sleep 1; show_config_menu ;;
+    esac
+}
+
+# ── What's new ─────────────────────────────────────────────────
+function show_whats_new() {
+    clear; banner
+    local inst; inst=$(get_installed_version)
+    _sec "What's New"
+    if [ -z "$inst" ]; then
+        _kv "Installed" "$(_dot bad) ${C_BAD}not installed${CR}"
+        echo ""
+        echo -e "  ${C_DIM}These are the notes for the latest shipped version:${CR}\n"
+        get_whats_new "1.2"
+    else
+        _kv "Installed" "$(_dot ok) ${C_OK}${inst}${CR}"
+        echo ""
+        get_whats_new "$inst"
+    fi
+    _press_enter_back
 }
 
 # Clean, styled guide of all commands and parameters
@@ -1402,6 +1838,9 @@ function show_help_screen() {
     _kv "update" "${C_DIM}Update the bot (choose channel / version)${CR}"
     _kv "remove" "${C_DIM}Remove the bot and its services${CR}"
     _kv "migrate" "${C_DIM}Migrate an existing install${CR}"
+    _kv "health" "${C_DIM}Run the full health-check report${CR}"
+    _kv "whatsnew" "${C_DIM}Show what changed in the installed version${CR}"
+    _kv "config" "${C_DIM}Open the configuration submenu (token/domain/admin/SSL/keys)${CR}"
     _kv "renew" "${C_DIM}Renew the bot domain SSL certificate${CR}"
     _kv "backup" "${C_DIM}Backup database & send to Telegram${CR}"
     _kv "import" "${C_DIM}Import database from SQL file (Beta)${CR}"
@@ -1414,6 +1853,11 @@ function show_help_screen() {
     _kv "--db-user" "${C_DIM}Database username${CR}"
     _kv "--db-pass" "${C_DIM}Database password${CR}"
 
+    _sec "Config parameters (on an existing install)"
+    _kv "--new-token" "${C_DIM}Change the bot token (menu 8.1)${CR}"
+    _kv "--new-admin" "${C_DIM}Change the admin chat id (menu 8.2)${CR}"
+    _kv "--new-domain" "${C_DIM}Change the bot domain (menu 8.3)${CR}"
+
     _sec "Source parameters"
     _kv "--version" "${C_DIM}Specific release tag (e.g. 0.1.7)${CR}"
     _kv "--channel" "${C_DIM}beta | release | auto${CR}"
@@ -1423,11 +1867,11 @@ function show_help_screen() {
     printf "    ${C_KEY}mirza install --channel auto${CR}\n"
     printf "    ${C_KEY}mirza install --token 123:ABC \\\\${CR}\n"
     printf "    ${C_DIM}            --admin 111 --domain bot.example.com --version 0.1.7${CR}\n"
+    printf "    ${C_KEY}mirza health${CR}\n"
+    printf "    ${C_KEY}mirza config --new-token 987:XYZ${CR}\n"
     printf "    ${C_KEY}mirza update --version 0.1.6${CR}\n"
-    printf "    ${C_KEY}mirza update --channel release${CR}\n"
     printf "    ${C_KEY}mirza remove${CR}\n"
     printf "    ${C_KEY}mirza backup${CR}\n"
-    printf "    ${C_KEY}mirza import${CR}\n"
 
     echo ""
     _rule
@@ -2348,9 +2792,14 @@ EOF
 
     _sec "Manage"
     _kv "Command" "${C_DIM}run ${CR}${C_KEY}mirza${CR}${C_DIM} anytime to open this panel${CR}"
+    _kv "Health" "${C_DIM}run ${CR}${C_KEY}mirza health${CR}${C_DIM} to run the full diagnostics${CR}"
     echo ""
     _rule
     echo ""
+
+    # ── Quick post-install health-check so the user sees a green/red summary ──
+    echo -e "  ${C_DIM}Running a quick health-check...${CR}\n"
+    run_health_check || true
 
     chmod +x /root/install.sh
     ln -sf /root/install.sh /usr/local/bin/mirza
@@ -2931,7 +3380,7 @@ process_arguments() {
     local cmd="$default_cmd"
     # First non-flag token is the command
     case "$1" in
-        install|update|remove|migrate|renew|backup|import|menu) cmd="$1"; shift ;;
+        install|update|remove|migrate|renew|backup|import|health|whatsnew|config|menu) cmd="$1"; shift ;;
         -h|--help) print_usage; exit 0 ;;
         "") cmd="$default_cmd" ;;
         --*) cmd="$default_cmd" ;;     # only flags given -> default, but still parse flags
@@ -2941,13 +3390,16 @@ process_arguments() {
     # Parse remaining flags
     while [ $# -gt 0 ]; do
         case "$1" in
-            --token)   ARG_TOKEN="$2";   shift 2 ;;
-            --admin)   ARG_ADMIN="$2";   shift 2 ;;
-            --domain)  ARG_DOMAIN="$2";  shift 2 ;;
-            --db-user) ARG_DBUSER="$2";  shift 2 ;;
-            --db-pass) ARG_DBPASS="$2";  shift 2 ;;
-            --version) ARG_VERSION="$2"; shift 2 ;;
-            --channel) ARG_CHANNEL="$2"; shift 2 ;;
+            --token)     ARG_TOKEN="$2";     shift 2 ;;
+            --admin)     ARG_ADMIN="$2";     shift 2 ;;
+            --domain)    ARG_DOMAIN="$2";    shift 2 ;;
+            --db-user)   ARG_DBUSER="$2";    shift 2 ;;
+            --db-pass)   ARG_DBPASS="$2";    shift 2 ;;
+            --version)   ARG_VERSION="$2";   shift 2 ;;
+            --channel)   ARG_CHANNEL="$2";   shift 2 ;;
+            --new-token)   NEW_TOKEN="$2";   shift 2 ;;
+            --new-admin)   NEW_ADMIN="$2";   shift 2 ;;
+            --new-domain)  NEW_DOMAIN="$2";  shift 2 ;;
             --auto)    ARG_AUTO="1"; shift ;;
             -h|--help) print_usage; exit 0 ;;
             *) echo -e "\e[91mUnknown option: $1\033[0m"; print_usage; exit 1 ;;
@@ -2962,6 +3414,16 @@ process_arguments() {
         renew)   renew_ssl ;;
         backup)  backup_bot ;;
         import)  import_bot ;;
+        health)  run_health_check ;;
+        whatsnew) show_whats_new ;;
+        config)
+            if [ -n "$NEW_TOKEN" ];  then change_bot_token_cli "$NEW_TOKEN"; fi
+            if [ -n "$NEW_ADMIN" ];  then change_admin_chat_cli "$NEW_ADMIN"; fi
+            if [ -n "$NEW_DOMAIN" ]; then change_bot_domain_cli "$NEW_DOMAIN"; fi
+            if [ -z "$NEW_TOKEN" ] && [ -z "$NEW_ADMIN" ] && [ -z "$NEW_DOMAIN" ]; then
+                show_config_menu
+            fi
+            ;;
         menu|*)  show_menu ;;
     esac
 }

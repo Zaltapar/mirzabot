@@ -12,7 +12,7 @@
     <img src="https://img.shields.io/github/actions/workflow/status/Zaltapar/mirzabot/ci.yml?style=flat-square" alt="CI"/>
   </a>
   <img src="https://img.shields.io/badge/PHP-8.2-777BB4?style=flat-square&logo=php&logoColor=white" alt="PHP 8.2"/>
-  <img src="https://img.shields.io/badge/version-1.1-8B949E?style=flat-square" alt="Version"/>
+  <img src="https://img.shields.io/badge/version-1.2-8B949E?style=flat-square" alt="Version"/>
 </p>
 
 </div>
@@ -76,6 +76,19 @@ This enhanced edition layers a set of interactivity, UX and performance improvem
 ---
 
 ## 🆕 What's New in This Version
+
+### New in 1.2
+- **Support tickets API** — customer tickets can be listed, viewed, replied to, and closed from the admin panel (`api/tickets.php`), so support work no longer needs manual Telegram digging.
+- **Per-panel extra volume & time toggles** — admins can show or hide the "extra volume" / "extra time" upsell buttons independently for each panel (`marzban_panel.extravol_status` / `extratime_status`).
+- **Card number protection** — card numbers in payment reports are masked (`•••• 1234`) when `setting.cardprotect` is enabled, protecting the last-4 only.
+- **Referral rewards** — a threshold-based bonus paid to referrers who bring in enough new users; the reward is stored as a `referral_reward` row and applied to the referrer's wallet.
+- **Tier-based panel hiding** — admins can hide a panel from specific agent tiers (f / n / n2) so it doesn't appear in their panel list.
+- **Unlimited-time (time=0) approval gate** — purchases with `time = 0` can be routed to an admin approval flow instead of auto-delivering, configurable via `setting.customtime_zero_approval`.
+- **Sub-link attach** — "attach subscription URL" service rows for marzban panels with `sublink` enabled; the URL is stored as a `custom_service` row.
+- **Smart-messaging language keys** — new fa / en / ru / zh keys for the new flows above.
+- **Incident fix: no more double-credit** — the `payment_reconcile` cron now checks for an admin-settled balance entry within 30 minutes of the order before auto-crediting an orphan top-up; if one exists it marks the order `orphan` and posts a critical error for manual review instead of re-crediting.
+- **Linux binaries** — per-arch (`amd64` / `arm64`) release assets ship a static PHP binary alongside the bot source, so a fresh box can run the schema bootstrap without a system PHP install.
+- **Installer overhaul** — the `mirza` menu now includes a one-shot **health-check** (services, SSL, webhook, cron, version), a **What's New** entry, and a **Configuration** submenu (change token / admin / domain / renew SSL / custom keys). All also available non-interactively via `mirza health`, `mirza whatsnew`, and `mirza config --new-*`.
 
 ### New in 1.1
 - **Smart suggestions** — the bot learns each customer's most-used renewal plan, plan duration and service action; the favourite is marked with 🔥 and surfaced first (service actions are hoisted, plans reordered).
