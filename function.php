@@ -289,7 +289,7 @@ function syncReportTopics($chatId, $textbotlang)
         'otherreport' => $textbotlang['Admin']['report']['btnOther'],
         'errorreport' => $textbotlang['Admin']['report']['btnErrors'],
         'paymentreport' => $textbotlang['Admin']['report']['btnFinancial'],
-        'ticketreport' => $textbotlang['Admin']['report']['btnTickets'] ?? 'ðŸŽ« Support tickets',
+        'ticketreport' => $textbotlang['Admin']['report']['btnTickets'] ?? '🎫 Support tickets',
         'porsantreport' => $textbotlang['Admin']['affiliates']['titleTopic'],
         'reportnight' => $textbotlang['Admin']['report']['reportNight'],
         'reportcron' => $textbotlang['Admin']['report']['reportCron'],
@@ -698,11 +698,11 @@ function locale_date($timestamp = null, string $mode = 'date')
 function serviceStatusChip($status)
 {
     $chips = [
-        'active' => ' ðŸŸ¢',
-        'sendedwarn' => ' âš ï¸',
-        'send_on_hold' => ' â¸ï¸',
-        'end_of_time' => ' âŒ›ï¸',
-        'end_of_volume' => ' ðŸ“Š',
+        'active' => ' 🟢',
+        'sendedwarn' => ' ⚠️',
+        'send_on_hold' => ' ⏸️',
+        'end_of_time' => ' ⌛️',
+        'end_of_volume' => ' 📊',
     ];
     return $chips[$status] ?? '';
 }
@@ -1361,8 +1361,8 @@ function DirectPayment($order_id, $image = 'images.jpg')
         if (!is_array($info_product)) {
             addBalance($Balance_id['id'], $orderPrice);
             mirzaMarkPaymentRefunded($order_id);
-            sendmessage($Balance_id['id'], $textbotlang['users']['sell']['productGoneAfterPay'] ?? 'âŒ The purchased product is no longer available. Your balance has been refunded; contact support to buy a new service.', null, 'HTML');
-            $texterros = sprintf($textbotlang['Admin']['reportgroup']['errorProductGone'] ?? 'âš ï¸ Product "%1$s" (invoice %2$s, user %3$s) no longer exists; payment was refunded', $get_invoice['name_product'], $get_invoice['id_invoice'], $Balance_id['id']);
+            sendmessage($Balance_id['id'], $textbotlang['users']['sell']['productGoneAfterPay'] ?? '❌ The purchased product is no longer available. Your balance has been refunded; contact support to buy a new service.', null, 'HTML');
+            $texterros = sprintf($textbotlang['Admin']['reportgroup']['errorProductGone'] ?? '⚠️ Product "%1$s" (invoice %2$s, user %3$s) no longer exists; payment was refunded', $get_invoice['name_product'], $get_invoice['id_invoice'], $Balance_id['id']);
             if (strlen($setting['Channel_Report']) > 0 && isset($errorreport)) {
                 telegram('sendmessage', [
                     'chat_id' => $setting['Channel_Report'],
@@ -1398,7 +1398,7 @@ function DirectPayment($order_id, $image = 'images.jpg')
             sendmessage($Balance_id['id'], sprintf($textbotlang['users']['Balance']['addedNotice5'], number_format($orderPrice)), $keyboard, 'HTML');
             return;
         }
-        startBotDraft($Balance_id['id'], 'âš™ï¸ â€¦');
+        startBotDraft($Balance_id['id'], '⚙️ …');
         $dataoutput = $ManagePanel->createUser($marzban_list_get['name_panel'], $info_product['code_product'], $username_ac, $datac);        if (!is_array($dataoutput) || empty($dataoutput['username'])) {
             update("invoice", "Status", $invoiceStatusBefore, "id_invoice", $get_invoice['id_invoice']);
             $dataoutput['msg'] = json_encode($dataoutput['msg'] ?? $dataoutput ?? 'unknown error');
@@ -1914,7 +1914,7 @@ function finishAddPanel()
     $stmt->execute($panelData);
     $pdo->prepare("UPDATE marzban_panel SET display_order = id WHERE id = ?")->execute([$pdo->lastInsertId()]);
     step("home", $from_id);
-    sendmessage($from_id, $textbotlang['Admin']['managepanel']['addedPanel'] . " ðŸ¥³", $keyboardadmin, 'HTML');
+    sendmessage($from_id, $textbotlang['Admin']['managepanel']['addedPanel'] . " 🥳", $keyboardadmin, 'HTML');
     $panelNotes = [
         "x-ui_single" => "noteSetInboundAndDomain",
         "marzban" => "noteSetProtocolInbound",
@@ -3447,10 +3447,10 @@ function mirzaPaymentFailurePage(string $title = '', string $message = '', $orde
         header('Content-Type: text/html; charset=utf-8');
     }
     if ($title === '') {
-        $title = 'Ù¾Ø±Ø¯Ø§Ø®Øª Ø¯Ø±ÛŒØ§ÙØª Ø´Ø¯ / Payment received';
+        $title = 'پرداخت دریافت شد / Payment received';
     }
     if ($message === '') {
-        $message = 'Ù…Ø¨Ù„Øº Ø§Ø² Ø­Ø³Ø§Ø¨ Ø´Ù…Ø§ Ú©Ø³Ø± Ø´Ø¯ Ø§Ù…Ø§ ØªØ­ÙˆÛŒÙ„ Ø³Ø±ÙˆÛŒØ³ Ø¨Ø§ Ø®Ø·Ø§ Ù…ÙˆØ§Ø¬Ù‡ Ø´Ø¯. Ù…Ø¨Ù„Øº Ø¨Ù‡ Ú©ÛŒÙ Ù¾ÙˆÙ„ Ø´Ù…Ø§ Ø¨Ø§Ø²Ú¯Ø±Ø¯Ø§Ù†Ø¯Ù‡ Ù…ÛŒâ€ŒØ´ÙˆØ¯ Ùˆ Ù¾Ø´ØªÛŒØ¨Ø§Ù†ÛŒ Ø¯Ø± Ø¬Ø±ÛŒØ§Ù† Ø§Ø³Øª.'
+        $message = 'مبلغ از حساب شما کسر شد اما تحویل سرویس با خطا مواجه شد. مبلغ به کیف پول شما بازگردانده می‌شود و پشتیبانی در جریان است.'
             . ' Your payment was received but delivery failed. The amount will be refunded to your wallet and support has been notified.';
     }
     $e = static fn($value) => htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -3716,7 +3716,7 @@ function maybeRewardReferrer(int $referrerId, int $newCount): void
     clearSelectCache('service_other');
     try {
         $lang = languagechange();
-        $text = sprintf($lang['users']['affiliates']['referralReward'] ?? 'ðŸŽ Referral reward', $newCount, $volume, $time);
+        $text = sprintf($lang['users']['affiliates']['referralReward'] ?? '🎁 Referral reward', $newCount, $volume, $time);
         sendmessage($referrerId, $text, null, 'html');
     } catch (\Throwable $e) {
         error_log('Referral reward notify failed: ' . $e->getMessage());
