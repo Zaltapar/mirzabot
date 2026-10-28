@@ -1576,16 +1576,28 @@ function add_config_key() {
 _press_enter_back() {
     echo ""
     printf "  ${C_PROMPT}❯${CR} Press Enter to return to the menu... "
-    read -r _
+    # When stdin is exhausted (piped run: curl ... | bash), read fails and there's
+    # no keyboard to read from. Exit cleanly instead of dropping into the menu
+    # (which would loop forever with no input).
+    if ! IFS= read -r _; then
+        echo ""
+        echo -e "  ${C_DIM}Done. Run ${CR}${C_KEY}mirza${CR}${C_DIM} to open the interactive menu.${CR}"
+        exit 0
+    fi
     show_menu
 }
 
 function show_menu() {
-    if [ "$NONINTERACTIVE" = "1" ] && [ "$HAVE_TTY" = "0" ]; then
-        echo -e "  ${C_BAD}●${CR} No terminal is available for the interactive menu."
+    # Piped / non-interactive run: no keyboard input exists, so the menu would
+    # loop forever. Detect via NONINTERACTIVE (stdin is the script source, not
+    # a terminal) and exit with a flag hint.
+    if [ "$NONINTERACTIVE" = "1" ]; then
+        echo -e "  ${C_BAD}●${CR} Piped run: no keyboard input for the interactive menu."
         echo -e "  ${C_TXT}Re-run with explicit flags instead, e.g.:${CR}"
         echo -e "      ${C_KEY}mirza install --domain bot.example.com --token 123:ABC --admin 111${CR}"
-        exit 1
+        echo -e "      ${C_KEY}mirza update${CR}"
+        echo -e "      ${C_KEY}mirza health${CR}"
+        exit 0
     fi
     show_logo
     _sec "Menu"
@@ -2807,12 +2819,25 @@ EOF
     echo ""
 
     # ── Quick post-install health-check so the user sees a green/red summary ──
-    echo -e "  ${C_DIM}Running a quick health-check...${CR}\n"
-    run_health_check || true
+    # On a piped / non-interactive run (curl | bash) there's no keyboard input
+    # (stdin is the script source, not the terminal), so the health-check's
+    # "press Enter to return to menu" footer would loop forever. Skip it and
+    # just report the done state.
+    if [ "$NONINTERACTIVE" = "1" ]; then
+        echo -e "  ${C_DIM}Installation finished. Run ${CR}${C_KEY}mirza health${CR}${C_DIM} for the full diagnostics.${CR}\n"
+    else
+        echo -e "  ${C_DIM}Running a quick health-check...${CR}\n"
+        run_health_check || true
+    fi
 
     chmod +x /root/install.sh
     ln -sf /root/install.sh /usr/local/bin/mirza
     self_update_script
+    # Piped one-shot: stop after the install so the user isn't dropped into a
+    # menu with no keyboard input (which would loop).
+    if [ "$NONINTERACTIVE" = "1" ]; then
+        exit 0
+    fi
 }
 function update_bot() {
     clear
