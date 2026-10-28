@@ -52,6 +52,9 @@ jobs:
       - name: callback_data tokenisation test
         run: php tools/test-callback-data.php
 
+      - name: Encoding regression guard (C1-control / cp1252 double-encode)
+        run: php tools/check-encoding.php
+
       - name: Shell syntax check
         run: |
           bash -n install.sh

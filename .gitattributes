@@ -1,0 +1,25 @@
+# Normalize line endings to LF in the repo; let each client convert to its
+# native EOL on checkout. Prevents CRLF/encoding churn on Windows.
+* text=auto eol=lf
+
+# Force native CRLF for Windows batch files.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Explicitly mark source as UTF-8 text so Git never treats them as binary.
+*.php  text eol=lf
+*.sh   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.ini  text eol=lf
+*.sql  text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+
+# Language + config source files: always UTF-8 text.
+lang/*.php  text eol=lf
+db/*.php    text eol=lf
+panels/*.php text eol=lf
+cronbot/*.php text eol=lf
