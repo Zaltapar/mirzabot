@@ -1677,15 +1677,16 @@ function run_health_check() {
 
     # ── config.php parses & connects ──
     # config.php dies() itself on a bad DB connection, so we cannot rely on
-    # exit codes. Instead include it and report via $pdo: a live PDO means
-    # the file parsed AND the DB is reachable.
+    # exit codes. Instead include it and report via $pdo: a live PDO that can
+    # run SELECT 1 means the file parsed AND the DB is reachable.
+    # `@` suppresses warnings; the internal `php -l` step was removed because
+    # it leaked its own stdout into the captured result and garbled the report.
     local cfg_check
     cfg_check=$(php -r '
         $f = "/var/www/html/mirzaprobotconfig/config.php";
         if (!is_readable($f)) { fwrite(STDERR, "config.php unreadable"); exit(0); }
-        if (system("php -l " . escapeshellarg($f) . " 2>&1") !== 0) { fwrite(STDERR, "config.php syntax error"); exit(0); }
         $pdo = null;
-        include $f;
+        @include $f;
         if (!($pdo instanceof PDO)) { fwrite(STDERR, "database connection failed"); exit(0); }
         try { $pdo->query("SELECT 1"); fwrite(STDOUT, "ok"); }
         catch (Throwable $e) { fwrite(STDERR, "db: " . $e->getMessage()); }
