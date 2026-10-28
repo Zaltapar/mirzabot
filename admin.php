@@ -136,7 +136,7 @@ if ($adminrulecheck['rule'] != "administrator") {
         $textbotlang['Admin']['backMenuBtn'],
         $textbotlang['Admin']['btnKeyboard']['manageUser'],
     ]);
-    $limitedRoleCallbacks = ["admin", "agentlistusers", "alllistusers", "backlistuser", "balanceuserlist", "cartuserlist", "listrefral", "searchorder", "searchuser", "stat_all_bot", "zerobalance"];
+    $limitedRoleCallbacks = ["admin", "agentlistusers", "alllistusers", "backlistuser", "backsmrules", "balanceuserlist", "cartuserlist", "listrefral", "searchorder", "searchuser", "smcancel", "smnew", "smrules", "stat_all_bot", "zerobalance"];
     $limitedRoleCallbackPrefixes = [
         "Confirm_pay_", "Response_", "acceptblock_", "addbalamceuser_", "addbalanceuser_", "affiliates-", "agenttypshowlist_",
         "banuserlist_", "blockuserfake_", "carduserhide-", "changeloclimitbyuser_", "changestatusadmin_", "confirmaccountdisableadmin_",
@@ -144,7 +144,7 @@ if ($adminrulecheck['rule'] != "administrator") {
         "limitusertest_", "lowbalanceuser_", "manageinvoice_", "manageuser_", "next_pageinvoice_", "next_pageuseragent_",
         "previous_pageinvoice_", "previous_pageuseragent_", "reject_pay_", "removeaffiliate-", "removeaffiliateuser-", "removebotsell_",
         "removefull-", "removehide_", "removeservice-", "removeserviceandback-", "sendmessageuser_", "settimepricesrc_", "setvolumesrc_",
-        "showcarduser-", "statuscronuser-", "unbanuserr_", "unverify-", "updateinfouser_", "verify_", "vieworderuser_", "viewpaymentuser_",
+        "showcarduser-", "smdel_", "smfreq_", "smr_", "smrun_", "smseg_", "smbtn_", "smtog_", "statuscronuser-", "unbanuserr_", "unverify-", "updateinfouser_", "verify_", "vieworderuser_", "viewpaymentuser_",
     ];
     $limitedRoleSteps = [
         "GetusernameconfigAndOrdedrs", "addbalancemanual", "addbalanceuser", "addbalanceusercurrent", "adddecriptionblock", "get_number_limit",
@@ -1101,7 +1101,7 @@ elseif ($datain == "systemsms") {
     deletemessage($from_id, $message_id);
     sendmessage($from_id, $textbotlang['Admin']['messageBulk']['canceled'], null, 'HTML');
 } elseif ($datain == "smrules" || $datain == "backsmrules") {
-    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+    if (!in_array($adminrulecheck['rule'] ?? '', ['administrator', 'Seller'], true)) {
         return;
     }
     smart_msg_ensure_tables();
@@ -1137,7 +1137,7 @@ elseif ($datain == "systemsms") {
         sendmessage($from_id, $intro, $smRulesKeyboard, 'HTML');
     }
 } elseif ($datain == "smnew") {
-    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+    if (!in_array($adminrulecheck['rule'] ?? '', ['administrator', 'Seller'], true)) {
         return;
     }
     savedata("clear", "sm_seg", "");
@@ -1160,7 +1160,7 @@ elseif ($datain == "systemsms") {
     ]];
     Editmessagetext($from_id, $message_id, $smMsg['selectSegment'], json_encode(['inline_keyboard' => $rows]));
 } elseif (preg_match('/^smseg_(\w+)$/', $datain, $dataget)) {
-    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+    if (!in_array($adminrulecheck['rule'] ?? '', ['administrator', 'Seller'], true)) {
         return;
     }
     $seg = $dataget[1];
@@ -1179,7 +1179,7 @@ elseif ($datain == "systemsms") {
         Editmessagetext($from_id, $message_id, $smMsg['askText'] . "\n" . $smMsg['hintVars'], $backadmin);
     }
 } elseif ($user['step'] == "smparam") {
-    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+    if (!in_array($adminrulecheck['rule'] ?? '', ['administrator', 'Seller'], true)) {
         return;
     }
     $smMsg = $textbotlang['Admin']['smartMsg'];
@@ -1191,7 +1191,7 @@ elseif ($datain == "systemsms") {
     step("smtext", $from_id);
     Editmessagetext($from_id, $message_id, $smMsg['askText'] . "\n" . $smMsg['hintVars'], $backadmin);
 } elseif ($user['step'] == "smtext") {
-    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+    if (!in_array($adminrulecheck['rule'] ?? '', ['administrator', 'Seller'], true)) {
         return;
     }
     $smMsg = $textbotlang['Admin']['smartMsg'];
@@ -1226,7 +1226,7 @@ elseif ($datain == "systemsms") {
     ]];
     Editmessagetext($from_id, $message_id, $smMsg['askButton'], json_encode(['inline_keyboard' => $rows]));
 } elseif (preg_match('/^smbtn_(\w+)$/', $datain, $dataget)) {
-    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+    if (!in_array($adminrulecheck['rule'] ?? '', ['administrator', 'Seller'], true)) {
         return;
     }
     $btn = $dataget[1];
@@ -1244,7 +1244,7 @@ elseif ($datain == "systemsms") {
     ]];
     Editmessagetext($from_id, $message_id, $smMsg['askFrequency'], json_encode(['inline_keyboard' => $rows]));
 } elseif (preg_match('/^smfreq_(\w+)$/', $datain, $dataget)) {
-    if (($adminrulecheck['rule'] !== 'administrator')) {
+    if (!in_array($adminrulecheck['rule'] ?? '', ['administrator', 'Seller'], true)) {
         return;
     }
     $freq = $dataget[1];
@@ -1274,7 +1274,7 @@ elseif ($datain == "systemsms") {
     ]]]);
     sendmessage($from_id, sprintf($smMsg['saved'], $newId, $title), $smRulesKeyboard, 'HTML');
 } elseif (preg_match('/^smr_(\d+)$/', $datain, $dataget)) {
-    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+    if (!in_array($adminrulecheck['rule'] ?? '', ['administrator', 'Seller'], true)) {
         return;
     }
     smart_msg_ensure_tables();
@@ -1316,7 +1316,7 @@ elseif ($datain == "systemsms") {
     ];
     Editmessagetext($from_id, $message_id, $details, json_encode(['inline_keyboard' => $rows]));
 } elseif (preg_match('/^smrun_(\d+)$/', $datain, $dataget)) {
-    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+    if (!in_array($adminrulecheck['rule'] ?? '', ['administrator', 'Seller'], true)) {
         return;
     }
     smart_msg_ensure_tables();
@@ -1359,14 +1359,14 @@ elseif ($datain == "systemsms") {
     ]]]);
     sendmessage($from_id, sprintf($smMsg['running'], count($batch)), $cancelKeyboard, 'HTML');
 } elseif ($datain == "smcancel") {
-    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+    if (!in_array($adminrulecheck['rule'] ?? '', ['administrator', 'Seller'], true)) {
         return;
     }
     @unlink('cronbot/smart_queue.json');
     @unlink('cronbot/smart_info');
     sendmessage($from_id, $textbotlang['Admin']['messageBulk']['canceled'], $keyboardadmin, 'HTML');
 } elseif (preg_match('/^smtog_(\d+)$/', $datain, $dataget)) {
-    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+    if (!in_array($adminrulecheck['rule'] ?? '', ['administrator', 'Seller'], true)) {
         return;
     }
     smart_msg_ensure_tables();
@@ -1381,7 +1381,7 @@ elseif ($datain == "systemsms") {
     $stmtUp->execute([$newActive, time(), (int) $rule['id']]);
     sendmessage($from_id, sprintf($smMsg['toggled'], $newActive === 1 ? $smMsg['active'] : $smMsg['inactive']), null, 'HTML');
 } elseif (preg_match('/^smdel_(\d+)$/', $datain, $dataget)) {
-    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+    if (!in_array($adminrulecheck['rule'] ?? '', ['administrator', 'Seller'], true)) {
         return;
     }
     smart_msg_ensure_tables();
@@ -1397,7 +1397,7 @@ elseif ($datain == "systemsms") {
     ]]]);
     Editmessagetext($from_id, $message_id, sprintf($smMsg['confirmDelete'], (int) $rule['id']), $confirmKeyboard);
 } elseif (preg_match('/^smdelyes_(\d+)$/', $datain, $dataget)) {
-    if (($adminrulecheck['rule'] ?? '') !== 'administrator') {
+    if (!in_array($adminrulecheck['rule'] ?? '', ['administrator', 'Seller'], true)) {
         return;
     }
     smart_msg_ensure_tables();
