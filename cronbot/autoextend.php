@@ -64,8 +64,19 @@ function autoExtendProcess($invoice, $panelObj, int $windowSeconds, int $now, in
         }
         return;
     }
+    // Renew when EITHER condition holds:
+    //  - the service is inside the time-expiry window, OR
+    //  - the volume is actually depleted (data_limit exhausted). This is what
+    //    was missing before: a volume-limited service that still has days of
+    //    time left never fired, because the time-based gate was the only one.
+    // Marzban marks such users "limited"; the live snapshot carries it.
+    $volumeDepleted = in_array($live['status'] ?? '', ['limited', 'expired'], true)
+        && is_numeric($live['data_limit'] ?? null)
+        && is_numeric($live['used_traffic'] ?? null)
+        && ((float) $live['used_traffic'] >= (float) $live['data_limit']);
     $remain = !empty($live['expire']) ? $live['expire'] - $now : PHP_INT_MAX;
-    if ($remain > $windowSeconds) {
+    $inTimeWindow = $remain <= $windowSeconds;
+    if (!$volumeDepleted && !$inTimeWindow) {
         return;
     }
     $product = autoExtendResolveProduct($invoice, $user, $panel);
