@@ -1603,7 +1603,14 @@ function show_menu() {
     _rule
     echo ""
     printf  "  ${C_PROMPT}❯${CR} Select an option ${C_DIM}[0-9, X]${CR}: "
-    read -r option
+    # When the script is piped (curl ... | bash), stdin has no input and read
+    # fails immediately. Detect that and exit instead of looping forever.
+    if ! IFS= read -r option; then
+        echo ""
+        echo -e "  ${C_WARN}!${CR} No input detected (piped run). Re-run with flags, e.g.:"
+        echo -e "      ${C_KEY}mirza install --domain bot.example.com --token 123:ABC --admin 111${CR}"
+        exit 0
+    fi
     case $option in
         1) install_bot ;;
         2) update_bot ;;
@@ -1798,7 +1805,9 @@ function show_config_menu() {
     _rule
     echo ""
     printf "  ${C_PROMPT}❯${CR} Select ${C_DIM}[0-5]${CR}: "
-    read -r c
+    if ! IFS= read -r c; then
+        echo ""; echo -e "  ${C_WARN}!${CR} No input (piped run). Exit with: ${C_KEY}mirza config${CR}"; exit 0
+    fi
     case $c in
         1) change_bot_token ;;
         2) change_admin_chat ;;
