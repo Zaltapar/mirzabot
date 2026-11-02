@@ -11,6 +11,7 @@ $reports = [
     'reportnight',
     'reportcron',
     'backupfile',
+    'importreport',
 ];
 
 $seed = [];

@@ -34,7 +34,8 @@ $replacements = [
     'text_wheel_luck' => $textbotlang['textbot']['wheelLuck'],
     'text_extend' => $textbotlang['textbot']['extend'],
     'text_agentpanel' => $textbotlang['textbot']['agentPanel'],
-    'text_requestagent' => $textbotlang['textbot']['requestAgent']
+    'text_requestagent' => $textbotlang['textbot']['requestAgent'],
+    'text_importsub' => $textbotlang['textbot']['importSub'] ?? '📥 Register my sub',
 ];
 $temp_addtional_key = [];
 $keyboardLayout = json_decode($setting['keyboardmain'], true);
@@ -121,6 +122,9 @@ if ($setting['inlinebtnmain'] == "oninline" && !empty($keyboardRows)) {
             }
             if ($keyboard['text'] == "text_requestagent") {
                 $trace_keyboard[$key][$keyboard_key]['callback_data'] = "requestagent";
+            }
+            if ($keyboard['text'] == "text_importsub") {
+                $trace_keyboard[$key][$keyboard_key]['callback_data'] = "importsub";
             }
         }
     }

@@ -3003,6 +3003,9 @@ elseif ($datain == "systemsms") {
                 ['text' => $textbotlang['keyboard']['smartRules'], 'callback_data' => "smrules"],
             ],
             [
+                ['text' => $textbotlang['keyboard']['importSubPending'] ?? '📥 Import sub requests', 'callback_data' => "importlist"],
+            ],
+            [
                 ['text' => $textbotlang['keyboard']['groupVolumeOrTime'], 'callback_data' => "voloume_or_day_all"],
             ]
         ]
@@ -9828,4 +9831,63 @@ if ($datain == "settimecornday" && $adminrulecheck['rule'] == "administrator") {
         }
     }
     sendmessage($from_id, $bt_home, keyboard_list_text($bt_lang), 'HTML');
+} elseif (preg_match('/^importapprove_(\d+)$/', $datain, $dataget)) {
+    if (!in_array($adminrulecheck['rule'] ?? '', ['administrator', 'Seller'], true)) {
+        return;
+    }
+    $res = importSubApprove((int) $dataget[1], (int) $from_id);
+    sendmessage($from_id, $res, $keyboardadmin, 'HTML');
+} elseif (preg_match('/^importdeny_(\d+)$/', $datain, $dataget)) {
+    if (!in_array($adminrulecheck['rule'] ?? '', ['administrator', 'Seller'], true)) {
+        return;
+    }
+    $res = importSubDeny((int) $dataget[1], (int) $from_id);
+    sendmessage($from_id, $res, $keyboardadmin, 'HTML');
+} elseif ($datain == "importlist") {
+    if (!in_array($adminrulecheck['rule'] ?? '', ['administrator', 'Seller'], true)) {
+        return;
+    }
+    $pending = $pdo->prepare("SELECT * FROM import_request WHERE status = 'pending' ORDER BY id DESC LIMIT 50");
+    $pending->execute();
+    $rows = $pending->fetchAll(PDO::FETCH_ASSOC);
+    if (empty($rows)) {
+        sendmessage($from_id, $textbotlang['Admin']['importSub']['noPending'] ?? 'No pending import requests.', $keyboardadmin, 'HTML');
+        return;
+    }
+    $kb = [];
+    foreach ($rows as $r) {
+        $label = ($r['sub_username'] !== null && $r['sub_username'] !== '') ? $r['sub_username'] : 'URL';
+        $kb[] = [
+            ['text' => "📥 #{$r['id']} {$r['username']} · {$r['panel_name']} · {$label}", 'callback_data' => 'importdetail_' . (int) $r['id']],
+        ];
+    }
+    $kb[] = [
+        ['text' => $textbotlang['keyboard']['backToMain'] ?? 'Back', 'callback_data' => "backlistuser"],
+    ];
+    sendmessage($from_id, sprintf($textbotlang['Admin']['importSub']['pendingList'] ?? '%d pending import requests.', count($rows)) . "\n\n", json_encode(['inline_keyboard' => $kb]), 'HTML');
+} elseif (preg_match('/^importdetail_(\d+)$/', $datain, $dataget)) {
+    if (!in_array($adminrulecheck['rule'] ?? '', ['administrator', 'Seller'], true)) {
+        return;
+    }
+    $r = select("import_request", "*", "id", (int) $dataget[1], "select");
+    if (!$r || $r['status'] !== 'pending') {
+        sendmessage($from_id, $textbotlang['Admin']['importSub']['noPending'] ?? 'No pending import requests.', $keyboardadmin, 'HTML');
+        return;
+    }
+    $sub = ($r['sub_username'] !== null && $r['sub_username'] !== '') ? $r['sub_username'] : $r['sub_url'];
+    $detail = sprintf(
+        ($textbotlang['Admin']['importSub']['detail'] ?? "Request #%d\nUser: %s\nPanel: %s\nSub: %s\nTraffic: %s · Days: %s"),
+        (int) $r['id'], $r['username'], $r['panel_name'], $sub,
+        $r['remaining_traffic'] ?? 'n/a', $r['remaining_days'] ?? 'n/a'
+    );
+    $kb = json_encode([
+        'inline_keyboard' => [
+            [
+                ['text' => '✅ Approve', 'callback_data' => 'importapprove_' . (int) $r['id']],
+                ['text' => '❌ Deny', 'callback_data' => 'importdeny_' . (int) $r['id']],
+            ],
+            [['text' => $textbotlang['keyboard']['backToMain'] ?? 'Back', 'callback_data' => "importlist"]],
+        ]
+    ]);
+    Editmessagetext($from_id, $message_id, $detail, $kb);
 }

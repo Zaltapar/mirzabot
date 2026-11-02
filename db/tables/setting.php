@@ -13,7 +13,7 @@ $cronStatus = json_encode([
     'uptime_panel' => false,
     'autoextend' => true,
 ]);
-$keyboardMain = '{"keyboard":[[{"text":"text_sell"},{"text":"text_extend"}],[{"text":"text_usertest"},{"text":"text_wheel_luck"}],[{"text":"text_Purchased_services"},{"text":"accountwallet"}],[{"text":"text_affiliates"},{"text":"text_Tariff_list"}],[{"text":"text_support"},{"text":"text_help"}],[{"text":"text_agentpanel"},{"text":"text_requestagent"}]]}';
+$keyboardMain = '{"keyboard":[[{"text":"text_sell"},{"text":"text_extend"}],[{"text":"text_usertest"},{"text":"text_wheel_luck"}],[{"text":"text_Purchased_services"},{"text":"accountwallet"}],[{"text":"text_affiliates"},{"text":"text_Tariff_list"}],[{"text":"text_support"},{"text":"text_help"}],[{"text":"text_agentpanel"},{"text":"text_requestagent"}],[{"text":"text_importsub"}]]}';
 $miniappFeatures = json_encode([
     'toggle_service' => true,
     'edit_note' => true,
@@ -185,5 +185,8 @@ return [
         ['cardprotect', '0', 'VARCHAR(20)'],
         ['referral_rewards', json_encode(['threshold' => 0, 'volume' => 0, 'time' => 0, 'status' => 'off']), 'TEXT'],
         ['customtime_zero_approval', '1', 'VARCHAR(10)'],
+        ['import_min_traffic_gb', '0', 'VARCHAR(50)'],
+        ['import_min_days', '0', 'VARCHAR(50)'],
+        ['import_sub_enabled', '1', 'VARCHAR(10)'],
     ],
 ];

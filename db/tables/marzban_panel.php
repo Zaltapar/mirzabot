@@ -100,5 +100,6 @@ return [
         ['extravol_status', 'onextravol', 'VARCHAR(60)'],
         ['extratime_status', 'onextratime', 'VARCHAR(60)'],
         ['hide_tiers', null, 'TEXT'],
+        ['import_sub_status', 'onimportsub', 'VARCHAR(60)'],
     ],
 ];

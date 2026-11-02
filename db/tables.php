@@ -35,4 +35,5 @@ return [
     'callback_token',
     'message_rules',
     'message_rule_sent',
+    'import_request',
 ];

@@ -211,6 +211,29 @@ return [
                 'sectionDisabled' => '📛 此部分当前已停用',
                 'selectoption' => '请选择一个选项',
                 'invalidCommand' => '无效的命令',
+                'importSub' => [
+                        'importedName' => '导入的订阅',
+                        'intro' => '📥 注册你在本机器人之外购买的订阅，使其显示在你的服务列表中。需要管理员审批。',
+                        'panelUsernameBtn' => '👤 面板用户名',
+                        'subUrlBtn' => '🔗 粘贴订阅链接',
+                        'choosePanelThenUser' => '选择面板，然后发送该面板上的用户名：',
+                        'choosePanelThenUrl' => '选择面板，然后发送订阅链接：',
+                        'askUsername' => '👤 发送该面板上的服务用户名：',
+                        'askUrl' => '🔗 发送完整的订阅链接：',
+                        'invalidUrl' => '❌ 请发送有效的链接。',
+                        'userNotFound' => '❌ 面板上未找到该用户名，请核对后重试。',
+                        'denied' => '❌ 该订阅未达导入阈值。{why} 请等它到期后从机器人购买新订阅。',
+                        'lowTraffic' => '剩余流量 {traffic}GB 低于最低 {min}GB。',
+                        'lowDays' => '剩余天数 {days} 低于最低 {min} 天。',
+                        'submitted' => '✅ 已提交审批，管理员审核后会通知你。',
+                        'submittedUrl' => '✅ 已提交审批，管理员会验证该链接并通知你。',
+                        'approvedNotify' => '✅ 你的导入订阅已批准，现已显示在「我的服务」中。',
+                        'deniedNotify' => '❌ 你的导入申请未获批准（{reason}）。请从机器人购买新订阅。',
+                        'deniedDefault' => '经管理员审核',
+                        'featureOff' => '❌ 该功能当前已停用。',
+                        'noPanel' => '当前没有面板接受导入的订阅。',
+                        'panelInvalid' => '该面板不再接受导入，请选择其他面板。',
+                ],
                 'selectusername' => '请发送一个自定义用户名
 ⚠️ 用户名不得包含多余字符，如 @、空格或连字符。
 ⚠️ 用户名必须为英文。
@@ -1713,6 +1736,13 @@ n2',
                         'manageUser' => '👤 用户管理',
                         'managementPanel' => '✏️ 面板管理',
                 ],
+                'importSub' => [
+                        'alreadyReviewed' => '该申请已被处理。',
+                        'approveGone' => '面板上未再找到该用户；申请已拒绝。',
+                        'noPending' => '没有待处理的导入请求。',
+                        'pendingList' => '%d 个导入请求等待处理：',
+                        'detail' => "请求 #%d\n用户: %s\n面板: %s\n订阅: %s\n流量: %s · 天数: %s",
+                ],
                 'card' => [
                         'askNumber' => '💳 请发送您的银行卡号
 
@@ -2472,6 +2502,7 @@ f,n.n2',
                         'btnErrors' => '❌ 错误报告',
                         'btnFinancial' => '💰 财务报告',
                         'btnTickets' => '🎫 支持工单',
+                        'btnImport' => '📥 订阅导入请求',
                         'btnBackup' => '🤖 机器人备份 ',
                         'btnOptimize' => '🗑 优化机器人',
                         'optimizeWarning' => '❌❌❌❌❌❌❌ 请仔细阅读以下文本
@@ -2564,6 +2595,8 @@ f,n.n2',
                         'panelDown' => '🚨 尊敬的管理员，名为 <code>%s</code> 的面板未连接。',
                 ],
                 'reportgroup' => [
+                        'importRequest' => '📥 导入请求 #{rid} — 用户 {user} 想将面板 {panel} 上的订阅「{sub}」导入（流量 {traffic}，{days} 天）。',
+                        'importRequestUrl' => "📥 导入请求 #{rid} — 用户 {user} 在面板 {panel} 上粘贴了订阅链接。请验证后再批准/拒绝。",
                         'newUser' => '🎉 一名新用户启动了机器人
  姓名：%s
 用户名：@%s
@@ -3793,6 +3826,7 @@ f,n.n2',
     
 ',
                 'selectLocation' => '📌 请选择服务位置。',
+                'importSub' => '📥 注册我的订阅',
                 'sell' => '🔐 购买订阅',
                 'starTelegram' => '💫 Star Telegram',
                 'support' => '☎️ 客服',
@@ -3877,6 +3911,7 @@ f,n.n2',
                 'backToAdminMenu' => '🏠 返回管理菜单',
                 'backToCardSettings' => '▶️ 返回卡设置菜单',
                 'backToMain' => '返回主菜单',
+                'importSubPending' => '📥 订阅导入请求',
                 'backToMainMenu' => '🔙 返回主菜单',
                 'backToMainMenu2' => '🏠 返回主菜单',
                 'backToNode' => '🔙 返回节点 ',

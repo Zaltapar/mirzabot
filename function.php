@@ -9,6 +9,33 @@ use Endroid\QrCode\ErrorCorrectionLevel;
 use Endroid\QrCode\Writer\PngWriter;
 
 #-----------shell helper utilities------------#
+
+/**
+ * Lightweight request-path timing logger. Every call records the accumulated
+ * milliseconds on the console/error log so slow operations are visible in the
+ * production Apache error_log without a full profiler. Threshold is
+ * configurable per call; values below it are still recorded once per request.
+ */
+function mirzaPerfLog(string $label, int $ms): void
+{
+    static $loggedOnce = [];
+    if ($ms >= 250) {
+        error_log("[perf] {$label}: {$ms}ms");
+    } elseif (!isset($loggedOnce[$label])) {
+        $loggedOnce[$label] = true;
+        error_log("[perf] {$label}: {$ms}ms (below threshold, first report only)");
+    }
+}
+
+/** Start a perf timer; returns a closure that ends it and logs. */
+function mirzaPerfStart(string $label): callable
+{
+    $start = microtime(true);
+    return static function () use ($label, $start): void {
+        mirzaPerfLog($label, (int) round((microtime(true) - $start) * 1000));
+    };
+}
+
 function assertSqlIdentifier($name, $allowFieldExpr = false)
 {
     if ($name === null) {
@@ -294,6 +321,7 @@ function syncReportTopics($chatId, $textbotlang)
         'reportnight' => $textbotlang['Admin']['report']['reportNight'],
         'reportcron' => $textbotlang['Admin']['report']['reportCron'],
         'backupfile' => $textbotlang['Admin']['report']['btnBackup'],
+        'importreport' => $textbotlang['Admin']['report']['btnImport'] ?? '📥 Import sub',
     ];
     foreach ($topicNames as $report => $name) {
         $topicId = intval(select("topicid", "idreport", "report", $report, "select")['idreport'] ?? 0);
@@ -3664,6 +3692,229 @@ function smart_rule_due(array $rule, int $now): bool
 }
 
 mirzaRegisterFatalReporter(PHP_SAPI === 'cli' ? 'cli' : basename((string) ($_SERVER['SCRIPT_NAME'] ?? 'web')));
+
+/**
+ * Threshold check for "import an existing subscription".
+ * Returns ['ok' => bool, 'msg' => string, 'data' => ['trafficGB'=>?float,'days'=>?int]].
+ * "ok" is true when remaining traffic AND remaining days both meet the configured
+ * minimums (0 = no floor; "unlimited" subs always pass).
+ */
+function importSubThresholdCheck(array $panelData, array $setting, array $textbotlang): array
+{
+    $minGb = (float) ($setting['import_min_traffic_gb'] ?? 0);
+    $minDays = (int) ($setting['import_min_days'] ?? 0);
+
+    $dataLimit = isset($panelData['data_limit']) && $panelData['data_limit'] !== null ? (int) $panelData['data_limit'] : 0;
+    $used = isset($panelData['used_traffic']) && $panelData['used_traffic'] !== null ? (int) $panelData['used_traffic'] : 0;
+    $remainingBytes = $dataLimit > 0 ? max(0, $dataLimit - $used) : 0;
+    $remainingGb = $dataLimit > 0 ? round($remainingBytes / 1073741824, 2) : null; // null = unlimited
+
+    $expire = isset($panelData['expire']) ? (int) $panelData['expire'] : 0;
+    $remainingDays = $expire > 0 ? max(0, (int) floor(($expire - time()) / 86400)) : null; // null = unlimited
+
+    $trafficFail = ($minGb > 0 && $remainingGb !== null && $remainingGb < $minGb);
+    $daysFail = ($minDays > 0 && $remainingDays !== null && $remainingDays < $minDays);
+
+    if (!$trafficFail && !$daysFail) {
+        return ['ok' => true, 'msg' => '', 'data' => ['trafficGB' => $remainingGb, 'days' => $remainingDays]];
+    }
+
+    $bits = [];
+    if ($trafficFail) {
+        $bits[] = sprintf($textbotlang['users']['importSub']['lowTraffic'] ?? 'remaining traffic {traffic}GB is below the minimum {min}GB', [
+            '{traffic}' => $remainingGb !== null ? (string) $remainingGb : '0',
+            '{min}' => (string) $minGb,
+        ]);
+    }
+    if ($daysFail) {
+        $bits[] = sprintf($textbotlang['users']['importSub']['lowDays'] ?? 'remaining days {days} is below the minimum {min} days', [
+            '{days}' => $remainingDays !== null ? (string) $remainingDays : '0',
+            '{min}' => (string) $minDays,
+        ]);
+    }
+    $msg = str_replace('{why}', implode(' • ', $bits) . ' ', ($textbotlang['users']['importSub']['denied'] ?? '❌ This subscription does not meet the import threshold. {why} Wait until it finishes and buy a new subscription from the bot.'));
+    return ['ok' => false, 'msg' => $msg, 'data' => ['trafficGB' => $remainingGb, 'days' => $remainingDays]];
+}
+
+function importSubNotifyReport(int $rid, string $panelName, string $subLabel, string $traffic, string $days, ?string $url, array $textbotlang, array $setting): void
+{
+    global $pdo;
+    $importreport = intval(select('topicid', 'idreport', 'report', 'importreport', 'select')['idreport'] ?? 0);
+    $channel = (string) ($setting['Channel_Report'] ?? '');
+    if ($channel === '' || $channel === '0' || $importreport <= 0) {
+        return;
+    }
+    $row = select('import_request', 'id, username', 'id', $rid, 'select');
+    $username = $row['username'] ?? '';
+    $base = $url !== null
+        ? ($textbotlang['Admin']['reportgroup']['importRequestUrl'] ?? "📥 Import request #{rid} — user {user} pasted a sub URL on panel {panel}. Verify then approve/deny.")
+        : ($textbotlang['Admin']['reportgroup']['importRequest'] ?? "📥 Import request #{rid} — user {user} wants to import sub «{sub}» on panel {panel} (traffic {traffic}, {days} days).");
+    $body = strtr($base, [
+        '{rid}' => (string) $rid,
+        '{user}' => $username,
+        '{sub}' => $subLabel,
+        '{panel}' => $panelName,
+        '{traffic}' => $traffic,
+        '{days}' => $days,
+    ]);
+    $kb = json_encode(['inline_keyboard' => [[
+        ['text' => '✅ Approve', 'callback_data' => 'importapprove_' . $rid],
+        ['text' => '❌ Deny', 'callback_data' => 'importdeny_' . $rid],
+    ]]]);
+    telegram('sendmessage', [
+        'chat_id' => $channel,
+        'message_thread_id' => $importreport,
+        'text' => $body,
+        'parse_mode' => 'HTML',
+        'reply_markup' => $kb,
+    ]);
+}
+
+/**
+ * Create a pending import_request row (panel-username flow, threshold already
+ * passed at submit time) and notify the report topic.
+ */
+function importSubSubmitPending(int $fromId, string $panelName, string $subUsername, array $threshold, array $textbotlang, array $setting): void
+{
+    global $pdo;
+    $now = time();
+    $trafficGB = $threshold['data']['trafficGB'];
+    $days = $threshold['data']['days'];
+    $stmt = $pdo->prepare("INSERT INTO import_request (id_user, username, panel_name, sub_username, sub_url, status, remaining_traffic, remaining_days, created_at, updated_at) VALUES (?, ?, ?, ?, NULL, 'pending', ?, ?, ?, ?)");
+    $stmt->execute([
+        $fromId,
+        (string) (select('user', 'username', 'id', $fromId, 'select')['username'] ?? ''),
+        $panelName,
+        $subUsername,
+        $trafficGB !== null ? (string) $trafficGB : 'unlimited',
+        $days !== null ? (string) $days : 'unlimited',
+        $now,
+        $now,
+    ]);
+    clearSelectCache('import_request');
+    $rid = (int) $pdo->lastInsertId();
+    importSubNotifyReport($rid, $panelName, $subUsername, $trafficGB !== null ? $trafficGB . 'GB' : 'unlimited', $days !== null ? (string) $days : 'unlimited', null, $textbotlang, $setting);
+}
+
+/**
+ * Record a URL import (no live probe at submit time) and notify admin.
+ * Returns the user-facing confirmation text.
+ */
+function importSubSubmitUrl(int $fromId, string $panelName, string $subUrl, array $textbotlang, array $setting): string
+{
+    global $pdo;
+    $now = time();
+    $stmt = $pdo->prepare("INSERT INTO import_request (id_user, username, panel_name, sub_username, sub_url, status, created_at, updated_at) VALUES (?, ?, ?, NULL, ?, 'pending', ?, ?)");
+    $stmt->execute([
+        $fromId,
+        (string) (select('user', 'username', 'id', $fromId, 'select')['username'] ?? ''),
+        $panelName,
+        $subUrl,
+        $now,
+        $now,
+    ]);
+    clearSelectCache('import_request');
+    $rid = (int) $pdo->lastInsertId();
+    importSubNotifyReport($rid, $panelName, substr($subUrl, 0, 60), 'n/a', 'n/a', $subUrl, $textbotlang, $setting);
+    return $textbotlang['users']['importSub']['submittedUrl'] ?? '✅ Submitted for approval. An admin will verify the URL and you will be notified.';
+}
+
+/**
+ * Admin approve: flip the row to approved, create the invoice (+ service_other
+ * link row), and notify the user. Re-checks thresholds live when a panel
+ * username is known; auto-denies if the sub no longer qualifies.
+ */
+function importSubApprove(int $rid, int $decidedBy): string
+{
+    global $pdo, $textbotlang, $setting;
+    $row = select('import_request', '*', 'id', $rid, 'select');
+    if (!$row || $row['status'] !== 'pending') {
+        return $textbotlang['Admin']['importSub']['alreadyReviewed'] ?? 'This request was already reviewed.';
+    }
+    $fromId = (int) $row['id_user'];
+    $panelName = (string) $row['panel_name'];
+    $subUsername = (string) ($row['sub_username'] ?? '');
+    $subUrl = (string) ($row['sub_url'] ?? '');
+
+    $markDecided = function (string $status) use ($rid, $decidedBy) {
+        update('import_request', 'status', $status, 'id', $rid);
+        update('import_request', 'decided_by', (string) $decidedBy, 'id', $rid);
+        update('import_request', 'decided_at', (string) time(), 'id', $rid);
+    };
+
+    if ($subUsername !== '') {
+        $check = panelUserCached($panelName, $subUsername, 0, true); // force live
+        if (($check['status'] ?? '') === 'Unsuccessful' || empty($check['username'])) {
+            $markDecided('denied');
+            return $textbotlang['Admin']['importSub']['approveGone'] ?? "User no longer found on the panel; request denied.";
+        }
+        $recheck = importSubThresholdCheck($check, $setting, $textbotlang);
+        if (!$recheck['ok']) {
+            $markDecided('denied');
+            return $recheck['msg'];
+        }
+    }
+
+    // Derive volume/time for the new invoice from the live sub when possible.
+    $vol = '0';
+    $time = '0';
+    if ($subUsername !== '') {
+        $live = panelUserCached($panelName, $subUsername, 30);
+        if (is_array($live) && isset($live['data_limit']) && $live['data_limit'] !== null) {
+            $remaining = max(0, (int) $live['data_limit'] - (int) ($live['used_traffic'] ?? 0));
+            $vol = (string) round($remaining / 1073741824, 2);
+        }
+        if (is_array($live) && !empty($live['expire'])) {
+            $time = (string) max(0, (int) floor(((int) $live['expire'] - time()) / 86400));
+        }
+    }
+    $randomString = bin2hex(random_bytes(4));
+    $stmt = $pdo->prepare("INSERT IGNORE INTO invoice (id_user, id_invoice, username, time_sell, Service_location, name_product, price_product, Volume, Service_time, Status, notifctions) VALUES (?, ?, ?, ?, ?, ?, '0', ?, ?, 'active', ?)");
+    $stmt->execute([
+        $fromId,
+        $randomString,
+        $subUsername !== '' ? $subUsername : $randomString,
+        time(),
+        $panelName,
+        ($textbotlang['users']['importSub']['importedName'] ?? 'Imported subscription'),
+        $vol,
+        $time,
+        json_encode(['volume' => false, 'time' => false]),
+    ]);
+    clearSelectCache('invoice');
+
+    if ($subUrl !== '') {
+        $so = $pdo->prepare("INSERT IGNORE INTO service_other (id_user, username, value, type, time, price, status, output) VALUES (?, ?, ?, 'import_sub', ?, '0', 'paid', ?)");
+        $so->execute([$fromId, $subUsername !== '' ? $subUsername : $randomString, $subUrl, date('Y/m/d H:i:s'), json_encode(['status' => 'imported'])]);
+        clearSelectCache('service_other');
+    }
+
+    $markDecided('approved');
+    $msg = $textbotlang['users']['importSub']['approvedNotify'] ?? "✅ Your imported subscription was approved. It now appears under My Services.";
+    sendmessage($fromId, $msg, null, 'HTML');
+    return $msg;
+}
+
+/**
+ * Admin deny: flip the row and notify the user with an optional reason.
+ */
+function importSubDeny(int $rid, int $decidedBy, string $reason = ''): string
+{
+    global $textbotlang;
+    $row = select('import_request', '*', 'id', $rid, 'select');
+    if (!$row || $row['status'] !== 'pending') {
+        return $textbotlang['Admin']['importSub']['alreadyReviewed'] ?? 'This request was already reviewed.';
+    }
+    update('import_request', 'status', 'denied', 'id', $rid);
+    update('import_request', 'decided_by', (string) $decidedBy, 'id', $rid);
+    update('import_request', 'decided_at', (string) time(), 'id', $rid);
+    $reason = $reason !== '' ? $reason : ($textbotlang['users']['importSub']['deniedDefault'] ?? 'on admin review.');
+    $msg = strtr($textbotlang['users']['importSub']['deniedNotify'] ?? "❌ Your import request was not approved ({reason}). Please buy a new subscription from the bot.", [
+        '{reason}' => $reason,
+    ]);
+    sendmessage((int) $row['id_user'], $msg, null, 'HTML');
+    return $msg;
+}
 
 function maybeRewardReferrer(int $referrerId, int $newCount): void
 {

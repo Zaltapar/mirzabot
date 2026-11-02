@@ -44,6 +44,7 @@ if (!in_array($Chat_type, ["private", "supergroup"]))
 if (isset($chat_member))
     return;
 $first_name = sanitizeUserName($first_name);
+$perfRequest = mirzaPerfStart('request ' . ($datain ?: 'text'));
 $setting = select("setting", "*");
 $ManagePanel = new ManagePanel();
 $keyboard_check = json_decode($setting['keyboardmain'], true);
@@ -153,6 +154,8 @@ foreach ($topic_id as $topic) {
         $otherservice = $topic['idreport'];
     if ($topic['report'] == 'paymentreport')
         $paymentreports = $topic['idreport'];
+    if ($topic['report'] == 'importreport')
+        $importreport = $topic['idreport'];
 
 }
 if ($setting['statusnamecustom'] == 'onnamecustom')
@@ -601,7 +604,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
 } elseif (preg_match('/locationnotuser_(.*)/', $datain, $dataget)) {
     $marzban_list_get = select("marzban_panel", "*", "code_panel", $dataget[1]);
     update("user", "Processing_value_four", $marzban_list_get['code_panel'], "id", $from_id);
-    $DataUserOut = $ManagePanel->DataUser($marzban_list_get['name_panel'], $user['Processing_value']);
+    $DataUserOut = panelUserCached($marzban_list_get['name_panel'], $user['Processing_value'], 60);
     if ($DataUserOut['status'] == "Unsuccessful") {
         if ($DataUserOut['msg'] == "User not found") {
             sendmessage($from_id, $textbotlang['users']['status']['notUsernameGet'], $keyboard, 'html');
@@ -792,7 +795,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     if ($marzban['name_panel'] != null) {
         update("user", "Processing_value_four", $marzban['name_panel'], "id", $from_id);
     }
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 60);
     if (isset($DataUserOut['msg']) && $DataUserOut['msg'] == "User not found") {
         update("invoice", "Status", "disabledn", "id_invoice", $nameloc['id_invoice']);
         sendmessage($from_id, $textbotlang['users']['status']['userNotFound'], $keyboard, 'html');
@@ -1177,7 +1180,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     if ($nameloc == false)
         return;
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 60);
     if ($DataUserOut['status'] == "Unsuccessful") {
         sendmessage($from_id, $textbotlang['users']['status']['error'], null, 'html');
         return;
@@ -1274,7 +1277,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         sendmessage($from_id, $textbotlang['users']['status']['userNotFound'], null, 'html');
         return;
     }
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 60);
     if ($DataUserOut['status'] == "Unsuccessful") {
         sendmessage($from_id, $textbotlang['users']['status']['error'], null, 'html');
         return;
@@ -1295,7 +1298,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         sendmessage($from_id, $textbotlang['users']['status']['userNotFound'], null, 'html');
         return;
     }
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 60);
     $bakinfos = json_encode([
         'inline_keyboard' => [
             [
@@ -1385,7 +1388,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         sendmessage($from_id, $textbotlang['users']['featureUnavailable'], null, 'html');
         return;
     }
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 30);
     if ($DataUserOut['status'] == "on_hold") {
         sendmessage($from_id, $textbotlang['users']['status']['notConnectedCannotChangeStatus'], null, 'html');
         return;
@@ -1439,7 +1442,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         return;
     }
     bustPanelDataCache($nameloc['Service_location'], $nameloc['username']);
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 0, true);
     if ($DataUserOut['status'] == "active") {
         Editmessagetext($from_id, $message_id, $textbotlang['users']['status']['activedconfig'], $bakinfos);
     } else {
@@ -1458,7 +1461,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         sendmessage($from_id, $textbotlang['users']['extend']['notSupportedPanel'], null, 'html');
         return;
     }
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 30);
     if ($DataUserOut['status'] == "Unsuccessful") {
         sendmessage($from_id, $textbotlang['users']['status']['error'], null, 'html');
         return;
@@ -2054,7 +2057,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $pricelastextend = $pricelastextend - $result;
         sendmessage($from_id, sprintf($textbotlang['users']['Discount']['discountapplied'], $user['pricediscount']), null, 'HTML');
     }
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 30);
     if ($user['Balance'] < $pricelastextend && $user['agent'] != "n2" && intval($pricelastextend) != 0) {
         $marzbandirectpay = select('shopSetting', "*", "Namevalue", "statusdirectpabuy", "select")['value'];
         if ($marzbandirectpay == "offdirectbuy") {
@@ -2079,8 +2082,8 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
             $stmt->execute([$from_id, $nameloc['username'], json_encode([
                 "volumebuy" => $prodcut['Volume_constraint'],
                 "Service_time" => $prodcut['Service_time'],
-                "oldvolume" => $DataUserOut['data_limit'],
-                "oldtime" => $DataUserOut['expire'],
+                "oldvolume" => $DataUserOut['data_limit'] ?? 0,
+                "oldtime" => $DataUserOut['expire'] ?? 0,
                 'code_product' => $prodcut['code_product'],
                 'id_order' => $randomString
             ]), 'extend_user', date('Y/m/d H:i:s'), $pricelastextend, $Balance_prim]);
@@ -2153,8 +2156,8 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     $value = json_encode(array(
         "volumebuy" => $prodcut['Volume_constraint'],
         "Service_time" => $prodcut['Service_time'],
-        "oldvolume" => $DataUserOut['data_limit'],
-        "oldtime" => $DataUserOut['expire'],
+        "oldvolume" => $DataUserOut['data_limit'] ?? 0,
+        "oldtime" => $DataUserOut['expire'] ?? 0,
         'code_product' => $prodcut['code_product'],
         'id_order' => $randomString
     ));
@@ -2208,7 +2211,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         return;
     }
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 60);
     if ($DataUserOut['status'] == "Unsuccessful") {
         sendmessage($from_id, $textbotlang['users']['status']['error'], null, 'html');
         return;
@@ -2294,7 +2297,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         return;
     }
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 30);
     if ($DataUserOut['status'] == "Unsuccessful") {
         sendmessage($from_id, $textbotlang['users']['status']['error'], null, 'html');
         return;
@@ -2374,14 +2377,14 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
                 sendmessage($from_id, sprintf($textbotlang['users']['Discount']['discountapplied'], $user['pricediscount']), null, 'HTML');
             }
             $Balance_prim = $volume - $user['Balance'];
-            $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+            $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 30);
             cancelPendingGatewayOrders($from_id);
             $stmt = $pdo->prepare("INSERT INTO service_other (id_user, username, value, type, time, price, status, output, payable_amount) VALUES (?, ?, ?, ?, ?, ?, 'unpaid', '', ?)");
             $stmt->execute([$from_id, $nameloc['username'], json_encode([
                 'volume_value' => $valuevolume,
                 'priceـper_gig' => $extrapricevalue,
-                'old_volume' => $DataUserOut['data_limit'],
-                'expire_old' => $DataUserOut['expire']
+                'old_volume' => $DataUserOut['data_limit'] ?? 0,
+                'expire_old' => $DataUserOut['expire'] ?? 0
             ]), 'extra_user', date('Y/m/d H:i:s'), $volume, $Balance_prim]);
             $service_order_id = $pdo->lastInsertId();
             update("user", "Processing_value", $Balance_prim, "id", $from_id);
@@ -2402,12 +2405,12 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         sendmessage($from_id, $textbotlang['users']['Balance']['notEnoughBalance'], null, 'HTML');
         return;
     }
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 30);
     $data_for_database = json_encode(array(
         'volume_value' => intval($volume) / intval($extrapricevalue),
         'priceـper_gig' => $extrapricevalue,
-        'old_volume' => $DataUserOut['data_limit'],
-        'expire_old' => $DataUserOut['expire']
+        'old_volume' => $DataUserOut['data_limit'] ?? 0,
+        'expire_old' => $DataUserOut['expire'] ?? 0
     ));
     $data_limit = intval($volume) / intval($extrapricevalue);
     $extra_volume = $ManagePanel->extra_volume($nameloc['username'], $marzban_list_get['code_panel'], $data_limit);
@@ -2482,7 +2485,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         sendmessage($from_id, $textbotlang['users']['featureUnavailable2'], null, 'html');
         return;
     }
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 30);
     if ($DataUserOut['status'] == "Unsuccessful" || $DataUserOut['status'] == "disabled") {
         sendmessage($from_id, $textbotlang['users']['status']['error'], null, 'html');
         return;
@@ -2553,7 +2556,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         sendmessage($from_id, $textbotlang['users']['changeLocation']['notPossible'], null, 'html');
         return;
     }
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 30);
     if ($DataUserOut['status'] == "on_hold") {
         sendmessage($from_id, $textbotlang['users']['changeLocation']['configUnused'], null, 'html');
         return;
@@ -2715,7 +2718,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         return;
     }
     update("user", "Processing_value", $id_invoice, "id", $from_id);
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 30);
     if ($DataUserOut['status'] == "Unsuccessful") {
         sendmessage($from_id, $textbotlang['users']['status']['error'], null, 'html');
         return;
@@ -2733,7 +2736,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
 } elseif ($user['step'] == "getdesdisorder") {
     update("user", "Processing_value", $text, "id", $from_id);
     $nameloc = select("invoice", "*", "id_invoice", $user['Processing_value'], "select");
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 30);
     if ($DataUserOut['status'] == "Unsuccessful") {
         sendmessage($from_id, $textbotlang['users']['status']['error'], null, 'html');
         return;
@@ -2765,8 +2768,8 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         ]
     ]);
     $textdisorder = sprintf($textbotlang['Admin']['reportgroup']['disruption'], $username, $from_id, $nameloc['username'], $nameloc['name_product'], $nameloc['Service_location'], $user['Processing_value']);
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
-    if ($DataUserOut['online_at'] == "online") {
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 60);
+    if (($DataUserOut['online_at'] ?? '') == "online") {
         $lastonline = $textbotlang['common']['connection']['onlineAlt'];
     } elseif ($DataUserOut['online_at'] == "offline") {
         $lastonline = $textbotlang['common']['connection']['offlineAlt'];
@@ -2843,7 +2846,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         sendmessage($from_id, $textbotlang['users']['extraTime']['notSupportedPanel'], null, 'html');
         return;
     }
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 30);
     if ($DataUserOut['status'] == "Unsuccessful") {
         sendmessage($from_id, $textbotlang['users']['status']['error'], null, 'html');
         return;
@@ -2927,14 +2930,14 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
             }
             if (intval($pricelasttime) != 0) {
                 $Balance_prim = $pricelasttime - $user['Balance'];
-                $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+                $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 30);
                 cancelPendingGatewayOrders($from_id);
                 $stmt = $pdo->prepare("INSERT INTO service_other (id_user, username, value, type, time, price, status, output, payable_amount) VALUES (?, ?, ?, ?, ?, ?, 'unpaid', '', ?)");
                 $stmt->execute([$from_id, $nameloc['username'], json_encode([
                     'day' => $valuetime,
                     'priceـper_day' => $extratimepricevalue,
-                    'old_volume' => $DataUserOut['data_limit'],
-                    'expire_old' => $DataUserOut['expire']
+                    'old_volume' => $DataUserOut['data_limit'] ?? 0,
+                    'expire_old' => $DataUserOut['expire'] ?? 0
                 ]), 'extra_time_user', date('Y/m/d H:i:s'), $pricelasttime, $Balance_prim]);
                 $service_order_id = $pdo->lastInsertId();
                 update("user", "Processing_value", $Balance_prim, "id", $from_id);
@@ -2957,14 +2960,14 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     }
     update("invoice", "Status", "active", "id_invoice", $nameloc['id_invoice']);
     $extratimeday = $tmieextra / $extratimepricevalue;
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 30);
     $data_for_database = json_encode(array(
         'day' => $extratimeday,
         'priceـper_day' => $extratimepricevalue,
-        'old_volume' => $DataUserOut['data_limit'],
-        'expire_old' => $DataUserOut['expire']
+        'old_volume' => $DataUserOut['data_limit'] ?? 0,
+        'expire_old' => $DataUserOut['expire'] ?? 0
     ));
-    $timeservice = $DataUserOut['expire'] - time();
+    $timeservice = ($DataUserOut['expire'] ?? 0) - time();
     $day = floor($timeservice / 86400);
     $extra_time = $ManagePanel->extra_time($nameloc['username'], $marzban_list_get['code_panel'], $extratimeday);
     if ($extra_time['status'] == false) {
@@ -3048,7 +3051,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         return;
     }
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 30);
     if (isset($DataUserOut['status']) && in_array($DataUserOut['status'], ["expired", "limited", "disabled"])) {
         sendmessage($from_id, $textbotlang['users']['status']['error'], null, 'html');
         step("home", $from_id);
@@ -3089,7 +3092,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     $descriptions = "0";
     $Status = "waiting";
     $stmt->execute([$from_id, $nameloc['username'], $descriptions, $Status]);
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 30);
     if (isset($DataUserOut['msg']) && $DataUserOut['msg'] == "User not found") {
         sendmessage($from_id, $textbotlang['users']['status']['userNotFound'], null, 'html');
         step('home', $from_id);
@@ -3164,7 +3167,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         return;
     }
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
-    $DataUserOut = $ManagePanel->DataUser($nameloc['Service_location'], $nameloc['username']);
+    $DataUserOut = panelUserCached($nameloc['Service_location'], $nameloc['username'], 30);
     if (isset($DataUserOut['status']) && in_array($DataUserOut['status'], ["expired", "limited", "disabled"])) {
         sendmessage($from_id, $textbotlang['users']['status']['error'], null, 'html');
         return;
@@ -3303,7 +3306,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     $text = strtolower($text);
     $username_ac = generateUsername($from_id, $marzban_list_get['MethodUsername'], $user['username'], $randomString, $text, $marzban_list_get['namecustom'], $user['namecustom']);
     $username_ac = strtolower($username_ac);
-    $DataUserOut = $ManagePanel->DataUser($marzban_list_get['name_panel'], $username_ac);
+    $DataUserOut = panelUserCached($marzban_list_get['name_panel'], $username_ac, 30);
     $random_number = rand(1000000, 9999999);
     if (isset($DataUserOut['username']) || rowExists("invoice", "username", $username_ac)) {
         $username_ac = $random_number . "_" . $username_ac;
@@ -4145,7 +4148,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     $username_ac = generateUsername($from_id, $marzban_list_get['MethodUsername'], $username, $randomString, $text, $marzban_list_get['namecustom'], $user['namecustom']);
     $username_ac = strtolower($username_ac);
     cancelPendingGatewayOrders($from_id);
-    $DataUserOut = $ManagePanel->DataUser($marzban_list_get['name_panel'], $username_ac);
+    $DataUserOut = panelUserCached($marzban_list_get['name_panel'], $username_ac, 30);
     $random_number = rand(1000000, 9999999);
     if (isset($DataUserOut['username']) || rowExists("invoice", "username", $username_ac)) {
         $username_ac = $random_number . "_" . $username_ac;
@@ -4277,7 +4280,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     }
     cancelPendingGatewayOrders($from_id);
     $username_ac = strtolower($user['Processing_value_tow']);
-    $DataUserOut = $ManagePanel->DataUser($marzban_list_get['name_panel'], $username_ac);
+    $DataUserOut = panelUserCached($marzban_list_get['name_panel'], $username_ac, 30);
     if (isset($DataUserOut['username']) || rowExists("invoice", "username", $username_ac)) {
         sendmessage($from_id, $textbotlang['users']['sell']['restartProcess'], null, 'HTML');
         return;
@@ -4383,7 +4386,9 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
             ]
         ]
     ];
+    $perfCreate = mirzaPerfStart('create_user');
     $dataoutput = $ManagePanel->createUser($marzban_list_get['name_panel'], $info_product['code_product'], $username_ac, $datac);
+    $perfCreate();
     if (!isset($dataoutput['username']) || $dataoutput['username'] === null || $dataoutput['username'] === '') {
         $errorMessage = $dataoutput['msg'] ?? 'unknown error';
         if (is_array($errorMessage) || is_object($errorMessage)) {
@@ -4929,7 +4934,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     for ($i = 0; $i < $user['Processing_value_four']; $i++) {
         $random_number = rand(1000000, 9999999);
         $username_acc = $username_ac . "_" . $i;
-        $get_username_Check = $ManagePanel->DataUser($marzban_list_get['name_panel'], $username_acc);
+        $get_username_Check = panelUserCached($marzban_list_get['name_panel'], $username_acc, 30);
         if (isset($get_username_Check['username']) || rowExists("invoice", "username", $username_acc)) {
             $username_acc = $random_number . "_" . $username_acc;
         }
@@ -4937,7 +4942,9 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         if (rowExists("invoice", "id_invoice", $randomString)) {
             $randomString = $random_number . $randomString;
         }
+        $perfCreate = mirzaPerfStart("bulkcreate_{$i}");
         $dataoutput = $ManagePanel->createUser($marzban_list_get['name_panel'], $info_product['code_product'], $username_acc, $datac);
+        $perfCreate();
         if ($dataoutput['username'] == null) {
             addBalance($from_id, $single_price * (intval($user['Processing_value_four']) - $i));
             $dataoutput['msg'] = json_encode($dataoutput['msg']);
@@ -6360,8 +6367,8 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         sendmessage($from_id, $textbotlang['users']['Balance']['notEnoughBalance'], null, 'HTML');
         return;
     }
-    $DataUserOut = $ManagePanel->DataUser($user['Processing_value_one'], $user['Processing_value']);
-    $data_limit = $DataUserOut['data_limit'] + (intval($volume) / intval($extrapricevalue) * pow(1024, 3));
+    $DataUserOut = panelUserCached($user['Processing_value_one'], $user['Processing_value'], 30);
+    $data_limit = ($DataUserOut['data_limit'] ?? 0) + (intval($volume) / intval($extrapricevalue) * pow(1024, 3));
     $stmt = $pdo->prepare("INSERT IGNORE INTO service_other (id_user, username, value, type, time, price) VALUES (:id_user, :username, :value, :type, :time, :price)");
     $value = $data_limit;
     $dateacc = date('Y/m/d H:i:s');
@@ -7040,8 +7047,8 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         return;
     }
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $user['Processing_value'], "select");
-    $DataUserOut = $ManagePanel->DataUser($marzban_list_get['name_panel'], $usernamePanelExtends);
-    if ($DataUserOut['status'] == "Unsuccessful") {
+    $DataUserOut = panelUserCached($marzban_list_get['name_panel'], $usernamePanelExtends, 30);
+    if (($DataUserOut['status'] ?? '') == "Unsuccessful") {
         sendmessage($from_id, $textbotlang['users']['extend']['renewalerror'], $keyboard, 'HTML');
         return;
     }
@@ -7107,8 +7114,8 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     $value = json_encode(array(
         "volumebuy" => $prodcut['Volume_constraint'],
         "Service_time" => $prodcut['Service_time'],
-        "oldvolume" => $DataUserOut['data_limit'],
-        "oldtime" => $DataUserOut['expire'],
+        "oldvolume" => $DataUserOut['data_limit'] ?? 0,
+        "oldtime" => $DataUserOut['expire'] ?? 0,
         'code_product' => $prodcut['code_product'],
     ));
     $dateacc = date('Y/m/d H:i:s');
@@ -7166,10 +7173,100 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         ]
     ]);
     Editmessagetext($from_id, $message_id, $textbotlang['language']['setSuccess'], $keyboard_back);
+} elseif ($datain == "importsub") {
+    if (!check_active_btn($setting['keyboardmain'], "text_importsub") || ($setting['import_sub_enabled'] ?? '1') != '1') {
+        sendmessage($from_id, $textbotlang['users']['importSub']['featureOff'] ?? '❌ This feature is currently disabled.', $keyboard, 'HTML');
+        return;
+    }
+    $importKb = json_encode([
+        'inline_keyboard' => [
+            [
+                ['text' => $textbotlang['users']['importSub']['panelUsernameBtn'] ?? '👤 Panel username', 'callback_data' => 'imp_username'],
+                ['text' => $textbotlang['users']['importSub']['subUrlBtn'] ?? '🔗 Paste sub URL', 'callback_data' => 'imp_url'],
+            ],
+            [
+                ['text' => $textbotlang['users']['backbtn'] ?? '↩️', 'callback_data' => "account"],
+            ],
+        ]
+    ]);
+    sendmessage($from_id, $textbotlang['users']['importSub']['intro'] ?? '📥 Register an existing subscription you bought outside this bot. Admin approval is required.', $importKb, 'HTML');
+} elseif (preg_match('/^imp_(username|url)$/', $datain, $impType)) {
+    $panels = $pdo->prepare("SELECT name_panel FROM marzban_panel WHERE status = 'active' AND (agent = :agent OR agent = 'all') AND COALESCE(import_sub_status, 'onimportsub') = 'onimportsub'");
+    $panels->execute([':agent' => $user['agent']]);
+    $panelNames = $panels->fetchAll(PDO::FETCH_COLUMN);
+    if (empty($panelNames)) {
+        sendmessage($from_id, $textbotlang['users']['importSub']['noPanel'] ?? 'No panel currently accepts imported subscriptions.', $keyboard, 'HTML');
+        return;
+    }
+    savedata("clear", "imp_type", $impType[1]);
+    $rows = [];
+    $pair = [];
+    foreach ($panelNames as $pn) {
+        $pair[] = ['text' => $pn, 'callback_data' => 'imppanel_' . urlencode($pn)];
+        if (count($pair) === 2) { $rows[] = $pair; $pair = []; }
+    }
+    if (count($pair) > 0) $rows[] = $pair;
+    $rows[] = [[['text' => $textbotlang['users']['backbtn'] ?? '↩️', 'callback_data' => 'importsub']]];
+    $ask = $impType[1] === 'url'
+        ? ($textbotlang['users']['importSub']['choosePanelThenUrl'] ?? 'Select the panel this sub belongs to, then paste its URL:')
+        : ($textbotlang['users']['importSub']['choosePanelThenUser'] ?? 'Select the panel and enter the username on that panel:');
+    sendmessage($from_id, $ask, json_encode(['inline_keyboard' => $rows]), 'HTML');
+    step('imp_panel', $from_id);
+} elseif (preg_match('/^imppanel_(.+)$/', $datain, $dataget)) {
+    $pn = rawurldecode($dataget[1]);
+    $panel = select("marzban_panel", "*", "name_panel", $pn, "select");
+    if (!$panel || $panel['status'] != 'active' || ($panel['import_sub_status'] ?? 'onimportsub') != 'onimportsub') {
+        sendmessage($from_id, $textbotlang['users']['importSub']['panelInvalid'] ?? 'This panel no longer accepts imports. Please pick another.', $keyboard, 'HTML');
+        step('home', $from_id);
+        return;
+    }
+    savedata("save", "imp_panel", $pn);
+    $imptype = (string) (json_decode($user['Processing_value'], true)['imp_type'] ?? '');
+    if ($imptype === 'url') {
+        sendmessage($from_id, $textbotlang['users']['importSub']['askUrl'] ?? 'Paste the full subscription URL now:', $keyboard, 'HTML');
+        step('imp_url', $from_id);
+    } else {
+        sendmessage($from_id, $textbotlang['users']['importSub']['askUsername'] ?? 'Enter the username on this panel:', $keyboard, 'HTML');
+        step('imp_username', $from_id);
+    }
+} elseif ($user['step'] == "imp_username") {
+    $input = trim((string) $text);
+    if ($input === '' || !preg_match('~(?!_)^[a-zA-Z0-9_]{2,100}(?<!_)$~', $input)) {
+        sendmessage($from_id, $textbotlang['common']['invalidInput'], $keyboard, 'HTML');
+        return;
+    }
+    $pn = (string) (json_decode($user['Processing_value'], true)['imp_panel'] ?? '');
+    $check = panelUserCached($pn, $input, 30);
+    if (($check['status'] ?? '') === 'Unsuccessful' || empty($check['username'])) {
+        sendmessage($from_id, $textbotlang['users']['importSub']['userNotFound'] ?? "❌ Couldn't find that username on the panel. Check it and try again.", $keyboard, 'HTML');
+        step('imp_username', $from_id);
+        return;
+    }
+    $importSub = importSubThresholdCheck($check, $setting, $textbotlang);
+    if (!$importSub['ok']) {
+        sendmessage($from_id, $importSub['msg'], $keyboard, 'HTML');
+        step('home', $from_id);
+        return;
+    }
+    importSubSubmitPending($from_id, $pn, $input, $importSub, $textbotlang, $setting);
+    step('home', $from_id);
+    sendmessage($from_id, $textbotlang['users']['importSub']['submitted'] ?? '✅ Submitted for approval. You will be notified once an admin reviews it.', $keyboard, 'HTML');
+} elseif ($user['step'] == "imp_url") {
+    $input = trim((string) $text);
+    if ($input === '' || !filter_var($input, FILTER_VALIDATE_URL) || stripos($input, 'http') !== 0) {
+        sendmessage($from_id, $textbotlang['users']['importSub']['invalidUrl'] ?? 'Please send a valid subscription URL.', $keyboard, 'HTML');
+        step('imp_url', $from_id);
+        return;
+    }
+    $pn = (string) (json_decode($user['Processing_value'], true)['imp_panel'] ?? '');
+    $out = importSubSubmitUrl($from_id, $pn, $input, $textbotlang, $setting);
+    step('home', $from_id);
+    sendmessage($from_id, $out, $keyboard, 'HTML');
 } elseif ($text != "" && $Chat_type == "private" && !in_array($from_id, $admin_ids)) {
     sendmessage($from_id, $textbotlang['users']['invalidCommand'], $keyboard, 'HTML');
 }
 if (in_array($from_id, $admin_ids))
     require_once 'admin.php';
 
+$perfRequest();
 $pdo = null;

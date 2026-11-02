@@ -211,6 +211,29 @@ To enable it, the bot owner needs a Telegram Premium subscription, or the bot mu
                 'sectionDisabled' => '📛 This section is currently disabled',
                 'selectoption' => 'Choose an option',
                 'invalidCommand' => 'Invalid command',
+                'importSub' => [
+                        'importedName' => 'Imported subscription',
+                        'intro' => '📥 Register a subscription you bought outside this bot so it is added to your services list. Admin approval is required.',
+                        'panelUsernameBtn' => '👤 Panel username',
+                        'subUrlBtn' => '🔗 Paste sub URL',
+                        'choosePanelThenUser' => 'Select the panel, then send the username on that panel:',
+                        'choosePanelThenUrl' => 'Select the panel, then send the subscription URL:',
+                        'askUsername' => '👤 Send the service username on this panel:',
+                        'askUrl' => '🔗 Send the full subscription URL:',
+                        'invalidUrl' => '❌ Please send a valid URL.',
+                        'userNotFound' => '❌ Username not found on the panel. Check it and try again.',
+                        'denied' => "❌ This subscription does not meet the import threshold. {why} Wait until it finishes and buy a new subscription from the bot.",
+                        'lowTraffic' => 'remaining traffic {traffic}GB is below the minimum {min}GB.',
+                        'lowDays' => 'remaining days {days} is below the minimum {min} days.',
+                        'submitted' => '✅ Submitted for approval. You will be notified once an admin reviews it.',
+                        'submittedUrl' => '✅ Submitted for approval. An admin will verify the URL and you will be notified.',
+                        'approvedNotify' => '✅ Your imported subscription was approved. It now appears under My Services.',
+                        'deniedNotify' => '❌ Your import request was not approved ({reason}). Please buy a new subscription from the bot.',
+                        'deniedDefault' => 'on admin review',
+                        'featureOff' => '❌ This feature is currently disabled.',
+                        'noPanel' => 'No panel currently accepts imported subscriptions.',
+                        'panelInvalid' => 'This panel no longer accepts imports; pick another.',
+                ],
                 'selectusername' => 'Send a custom username
 ⚠️ The username must not contain extra characters such as @, space, or hyphen. 
 ⚠️ The username must be in English.
@@ -1719,6 +1742,13 @@ Send the token above in the <code>Token</code> header of every request.',
                         'manageUser' => '👤 User management',
                         'managementPanel' => '✏️ Panel management',
                 ],
+                'importSub' => [
+                        'alreadyReviewed' => 'This request was already reviewed.',
+                        'approveGone' => 'User no longer found on the panel; request denied.',
+                        'noPending' => 'No pending import requests.',
+                        'pendingList' => '%d pending import requests:',
+                        'detail' => "Request #%d\nUser: %s\nPanel: %s\nSub: %s\nTraffic: %s · Days: %s",
+                ],
                 'card' => [
                         'askNumber' => '💳 Send your card number
 
@@ -2478,6 +2508,7 @@ Current amount: %s',
                         'btnErrors' => '❌ Error reports',
                         'btnFinancial' => '💰 Financial report',
                         'btnTickets' => '🎫 Support tickets',
+                        'btnImport' => '📥 Import sub requests',
                         'btnBackup' => '🤖 Bot backup ',
                         'btnOptimize' => '🗑 Optimize bot',
                         'optimizeWarning' => '❌❌❌❌❌❌❌ Read the text below carefully
@@ -2570,6 +2601,8 @@ Node status : %s
                         'panelDown' => '🚨 Dear admin, the panel named <code>%s</code> is not connected.',
                 ],
                 'reportgroup' => [
+                        'importRequest' => '📥 Import request #{rid} — user {user} wants to import sub «{sub}» on panel {panel} (traffic {traffic}, {days} days).',
+                        'importRequestUrl' => "📥 Import request #{rid} — user {user} pasted a sub URL on panel {panel}. Verify it, then approve/deny.",
                         'newUser' => '🎉 A new user started the bot
  Name: %s
 Username: @%s
@@ -3799,6 +3832,7 @@ After joining, click the check membership button',
     
 ',
                 'selectLocation' => '📌 Select the service location.',
+                'importSub' => '📥 Register my sub',
                 'sell' => '🔐 Buy subscription',
                 'starTelegram' => '💫 Star Telegram',
                 'support' => '☎️ Support',
@@ -3883,6 +3917,7 @@ We hope you had a good experience with the ease and speed of your service. If yo
                 'backToAdminMenu' => '🏠 Back to management menu',
                 'backToCardSettings' => '▶️ Back to card settings menu',
                 'backToMain' => 'Back to main menu',
+                'importSubPending' => '📥 Import sub requests',
                 'backToMainMenu' => '🔙 Back to main menu',
                 'backToMainMenu2' => '🏠 Back to main menu',
                 'backToNode' => '🔙 Back to node ',
