@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once 'vendor/autoload.php';
 require 'config.php';
 ini_set('error_log', 'error_log');
@@ -1318,8 +1318,16 @@ function DirectPayment($order_id, $image = 'images.jpg')
     $porsantreport = select("topicid", "idreport", "report", "porsantreport", "select")['idreport'];
     $setting = select("setting", "*");
     $Payment_report = select("Payment_report", "*", "id_order", $order_id, "select");
+    if (!is_array($Payment_report)) {
+        mirzaReportCriticalError('payment', 'order=' . $order_id . ' not found in DirectPayment; nothing delivered');
+        return;
+    }
     $format_price_cart = number_format($Payment_report['price']);
     $Balance_id = select("user", "*", "id", $Payment_report['id_user'], "select");
+    if (!is_array($Balance_id)) {
+        mirzaReportCriticalError('payment', 'order=' . $order_id . ' user=' . ($Payment_report['id_user'] ?? '') . ' not found in DirectPayment; nothing delivered');
+        return;
+    }
     $linkedOrder = paymentOrder($Payment_report['id_order']);
     $get_invoice = $linkedOrder['invoice'];
     $service_order = $linkedOrder['service'];
@@ -1360,7 +1368,7 @@ function DirectPayment($order_id, $image = 'images.jpg')
     clearSelectCache('user');
     if ($orderType == "buy") {
         $code_product_inv = trim((string) ($get_invoice['code_product'] ?? ''));
-        $isCustomVolumeInvoice = $get_invoice['name_product'] == $textbotlang['users']['customSellVolume']['btnVolume'] || $get_invoice['name_product'] == $textbotlang['users']['customSellVolume']['btnService'];
+        $isCustomVolumeInvoice = in_array($code_product_inv, ['customvolume', 'custom_volume'], true) || $get_invoice['name_product'] == $textbotlang['users']['customSellVolume']['btnVolume'] || $get_invoice['name_product'] == $textbotlang['users']['customSellVolume']['btnService'];
         if ($code_product_inv !== '') {
             $stmt = $pdo->prepare("SELECT * FROM product WHERE code_product = :code_product AND (Location = :Service_location OR Location = '/all') AND (agent = :agent OR agent = 'all') LIMIT 1");
             $stmt->bindParam(':code_product', $code_product_inv, PDO::PARAM_STR);
@@ -1427,7 +1435,15 @@ function DirectPayment($order_id, $image = 'images.jpg')
             return;
         }
         startBotDraft($Balance_id['id'], '⚙️ …');
-        $dataoutput = $ManagePanel->createUser($marzban_list_get['name_panel'], $info_product['code_product'], $username_ac, $datac);        if (!is_array($dataoutput) || empty($dataoutput['username'])) {
+        try {
+            $dataoutput = $ManagePanel->createUser($marzban_list_get['name_panel'], $info_product['code_product'], $username_ac, $datac);
+        } catch (\Throwable $e) {
+            update("invoice", "Status", $invoiceStatusBefore, "id_invoice", $get_invoice['id_invoice']);
+            addBalance($Balance_id['id'], $orderPrice);
+            mirzaMarkPaymentRefunded($order_id);
+            throw $e;
+        }
+        if (!is_array($dataoutput) || empty($dataoutput['username'])) {
             update("invoice", "Status", $invoiceStatusBefore, "id_invoice", $get_invoice['id_invoice']);
             $dataoutput['msg'] = json_encode($dataoutput['msg'] ?? $dataoutput ?? 'unknown error');
             addBalance($Balance_id['id'], $orderPrice);
@@ -1605,7 +1621,7 @@ function DirectPayment($order_id, $image = 'images.jpg')
         $usernamepanel = $service_order['username'];
         $codeproduct = $serviceParams['code_product'] ?? null;
         $marzban_list_get = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
-        if ($codeproduct == "custom_volume") {
+        if (in_array($codeproduct, ["custom_volume", "customvolume"], true)) {
             $prodcut['code_product'] = "custom_volume";
             $prodcut['name_product'] = $nameloc['name_product'];
             $prodcut['price_product'] = $service_order['price'];
@@ -1615,6 +1631,13 @@ function DirectPayment($order_id, $image = 'images.jpg')
             $stmt = $pdo->prepare("SELECT * FROM product WHERE (Location = :mp2 OR Location = '/all') AND agent= :mp3 AND code_product = :mp4");
             $stmt->execute([':mp2' => $nameloc['Service_location'], ':mp3' => $Balance_id['agent'], ':mp4' => $codeproduct]);
             $prodcut = $stmt->fetch(PDO::FETCH_ASSOC);
+        }
+        if (!is_array($nameloc) || !is_array($marzban_list_get) || !is_array($prodcut) || ($prodcut['code_product'] ?? '') === '') {
+            update("service_other", "status", "failed", "id", $service_order['id']);
+            addBalance($Balance_id['id'], $orderPrice);
+            mirzaMarkPaymentRefunded($order_id);
+            sendmessage($Balance_id['id'], $textbotlang['users']['sell']['errorConfig'] ?? 'Error', $keyboard, 'HTML');
+            return;
         }
         if ($nameloc['name_product'] == $textbotlang['common']['labels']['testServiceFn']) {
             update("invoice", "name_product", $prodcut['name_product'], "id_invoice", $nameloc['id_invoice']);
@@ -3466,6 +3489,15 @@ function mirzaMarkPaymentRefunded($orderId): void
     } catch (\Throwable $e) {
         error_log('Could not mark payment ' . $orderId . ' as refunded: ' . $e->getMessage());
     }
+}
+
+function mirzaPaymentWasRefunded($orderId): bool
+{
+    if ($orderId === null || $orderId === '') {
+        return false;
+    }
+    $row = select('Payment_report', 'refunded_at', 'id_order', $orderId, 'select');
+    return is_array($row) && !empty($row['refunded_at']);
 }
 
 function mirzaPaymentFailurePage(string $title = '', string $message = '', $orderId = ''): void

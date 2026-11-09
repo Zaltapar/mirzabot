@@ -123,6 +123,14 @@ while ($order = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
     if ($invoice && $invoiceStatus === 'unpaid') {
         $panelUser = $ManagePanel->DataUser($invoice['Service_location'], $invoice['username']);
+        $panelMsg = is_array($panelUser) ? (string) ($panelUser['msg'] ?? '') : '';
+        $panelIsNotFound = $panelMsg === 'User not found' || stripos($panelMsg, 'not found') !== false;
+        if (!is_array($panelUser) || (($panelUser['status'] ?? '') === 'Unsuccessful' && !$panelIsNotFound)) {
+            // Panel unreachable (e.g. "Could not resolve host") — do not refund yet,
+            // leave reconciled empty so the next cron run retries.
+            error_log('payment_reconcile: order=' . $orderId . ' panel ' . ($invoice['Service_location'] ?? '') . ' unreachable (' . $panelMsg . '); will retry next run');
+            continue;
+        }
         $userExists = is_array($panelUser)
             && ((($panelUser['status'] ?? '') !== 'Unsuccessful') || !empty($panelUser['username']));
 
@@ -178,6 +186,105 @@ while ($order = $stmt->fetch(PDO::FETCH_ASSOC)) {
         mirzaReportCriticalError(
             'payment-reconcile',
             'order=' . $orderId . ' was paid but never delivered; refunded ' . $amount . ' to wallet of user ' . $order['id_user'] . ' (invoice ' . $invoice['id_invoice'] . ', panel ' . $invoice['Service_location'] . ', username ' . $invoice['username'] . ')'
+        );
+        continue;
+    }
+
+    if ($service && $serviceStatus === 'unpaid') {
+        $serviceUsername = (string) ($service['username'] ?? '');
+        $hostInvoice = $invoice ?: select("invoice", "*", "username", $serviceUsername, "select");
+        $panelLocation = $hostInvoice ? ($hostInvoice['Service_location'] ?? null) : null;
+        $amount = intval($order['price']);
+        if ($amount <= 0 || intval($order['id_user']) <= 0) {
+            $markDelivered('manual', $orderId);
+            mirzaReportCriticalError('payment-reconcile', 'order=' . $orderId . ' paid but has invalid amount/user; manual review needed');
+            continue;
+        }
+        if (!$panelLocation || $serviceUsername === '') {
+            $markDelivered('manual', $orderId);
+            mirzaReportCriticalError('payment-reconcile', 'order=' . $orderId . ' paid but service ' . $serviceUsername . ' has no linked invoice to verify panel; manual review needed');
+            continue;
+        }
+        $panelUser = $ManagePanel->DataUser($panelLocation, $serviceUsername);
+        $panelMsg = is_array($panelUser) ? (string) ($panelUser['msg'] ?? '') : '';
+        $panelIsNotFound = $panelMsg === 'User not found' || stripos($panelMsg, 'not found') !== false;
+        if (!is_array($panelUser) || (($panelUser['status'] ?? '') === 'Unsuccessful' && !$panelIsNotFound)) {
+            error_log('payment_reconcile: order=' . $orderId . ' panel ' . $panelLocation . ' unreachable (' . $panelMsg . '); will retry next run');
+            continue;
+        }
+        $userExists = ($panelUser['status'] ?? '') !== 'Unsuccessful' || !empty($panelUser['username']);
+        if ($userExists) {
+            // The panel user exists. For extend_user we can tell whether the
+            // renewal was already applied by comparing with oldvolume/oldtime
+            // snapshots. For extra volume/time there is no snapshot, so keep manual.
+            $serviceType = (string) ($service['type'] ?? '');
+            if ($serviceType !== 'extend_user') {
+                $markDelivered('manual', $orderId);
+                mirzaReportCriticalError('payment-reconcile', 'order=' . $orderId . ' paid but the linked order type=' . $serviceType . ' status=' . $serviceStatus . ' exists on panel ' . $panelLocation . ' and cannot be auto-refunded; manual review needed');
+                continue;
+            }
+            $params = json_decode((string) ($service['value'] ?? ''), true) ?: [];
+            $oldVolume = $params['oldvolume'] ?? null;
+            $oldTime = $params['oldtime'] ?? null;
+            if (!is_numeric($oldVolume) || !is_numeric($oldTime)) {
+                $markDelivered('manual', $orderId);
+                mirzaReportCriticalError('payment-reconcile', 'order=' . $orderId . ' paid but service ' . $serviceUsername . ' on panel ' . $panelLocation . ' has no oldvolume/oldtime snapshot; manual review needed');
+                continue;
+            }
+            $newVolume = $panelUser['data_limit'] ?? null;
+            $newTime = $panelUser['expire'] ?? null;
+            $extensionApplied = (is_numeric($newVolume) && (float) $newVolume > (float) $oldVolume)
+                || (is_numeric($newTime) && (float) $newTime > (float) $oldTime);
+            if ($extensionApplied) {
+                try {
+                    $pdo->prepare("UPDATE service_other SET status = 'paid' WHERE id = ? AND status <> 'paid'")->execute([$service['id']]);
+                    if ($hostInvoice) {
+                        $pdo->prepare("UPDATE invoice SET Status = 'active' WHERE id_invoice = ? AND Status <> 'active'")->execute([$hostInvoice['id_invoice']]);
+                    }
+                    clearSelectCache('invoice');
+                    clearSelectCache('service_other');
+                } catch (Throwable $e) {
+                    mirzaReportCriticalError('payment-reconcile', 'order=' . $orderId . ' service=' . $service['id'] . ' could not activate: ' . $e->getMessage());
+                    $markDelivered('manual', $orderId);
+                    continue;
+                }
+                $markDelivered('recovered', $orderId);
+                mirzaReportCriticalError(
+                    'payment-reconcile',
+                    'order=' . $orderId . ' service=' . $service['id'] . ' user ' . $serviceUsername . ' on panel ' . $panelLocation . ' shows extended volume/expire but service was unpaid; service marked paid. Verify manually.'
+                );
+                continue;
+            }
+        }
+        // Not extended (or user missing on panel) — safe to refund gateway portion.
+        try {
+            $pdo->beginTransaction();
+            $claim = $pdo->prepare(
+                "UPDATE Payment_report SET refunded_at = ?, reconciled = 'refunded'
+                 WHERE id_order = ? AND (refunded_at IS NULL OR refunded_at = '')"
+            );
+            $claim->execute([date('Y/m/d H:i:s'), $orderId]);
+            if ($claim->rowCount() !== 1) {
+                $pdo->rollBack();
+                continue;
+            }
+            $pdo->prepare("UPDATE service_other SET status = 'failed' WHERE id = ? AND status = 'unpaid'")->execute([$service['id']]);
+            clearSelectCache('service_other');
+            addBalance($order['id_user'], $amount);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            mirzaReportCriticalError('payment-reconcile', 'order=' . $orderId . ' refund failed: ' . $e->getMessage());
+            continue;
+        }
+        $refundText = $textbotlang['paymentGateway']['deliveryFailedRefund']
+            ?? '⚠️ Your payment was received but the service could not be created. %s was refunded to your wallet.';
+        sendmessage($order['id_user'], sprintf($refundText, number_format($amount)), null, 'HTML');
+        mirzaReportCriticalError(
+            'payment-reconcile',
+            'order=' . $orderId . ' was paid but never delivered; refunded ' . $amount . ' to wallet of user ' . $order['id_user'] . ' (service ' . $service['id'] . ', type ' . ($service['type'] ?? '') . ', panel ' . $panelLocation . ', username ' . $serviceUsername . ')'
         );
         continue;
     }

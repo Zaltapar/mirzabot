@@ -190,10 +190,9 @@ try {
 }
 $pricecashback = select("PaySetting", "ValuePay", "NamePay", "chashbackiranpay2", "select")['ValuePay'];
 $Balance_id = select("user", "*", "id", $Payment_report['id_user'], "select");
-if ($pricecashback != "0") {
+if ($pricecashback != "0" && !mirzaPaymentWasRefunded($data_order_id)) {
     $result_cashback = ($Payment_report['price'] * $pricecashback) / 100;
-    $Balance_confrim = intval($Balance_id['Balance']) + $result_cashback;
-    update("user", "Balance", $Balance_confrim, "id", $Balance_id['id']);
+        addBalance($Balance_id['id'], $result_cashback);
     $pricecashback = number_format($pricecashback);
     $text_report = sprintf($textbotlang['paymentGateway']['giftReport'], $result_cashback);
     sendmessage($Balance_id['id'], $text_report, null, 'HTML');

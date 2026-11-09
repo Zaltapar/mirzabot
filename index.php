@@ -26,7 +26,7 @@ if ($is_bot)
 if (isset($update['chat_member'])) {
     $status = $update['chat_member']['new_chat_member']['status'];
     $from_id = $update['chat_member']['new_chat_member']['user']['id'];
-    $user = select("user", "id", $from_id);
+    $user = select("user", "id", "id", $from_id);
     $keyboard_channel_left = json_encode([
         'inline_keyboard' => [
             [
@@ -2030,11 +2030,11 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         ]);
         $prodcut = $stmt->fetch(PDO::FETCH_ASSOC);
     }
-    $pricelastextend = $prodcut['price_product'];
-    if ($prodcut == false || !in_array($nameloc['Status'], ['active', 'end_of_time', 'end_of_volume', 'sendedwarn', 'send_on_hold'])) {
+    if (!is_array($prodcut) || !in_array($nameloc['Status'] ?? '', ['active', 'end_of_time', 'end_of_volume', 'sendedwarn', 'send_on_hold'])) {
         sendmessage($from_id, $textbotlang['users']['extend']['error'], null, 'HTML');
         return;
     }
+    $pricelastextend = $prodcut['price_product'];
     trackUserAction($from_id, 'extend', (string) $prodcut['code_product'], (string) ($prodcut['name_product'] ?? ''));
     trackUserAction($from_id, 'duration', (string) $prodcut['Service_time']);
     if ($datain == "confirmserdiscount") {
@@ -5962,7 +5962,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $eextraprice = json_decode($marzban_list_get['pricecustomtime'], true);
         $customtimevalueprice = $eextraprice[$user['agent']];
         $codeproduct = $service_other['code_product'];
-        if ($codeproduct == "custom_volume") {
+        if (in_array($codeproduct, ["custom_volume", "customvolume"], true)) {
             $prodcut['code_product'] = "custom_volume";
             $prodcut['name_product'] = $nameloc['name_product'];
             $prodcut['price_product'] = ($service_other['volumebuy'] * $custompricevalue) + ($nameloc['Service_time'] * $customtimevalueprice);
@@ -6071,7 +6071,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $eextraprice = json_decode($marzban_list_get['pricecustomtime'], true);
         $customtimevalueprice = $eextraprice[$user['agent']];
         $codeproduct = $service_other['code_product'];
-        if ($codeproduct == "custom_volume") {
+        if (in_array($codeproduct, ["custom_volume", "customvolume"], true)) {
             $prodcut['code_product'] = "custom_volume";
             $prodcut['name_product'] = $nameloc['name_product'];
             $prodcut['price_product'] = ($service_other['volumebuy'] * $custompricevalue) + ($service_other['Service_time'] * $customtimevalueprice);
@@ -6964,9 +6964,8 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     }
     $pricecashback = select("PaySetting", "ValuePay", "NamePay", "chashbackstar", "select")['ValuePay'];
     $Balance_id = select("user", "*", "id", $Payment_report['id_user'], "select");
-    if ($pricecashback != "0") {
+    if ($pricecashback != "0" && !mirzaPaymentWasRefunded($Payment_report['id_order'])) {
         $result = ($Payment_report['price'] * $pricecashback) / 100;
-        $Balance_confrim = intval($Balance_id['Balance']) + $result;
         addBalance($Balance_id['id'], $result);
         $text_report = sprintf($textbotlang['users']['Discount']['gift-deposit'], $result);
         sendmessage($Balance_id['id'], $text_report, null, 'HTML');

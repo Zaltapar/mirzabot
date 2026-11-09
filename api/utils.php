@@ -142,7 +142,7 @@ function sanitizeRecursive($data)
         return array_map('sanitizeRecursive', $data);
     }
 
-    return is_string($data) ? htmlspecialchars(trim($data), ENT_QUOTES, 'UTF-8') : $data;
+    return is_string($data) ? trim($data) : $data;
 }
 
 function validateMethod($expected, $actual)

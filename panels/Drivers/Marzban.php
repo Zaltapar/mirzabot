@@ -150,10 +150,11 @@ class MarzbanPanelDriver extends BasePanelDriver
         $Output = $vars['Output'];
         $Get_Data_Panel = $vars['Get_Data_Panel'];
         $revoke_sub = revoke_sub($username, $name_panel);
-        if (isset($revoke_sub['detail']) && $revoke_sub['detail']) {
+        $revokeBody = is_array($revoke_sub) && isset($revoke_sub['body']) ? json_decode((string) $revoke_sub['body'], true) : null;
+        if (!is_array($revoke_sub) || !empty($revoke_sub['error']) || (isset($revoke_sub['status']) && $revoke_sub['status'] >= 400) || (is_array($revokeBody) && !empty($revokeBody['detail']))) {
             $Output = array(
                 'status' => 'Unsuccessful',
-                'msg' => $revoke_sub['detail']
+                'msg' => is_array($revokeBody) && !empty($revokeBody['detail']) ? $revokeBody['detail'] : (is_array($revoke_sub) ? ($revoke_sub['error'] ?? ('error code : ' . ($revoke_sub['status'] ?? 'unknown'))) : 'revoke failed')
             );
         } else {
             $Data_User = $this->DataUser($name_panel, $username);
@@ -184,11 +185,11 @@ class MarzbanPanelDriver extends BasePanelDriver
                 'msg' => $UsernameData['error']
             );
         }
-        $UsernameData = json_decode($UsernameData['body'], true);
-        if ($UsernameData['detail'] != "User successfully deleted") {
+        $UsernameData = json_decode((string) ($UsernameData['body'] ?? ''), true);
+        if (!is_array($UsernameData) || ($UsernameData['detail'] ?? '') != "User successfully deleted") {
             $Output = array(
                 'status' => 'Unsuccessful',
-                'msg' => $UsernameData['detail']
+                'msg' => is_array($UsernameData) ? ($UsernameData['detail'] ?? 'delete failed') : 'delete failed'
             );
         } else {
             $Output = array(
@@ -207,8 +208,11 @@ class MarzbanPanelDriver extends BasePanelDriver
         $config = $vars['config'];
         if ($Get_Data_Panel['version_panel'] == "1") {
             $result = getuser($username, $name_panel);
-            $result = json_decode($result['body'], true);
-            $config['proxy_settings'] = $result['proxy_settings'];
+            if (!is_array($result) || !empty($result['error']) || (isset($result['status']) && $result['status'] >= 400)) {
+                return array('status' => false, 'msg' => is_array($result) ? ($result['error'] ?? ('error code : ' . ($result['status'] ?? 'unknown'))) : 'getuser failed');
+            }
+            $result = json_decode((string) ($result['body'] ?? ''), true);
+            $config['proxy_settings'] = is_array($result) ? ($result['proxy_settings'] ?? null) : null;
         }
         $modify = Modifyuser($name_panel, $username, $config);
         if (!empty($modify['error'])) {
@@ -246,7 +250,10 @@ class MarzbanPanelDriver extends BasePanelDriver
             $status = "active";
         }
         $configs = array("status" => $status);
-        $this->Modifyuser($username, $name_panel, $configs);
+        $modify = $this->Modifyuser($username, $name_panel, $configs);
+        if (!is_array($modify) || ($modify['status'] ?? false) === false) {
+            return array('status' => 'Unsuccessful', 'msg' => is_array($modify) ? ($modify['msg'] ?? 'changeStatus failed') : 'changeStatus failed');
+        }
         $Output = array(
             'status' => 'successful',
             'msg' => null

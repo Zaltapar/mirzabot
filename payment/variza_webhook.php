@@ -114,12 +114,12 @@ try {
 
 // Cashback like every other gateway.
 $cashback = intval(getPaySettingValue('chashbackvariza', '0'));
-if ($cashback > 0) {
+if ($cashback > 0 && !mirzaPaymentWasRefunded($order_id)) {
     $buyer = select("user", "*", "id", $payment['id_user'], "select");
     if ($buyer) {
         $reward = intval($billed * $cashback / 100);
         if ($reward > 0) {
-            update("user", "Balance", intval($buyer['Balance']) + $reward, "id", $payment['id_user']);
+            addBalance($payment['id_user'], $reward);
             $text_gift = sprintf($textbotlang['paymentGateway']['giftReport'], $reward);
             sendmessage($payment['id_user'], $text_gift, null, 'HTML');
         }

@@ -39,7 +39,7 @@ foreach ($argvClean as $a) {
     }
 }
 
-$srcDir = rtrim(getcwd(), '/\\');
+$srcDir = __DIR__;
 $targetDir = $targetArg !== '' ? real_path_or_null($targetArg) : null;
 if ($targetDir === null) {
     $targetDir = $srcDir;

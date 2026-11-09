@@ -42,7 +42,10 @@ class ServiceMonitor
                 continue;
             $stmtCron->execute([time(), $invoice['id_invoice']]);
             clearSelectCache('invoice');
-            $check_send = json_decode($invoice['notifctions'], true);
+            $check_send = json_decode((string) ($invoice['notifctions'] ?? ''), true);
+            if (!is_array($check_send)) {
+                $check_send = ['volume' => false, 'time' => false];
+            }
             $data = $this->processInvoice($invoice);
             if (!is_array($data))
                 continue;

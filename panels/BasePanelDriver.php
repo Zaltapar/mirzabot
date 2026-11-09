@@ -79,10 +79,10 @@ abstract class BasePanelDriver
     protected function applyModify($username, $name_panel, $data)
     {
         $result = $this->manager->Modifyuser($username, $name_panel, $data);
-        if ($result['status'] == false) {
+        if (!is_array($result) || ($result['status'] ?? false) == false) {
             return array(
                 'status' => false,
-                'msg' => $result['msg']
+                'msg' => is_array($result) ? ($result['msg'] ?? 'Modifyuser failed') : 'Modifyuser failed'
             );
         }
         return $result;

@@ -181,7 +181,7 @@ function autoExtendResolveProduct($invoice, $user, $panel)
             $price = autoExtendCustomPrice($panel, $agent, (int) $reserved['volume'], (int) ($reserved['days'] ?? 0));
             if ($price !== null) {
                 return [
-                    'code_product' => 'customvolume',
+                    'code_product' => 'custom_volume',
                     'name_product' => $faLang['users']['customSellVolume']['title'] ?? 'Custom',
                     'Volume_constraint' => $reserved['volume'],
                     'Service_time' => $reserved['days'] ?? 0,
@@ -197,7 +197,7 @@ function autoExtendResolveProduct($invoice, $user, $panel)
             return 'gone';
         }
         return [
-            'code_product' => 'customvolume',
+            'code_product' => 'custom_volume',
             'name_product' => $faLang['users']['customSellVolume']['title'] ?? 'Custom',
             'Volume_constraint' => $invoice['Volume'],
             'Service_time' => $invoice['Service_time'],

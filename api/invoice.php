@@ -178,7 +178,7 @@ function inv_invoice_add(array $data, string $method): void
     requireFields($data, ['chat_id', 'username', 'code_product', 'location_code']);
 
     $data['username'] = strtolower($data['username']);
-    if ($data['code_product'] == "customvolume") {
+    if (in_array($data['code_product'], ["customvolume", "custom_volume"], true)) {
         if (!isset($data['time_service'], $data['volume_service']) || !is_numeric($data['time_service']) || !is_numeric($data['volume_service']))
             sendJsonResponse(false, "invalid value service time or volume", []);
         $product = [

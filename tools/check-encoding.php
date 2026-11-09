@@ -53,6 +53,12 @@ foreach ($iterator as $file) {
     }
 
     $hits = [];
+    if (str_starts_with($content, "\xEF\xBB\xBF")) {
+        $hits[] = 0;
+        echo 'encoding-bom: ' . $rel . ' starts with a UTF-8 BOM (headers already sent) ' . PHP_EOL;
+        $failures[] = ['file' => $rel, 'lines' => [0]];
+        continue;
+    }
     foreach (explode("\n", $content) as $lineno => $line) {
         if (preg_match($c1, $line)) {
             $hits[] = $lineno + 1;

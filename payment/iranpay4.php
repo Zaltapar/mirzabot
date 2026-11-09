@@ -113,10 +113,10 @@ $statement->execute();
 $buyer = select("user", "*", "id", $payment['id_user'], "select");
 
 $cashback = intval(getPaySettingValue('chashbackiranpay4', '0'));
-if ($cashback > 0 && $buyer) {
+if ($cashback > 0 && $buyer && !mirzaPaymentWasRefunded($order_id)) {
     $reward = intval($price * $cashback / 100);
     if ($reward > 0) {
-        update("user", "Balance", intval($buyer['Balance']) + $reward, "id", $payment['id_user']);
+        addBalance($payment['id_user'], $reward);
         sendmessage(
             $buyer['id'],
             sprintf($textbotlang['paymentGateway']['giftReport'], number_format($reward)),

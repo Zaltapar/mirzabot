@@ -47,7 +47,7 @@ class ManagePanel
         } else {
             $invoice = false;
         }
-        if (!in_array($code_product, ["usertest", $textbotlang['users']['customSellVolume']['btnVolume'], "customvolume"])) {
+        if (!in_array($code_product, ["usertest", $textbotlang['users']['customSellVolume']['btnVolume'], "customvolume", "custom_volume"], true)) {
 
             $stmt = $pdo->prepare("SELECT * FROM product WHERE (Location = :name_panel OR Location = '/all')  AND code_product = :code_product");
             $stmt->bindParam(':name_panel', $name_panel);
@@ -103,6 +103,9 @@ class ManagePanel
     {
         $Output = array();
         $Get_Data_Panel = select("marzban_panel", "*", "name_panel", $name_panel, "select");
+        if (!$Get_Data_Panel || !is_array($Get_Data_Panel)) {
+            return array('status' => 'Unsuccessful', 'msg' => 'Panel Not Found');
+        }
         $driver = PanelRegistry::driver($Get_Data_Panel['type'], $this);
         if ($driver !== null && ($result = $driver->revokeSub(get_defined_vars())) !== BasePanelDriver::UNSUPPORTED) {
             return $this->splitWireguardLinks($Get_Data_Panel, $result);
@@ -117,6 +120,9 @@ class ManagePanel
     {
         $Output = array();
         $Get_Data_Panel = select("marzban_panel", "*", "name_panel", $name_panel, "select");
+        if (!$Get_Data_Panel || !is_array($Get_Data_Panel)) {
+            return array('status' => 'Unsuccessful', 'msg' => 'Panel Not Found');
+        }
         $driver = PanelRegistry::driver($Get_Data_Panel['type'], $this);
         if ($driver !== null && ($result = $driver->remove(get_defined_vars())) !== BasePanelDriver::UNSUPPORTED) {
             return $result;
@@ -130,19 +136,26 @@ class ManagePanel
     function Modifyuser($username, $name_panel, $config = array())
     {
         $Get_Data_Panel = select("marzban_panel", "*", "name_panel", $name_panel, "select");
+        if (!$Get_Data_Panel || !is_array($Get_Data_Panel)) {
+            return array('status' => false, 'msg' => 'Panel Not Found');
+        }
         $driver = PanelRegistry::driver($Get_Data_Panel['type'], $this);
         if ($driver !== null && ($result = $driver->modify(get_defined_vars())) !== BasePanelDriver::UNSUPPORTED) {
             return $result;
         }
+        return array('status' => false, 'msg' => 'Panel Not Found');
     }
     function Change_status($username, $name_panel)
     {
         $DataUserOut = $this->DataUser($name_panel, $username);
         $Get_Data_Panel = select("marzban_panel", "*", "name_panel", $name_panel, "select");
-        if ($DataUserOut['status'] == "Unsuccessful") {
+        if (!$Get_Data_Panel || !is_array($Get_Data_Panel)) {
+            return array('status' => 'Unsuccessful', 'msg' => 'Panel Not Found');
+        }
+        if (!is_array($DataUserOut) || ($DataUserOut['status'] ?? '') == "Unsuccessful") {
             return array(
                 'status' => 'Unsuccessful',
-                'msg' => $DataUserOut['msg']
+                'msg' => is_array($DataUserOut) ? ($DataUserOut['msg'] ?? 'user not found') : 'user not found'
             );
         }
         if (!in_array($DataUserOut['status'], ["active", "disabled"])) {
@@ -156,7 +169,7 @@ class ManagePanel
             return $result;
         }
 
-        return $Output;
+        return array('status' => 'Unsuccessful', 'msg' => 'Panel Not Found');
     }
     function ResetUserDataUsage($username, $name_panel)
     {
@@ -171,32 +184,35 @@ class ManagePanel
         if ($driver !== null && ($result = $driver->resetUsage(get_defined_vars())) !== BasePanelDriver::UNSUPPORTED) {
             return $result;
         }
+        return array('status' => false, 'msg' => 'Panel Not Found');
     }
     function extend($Method_extend, $new_limit, $time_day, $username, $code_product, $name_panel)
     {
         $panel = select("marzban_panel", "*", "code_panel", $name_panel, "select");
         $product = select("product", "*", "code_product", $code_product, "select");
         $invoice = select("invoice", "*", "username", $username, "select");
-        if ($code_product == "custom_volume")
+        if (in_array($code_product, ["custom_volume", "customvolume"], true))
             $product = true;
-        if ($panel == false || $product == false) {
+        if ($panel == false || $product == false || !is_array($invoice)) {
             return array(
                 'status' => false,
                 'msg' => 'data not found'
             );
         }
         $data_user = $this->DataUser($panel['name_panel'], $username);
-        if ($data_user['status'] == "Unsuccessful") {
+        if (!is_array($data_user) || ($data_user['status'] ?? '') == "Unsuccessful") {
             return array(
                 'status' => false,
-                'msg' => $data_user['msg']
+                'msg' => is_array($data_user) ? ($data_user['msg'] ?? 'user not found') : 'user not found'
             );
         }
         $notifctions = json_encode(array(
             'volume' => false,
             'time' => false,
         ));
-        update("invoice", "notifctions", $notifctions, 'id_invoice', $invoice['id_invoice']);
+        if (!empty($invoice['id_invoice'])) {
+            update("invoice", "notifctions", $notifctions, 'id_invoice', $invoice['id_invoice']);
+        }
         $data_limit_old = $data_user['data_limit'];
         $time_old = $data_user['expire'];
         $time_old = time() - $time_old > 0 ? time() : $time_old;
@@ -217,10 +233,10 @@ class ManagePanel
         $Method_extend = extendMethodKey($Method_extend);
         if ($Method_extend == "resetVolumeTime") {
             $reset = $this->ResetUserDataUsage($username, $panel['name_panel']);
-            if ($reset['status'] == false) {
+            if (!is_array($reset) || ($reset['status'] ?? false) == false) {
                 return array(
                     'status' => false,
-                    'msg' => 'error reset : ' . $reset['msg']
+                    'msg' => 'error reset : ' . (is_array($reset) ? ($reset['msg'] ?? 'reset failed') : 'reset failed')
                 );
             }
         } elseif ($Method_extend == "addTimeVolumeNextMonth") {
@@ -230,19 +246,19 @@ class ManagePanel
             $data_limit_new = $data_limit_new_add;
         } elseif ($Method_extend == "resetVolumeAddTime") {
             $reset = $this->ResetUserDataUsage($username, $panel['name_panel']);
-            if ($reset['status'] == false) {
+            if (!is_array($reset) || ($reset['status'] ?? false) == false) {
                 return array(
                     'status' => false,
-                    'msg' => 'error reset : ' . $reset['msg']
+                    'msg' => 'error reset : ' . (is_array($reset) ? ($reset['msg'] ?? 'reset failed') : 'reset failed')
                 );
             }
             $time_new = $time_new_add;
         } elseif ($Method_extend == "addTimeConvertVolume") {
             $reset = $this->ResetUserDataUsage($username, $panel['name_panel']);
-            if ($reset['status'] == false) {
+            if (!is_array($reset) || ($reset['status'] ?? false) == false) {
                 return array(
                     'status' => false,
-                    'msg' => 'error reset : ' . $reset['msg']
+                    'msg' => 'error reset : ' . (is_array($reset) ? ($reset['msg'] ?? 'reset failed') : 'reset failed')
                 );
             }
             $time_new = $time_new_add;
@@ -254,11 +270,12 @@ class ManagePanel
         if ($driver !== null && ($result = $driver->extendService(get_defined_vars())) !== BasePanelDriver::UNSUPPORTED) {
             return $result;
         }
+        $data = array('data_limit' => $data_limit_new, 'expire' => $time_new, 'inbounds' => $inbounds, 'inbound_id' => $inbound_id);
         $extend = $this->Modifyuser($username, $panel['name_panel'], $data);
-        if ($extend['status'] == false) {
+        if (!is_array($extend) || ($extend['status'] ?? false) == false) {
             return array(
                 'status' => false,
-                'msg' => $extend['msg']
+                'msg' => is_array($extend) ? ($extend['msg'] ?? 'Modifyuser failed') : 'Modifyuser failed'
             );
         }
         return $extend;
@@ -267,23 +284,28 @@ class ManagePanel
     {
         $panel = select("marzban_panel", "*", "code_panel", $code_panel, "select");
         $invoice = select("invoice", "*", "username", $username_account, "select");
-        if ($panel == false) {
+        if ($panel == false || !is_array($invoice)) {
             return array(
                 'status' => false,
                 'msg' => 'data not found'
             );
         }
-        $notif_value = json_decode($invoice['notifctions'], true);
+        $notif_value = json_decode((string) ($invoice['notifctions'] ?? ''), true);
+        if (!is_array($notif_value)) {
+            $notif_value = array('volume' => false, 'time' => false);
+        }
         $notifctions = json_encode(array(
             'volume' => false,
-            'time' => $notif_value['time'],
+            'time' => $notif_value['time'] ?? false,
         ));
-        update("invoice", "notifctions", $notifctions, 'id_invoice', $invoice['id_invoice']);
+        if (!empty($invoice['id_invoice'])) {
+            update("invoice", "notifctions", $notifctions, 'id_invoice', $invoice['id_invoice']);
+        }
         $user_info = $this->DataUser($panel['name_panel'], $username_account);
-        if ($user_info['status'] == "Unsuccessful") {
+        if (!is_array($user_info) || ($user_info['status'] ?? '') == "Unsuccessful") {
             return array(
                 'status' => false,
-                'msg' => $user_info['msg']
+                'msg' => is_array($user_info) ? ($user_info['msg'] ?? 'user not found') : 'user not found'
             );
         }
         $old_limit_volume = $user_info['data_limit'];
@@ -299,11 +321,12 @@ class ManagePanel
         if ($driver !== null && ($result = $driver->extraVolume(get_defined_vars())) !== BasePanelDriver::UNSUPPORTED) {
             return $result;
         }
+        $data = array('data_limit' => $new_limit, 'inbounds' => $inbounds, 'inbound_id' => $inbound_id);
         $extra_volume = $this->Modifyuser($username_account, $panel['name_panel'], $data);
-        if ($extra_volume['status'] == false) {
+        if (!is_array($extra_volume) || ($extra_volume['status'] ?? false) == false) {
             return array(
                 'status' => false,
-                'msg' => $extra_volume['msg']
+                'msg' => is_array($extra_volume) ? ($extra_volume['msg'] ?? 'Modifyuser failed') : 'Modifyuser failed'
             );
         }
         return $extra_volume;
@@ -312,23 +335,28 @@ class ManagePanel
     {
         $panel = select("marzban_panel", "*", "code_panel", $code_panel, "select");
         $invoice = select("invoice", "*", "username", $username_account, "select");
-        if ($panel == false) {
+        if ($panel == false || !is_array($invoice)) {
             return array(
                 'status' => false,
                 'msg' => 'data not found'
             );
         }
-        $notif_value = json_decode($invoice['notifctions'], true);
+        $notif_value = json_decode((string) ($invoice['notifctions'] ?? ''), true);
+        if (!is_array($notif_value)) {
+            $notif_value = array('volume' => false, 'time' => false);
+        }
         $notifctions = json_encode(array(
-            'volume' => $notif_value['volume'],
+            'volume' => $notif_value['volume'] ?? false,
             'time' => false,
         ));
-        update("invoice", "notifctions", $notifctions, 'id_invoice', $invoice['id_invoice']);
+        if (!empty($invoice['id_invoice'])) {
+            update("invoice", "notifctions", $notifctions, 'id_invoice', $invoice['id_invoice']);
+        }
         $user_info = $this->DataUser($panel['name_panel'], $username_account);
-        if ($user_info['status'] == "Unsuccessful") {
+        if (!is_array($user_info) || ($user_info['status'] ?? '') == "Unsuccessful") {
             return array(
                 'status' => false,
-                'msg' => $user_info['msg']
+                'msg' => is_array($user_info) ? ($user_info['msg'] ?? 'user not found') : 'user not found'
             );
         }
         $old_limit_time = $user_info['expire'];
@@ -345,11 +373,12 @@ class ManagePanel
         if ($driver !== null && ($result = $driver->extraTime(get_defined_vars())) !== BasePanelDriver::UNSUPPORTED) {
             return $result;
         }
+        $data = array('expire' => $new_limit, 'inbounds' => $inbounds, 'inbound_id' => $inbound_id);
         $extra_time = $this->Modifyuser($username_account, $panel['name_panel'], $data);
-        if ($extra_time['status'] == false) {
+        if (!is_array($extra_time) || ($extra_time['status'] ?? false) == false) {
             return array(
                 'status' => false,
-                'msg' => $extra_time['msg']
+                'msg' => is_array($extra_time) ? ($extra_time['msg'] ?? 'Modifyuser failed') : 'Modifyuser failed'
             );
         }
         return $extra_time;

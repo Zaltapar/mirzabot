@@ -26,7 +26,7 @@ function statusplisio($tx_id)
     }
     return json_decode($response, true);
 }
-$list_service = $pdo->prepare("SELECT * FROM Payment_report WHERE payment_Status = 'Unpaid' AND Payment_Method = 'plisio'");
+$list_service = $pdo->prepare("SELECT * FROM Payment_report WHERE payment_Status = 'Unpaid' AND Payment_Method = 'plisio' ORDER BY time ASC LIMIT 20");
 $list_service->execute();
 $textbotlang = languagechange();
 $statusCheck = $pdo->prepare("SELECT payment_Status FROM Payment_report WHERE id_order = ? LIMIT 1");
@@ -60,10 +60,9 @@ while ($Payment_report = ($list_service)->fetch(PDO::FETCH_ASSOC)) {
         $__q18->bindValue(1, $Payment_report['id_user'], PDO::PARAM_STR);
         $__q18->execute();
         $Balance_id = $__q18->fetch(PDO::FETCH_ASSOC);
-        if ($pricecashback != "0") {
+        if ($pricecashback != "0" && !mirzaPaymentWasRefunded($Payment_report['id_order'])) {
             $result = ($Payment_report['price'] * $pricecashback) / 100;
-            $Balance_confrim = intval($Balance_id['Balance']) + $result;
-            update("user", "Balance", $Balance_confrim, "id", $Balance_id['id']);
+            addBalance($Balance_id['id'], $result);
             $pricecashback = number_format($pricecashback);
             $text_report = sprintf($textbotlang['users']['Balance']['giftDepositPlisio'], $result);
             sendmessage($Balance_id['id'], $text_report, null, 'HTML');

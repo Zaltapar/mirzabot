@@ -195,9 +195,7 @@ class HiddifyPanelDriver extends BasePanelDriver
 
     public function resetUsage(array $vars)
     {
-        return array(
-            'status' => true
-        );
+        return array('status' => false, 'msg' => 'reset not supported on hiddify panels');
     }
 
     public function extendService(array $vars)

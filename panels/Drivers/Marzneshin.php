@@ -99,7 +99,7 @@ class MarzneshinPanelDriver extends BasePanelDriver
                     $UsernameData['status'] = "expired";
                 }
                 if (($UsernameData['data_limit'] - $UsernameData['used_traffic'] <= 0) and $UsernameData['data_limit'] != null) {
-                    $UsernameData['status'] = "limtied";
+                    $UsernameData['status'] = "limited";
                 }
                 $UsernameData['links'] = outputlink($UsernameData['subscription_url']);
                 if (isBase64($UsernameData['links'])) {
@@ -141,10 +141,11 @@ class MarzneshinPanelDriver extends BasePanelDriver
         $name_panel = $vars['name_panel'];
         $Output = $vars['Output'];
         $revoke_sub = revoke_subm($username, $name_panel);
-        if (isset($revoke_sub['detail']) && $revoke_sub['detail']) {
+        $revokeBody = is_array($revoke_sub) && isset($revoke_sub['body']) && is_string($revoke_sub['body']) ? json_decode($revoke_sub['body'], true) : null;
+        if (!is_array($revoke_sub) || !empty($revoke_sub['error']) || (isset($revoke_sub['status']) && $revoke_sub['status'] >= 400) || (is_array($revokeBody) && !empty($revokeBody['detail']))) {
             $Output = array(
                 'status' => 'Unsuccessful',
-                'msg' => $revoke_sub['detail']
+                'msg' => is_array($revokeBody) && !empty($revokeBody['detail']) ? $revokeBody['detail'] : (is_array($revoke_sub) ? ($revoke_sub['error'] ?? ('error code : ' . ($revoke_sub['status'] ?? 'unknown'))) : 'revoke failed')
             );
         } else {
             $Data_User = $this->DataUser($name_panel, $username);

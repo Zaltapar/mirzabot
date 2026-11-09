@@ -49,7 +49,7 @@ return static function (PDO $pdo, Schema $schema): void {
             continue;
         }
         if ($idPayment['COLLATION_NAME'] !== $idOrder['COLLATION_NAME']) {
-            $run("$table:collation", "ALTER TABLE `$table` MODIFY `id_payment` VARCHAR(20) CHARACTER SET {$idOrder['CHARACTER_SET_NAME']} COLLATE {$idOrder['COLLATION_NAME']} NULL");
+            $run("$table:collation", "ALTER TABLE `$table` MODIFY `id_payment` VARCHAR(80) CHARACTER SET {$idOrder['CHARACTER_SET_NAME']} COLLATE {$idOrder['COLLATION_NAME']} NULL");
         }
         if (!$indexExists($table, $indexName)) {
             $run("$table:index", "ALTER TABLE `$table` ADD INDEX `$indexName` (`id_payment`)");

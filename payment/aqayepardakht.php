@@ -72,10 +72,9 @@ if (is_object($result) && $result->code == "1") {
     $__q16->bindValue(1, $Payment_report['id_user'], PDO::PARAM_STR);
     $__q16->execute();
     $Balance_id = $__q16->fetch(PDO::FETCH_ASSOC);
-    if($pricecashback != "0"){
+    if($pricecashback != "0" && !mirzaPaymentWasRefunded($invoice_id)){
         $result = ($Payment_report['price'] * $pricecashback) / 100;
-        $Balance_confrim = intval($Balance_id['Balance']) +$result;
-        update("user","Balance",$Balance_confrim, "id",$Balance_id['id']); 
+        addBalance($Balance_id['id'], $result);
         $pricecashback =  number_format($pricecashback);
         $text_report = sprintf($textbotlang['paymentGateway']['giftReport'], $result);
         sendmessage($Balance_id['id'], $text_report, null, 'HTML');
