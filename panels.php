@@ -193,7 +193,7 @@ class ManagePanel
         $invoice = select("invoice", "*", "username", $username, "select");
         if (in_array($code_product, ["custom_volume", "customvolume"], true))
             $product = true;
-        if ($panel == false || $product == false || !is_array($invoice)) {
+        if ($panel == false || $product == false) {
             return array(
                 'status' => false,
                 'msg' => 'data not found'
@@ -284,7 +284,7 @@ class ManagePanel
     {
         $panel = select("marzban_panel", "*", "code_panel", $code_panel, "select");
         $invoice = select("invoice", "*", "username", $username_account, "select");
-        if ($panel == false || !is_array($invoice)) {
+        if ($panel == false) {
             return array(
                 'status' => false,
                 'msg' => 'data not found'
@@ -335,7 +335,7 @@ class ManagePanel
     {
         $panel = select("marzban_panel", "*", "code_panel", $code_panel, "select");
         $invoice = select("invoice", "*", "username", $username_account, "select");
-        if ($panel == false || !is_array($invoice)) {
+        if ($panel == false) {
             return array(
                 'status' => false,
                 'msg' => 'data not found'

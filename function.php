@@ -1620,30 +1620,34 @@ function DirectPayment($order_id, $image = 'images.jpg')
         $balanceformatsell = number_format(select("user", "Balance", "id", $Balance_id['id'], "select")['Balance'], 0);
         $usernamepanel = $service_order['username'];
         $codeproduct = $serviceParams['code_product'] ?? null;
-        $marzban_list_get = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
+        if (!is_array($nameloc)) {
+            $nameloc = array('username' => $service_order['username'], 'Service_location' => null, 'name_product' => null, 'id_invoice' => null);
+        }
+        $marzban_list_get = is_array($nameloc) && !empty($nameloc['Service_location']) ? select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select") : null;
         if (in_array($codeproduct, ["custom_volume", "customvolume"], true)) {
             $prodcut['code_product'] = "custom_volume";
-            $prodcut['name_product'] = $nameloc['name_product'];
+            $prodcut['name_product'] = $nameloc['name_product'] ?? $service_order['username'];
             $prodcut['price_product'] = $service_order['price'];
-            $prodcut['Service_time'] = $serviceParams['Service_time'];
-            $prodcut['Volume_constraint'] = $serviceParams['volumebuy'];
+            $prodcut['Service_time'] = $serviceParams['Service_time'] ?? 0;
+            $prodcut['Volume_constraint'] = $serviceParams['volumebuy'] ?? 0;
         } else {
             $stmt = $pdo->prepare("SELECT * FROM product WHERE (Location = :mp2 OR Location = '/all') AND agent= :mp3 AND code_product = :mp4");
             $stmt->execute([':mp2' => $nameloc['Service_location'], ':mp3' => $Balance_id['agent'], ':mp4' => $codeproduct]);
             $prodcut = $stmt->fetch(PDO::FETCH_ASSOC);
         }
-        if (!is_array($nameloc) || !is_array($marzban_list_get) || !is_array($prodcut) || ($prodcut['code_product'] ?? '') === '') {
+        if (!is_array($marzban_list_get) || !is_array($prodcut) || ($prodcut['code_product'] ?? '') === '') {
             update("service_other", "status", "failed", "id", $service_order['id']);
             addBalance($Balance_id['id'], $orderPrice);
             mirzaMarkPaymentRefunded($order_id);
             sendmessage($Balance_id['id'], $textbotlang['users']['sell']['errorConfig'] ?? 'Error', $keyboard, 'HTML');
             return;
         }
-        if ($nameloc['name_product'] == $textbotlang['common']['labels']['testServiceFn']) {
-            update("invoice", "name_product", $prodcut['name_product'], "id_invoice", $nameloc['id_invoice']);
-            update("invoice", "price_product", $prodcut['price_product'], "id_invoice", $nameloc['id_invoice']);
+        if (is_array($nameloc) && $nameloc['name_product'] == $textbotlang['common']['labels']['testServiceFn']) {
+            if (is_array($nameloc) && !empty($nameloc['id_invoice'])) { update("invoice", "name_product", $prodcut['name_product'], "id_invoice", $nameloc['id_invoice']); }
+            if (is_array($nameloc) && !empty($nameloc['id_invoice'])) { update("invoice", "price_product", $prodcut['price_product'], "id_invoice", $nameloc['id_invoice']); }
         }
-        $extend = $ManagePanel->extend($marzban_list_get['Methodextend'], $prodcut['Volume_constraint'], $prodcut['Service_time'], $nameloc['username'], $prodcut['code_product'], $marzban_list_get['code_panel']);
+        $extendUsername = is_array($nameloc) ? ($nameloc['username'] ?? $service_order['username']) : $service_order['username'];
+        $extend = $ManagePanel->extend($marzban_list_get['Methodextend'], $prodcut['Volume_constraint'], $prodcut['Service_time'], $extendUsername, $prodcut['code_product'], $marzban_list_get['code_panel']);
         if ($extend['status'] == false) {
             update("service_other", "output", json_encode($extend), "id", $service_order['id']);
             update("service_other", "status", "failed", "id", $service_order['id']);
