@@ -18,7 +18,10 @@ $textbotlang = languagechange();
         $get_username_Check = $ManagePanel->DataUser($result['Service_location'],$result['username']);
         if (!is_array($get_username_Check)) continue;
     if (!in_array($get_username_Check['status'],['active','on_hold',"Unsuccessful","disabled"])) {
-            $ManagePanel->RemoveUser($result['Service_location'],$resultt);
+            $removeResult = $ManagePanel->RemoveUser($result['Service_location'],$resultt);
+            if (is_array($removeResult) && ($removeResult['status'] ?? '') === 'Unsuccessful') {
+                continue;
+            }
         update("invoice","status","disabled","username",$resultt);
         if(intval($user['status_cron']) != 0){
          $Response = json_encode([

@@ -19,8 +19,13 @@ if(!is_file('username.json'))return;
 
 
 $userid = json_decode(file_get_contents('username.json'));
+if (!is_array($userid)) {
+    $userid = [];
+}
+$info = [];
 if(is_file('gift')){
-$info = json_decode(file_get_contents('gift'),true);
+$decodedInfo = json_decode(file_get_contents('gift'),true);
+$info = is_array($decodedInfo) ? $decodedInfo : [];
 }
 $count = 0;
 if(count($userid) == 0){

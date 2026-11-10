@@ -108,7 +108,20 @@ if ($isValidExport) {
         $sheet->setTitle(mb_substr($export['table'], 0, 30, 'UTF-8'));
         $sheet->fromArray($export['headers'], null, 'A1');
         if ($rows) {
-            $sheet->fromArray($rows, null, 'A2');
+            // Neutralise CSV/Excel formula injection: any user-controlled cell
+            // beginning with = + - @ is prefixed with an apostrophe.
+            $safeRows = [];
+            foreach ($rows as $row) {
+                $safeRow = [];
+                foreach ((array) $row as $cell) {
+                    if (is_string($cell) && $cell !== '' && in_array($cell[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+                        $cell = "'" . $cell;
+                    }
+                    $safeRow[] = $cell;
+                }
+                $safeRows[] = $safeRow;
+            }
+            $sheet->fromArray($safeRows, null, 'A2');
         }
         $lastCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($export['headers']));
         $sheet->getStyle("A1:{$lastCol}1")->getFont()->setBold(true);

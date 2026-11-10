@@ -195,7 +195,10 @@ class HiddifyPanelDriver extends BasePanelDriver
 
     public function resetUsage(array $vars)
     {
-        return array('status' => false, 'msg' => 'reset not supported on hiddify panels');
+        // Hiddify has no standalone reset endpoint; extendService() resets
+        // usage when the method requires it. Report success so the pre-extend
+        // reset step in ManagePanel::extend() does not block renewals.
+        return array('status' => true, 'msg' => 'reset handled by extendService');
     }
 
     public function extendService(array $vars)
@@ -223,8 +226,11 @@ class HiddifyPanelDriver extends BasePanelDriver
         $panel = $vars['panel'];
         $new_limit = $vars['new_limit'];
         $datauser = getdatauser($username_account, $panel['name_panel']);
+        if (!is_array($datauser) || empty($datauser['uuid'])) {
+            return array('status' => false, 'msg' => 'user not found on panel');
+        }
         $data = array(
-            "current_usage_GB" => $datauser['current_usage_GB'],
+            "current_usage_GB" => $datauser['current_usage_GB'] ?? 0,
             "usage_limit_GB" => $new_limit / pow(1024, 3),
         );
         return $this->applyModify($username_account, $panel['name_panel'], $data);
@@ -237,9 +243,12 @@ class HiddifyPanelDriver extends BasePanelDriver
         $limit_time_new = $vars['limit_time_new'];
         $new_limit = $vars['new_limit'];
         $datauser = getdatauser($username_account, $panel['name_panel']);
+        if (!is_array($datauser) || empty($datauser['uuid'])) {
+            return array('status' => false, 'msg' => 'user not found on panel');
+        }
         $data = array(
-            "current_usage_GB" => $datauser['current_usage_GB'],
-            "usage_limit_GB" => $datauser['usage_limit_GB'],
+            "current_usage_GB" => $datauser['current_usage_GB'] ?? 0,
+            "usage_limit_GB" => $datauser['usage_limit_GB'] ?? 0,
             "package_days" => $limit_time_new == 0 ? 0 : ($new_limit - time()) / 86400,
             "start_date" => null
         );

@@ -223,13 +223,19 @@ class ManagePanel
         $time_new_add = $time_day == 0 ? 0 : $time_old + ($time_day * 86400);
         //inboud and proxies 
         $inbound_id = isset($panel['inboundid']) ? $panel['inboundid'] : 1;
-        $inbounds = is_string($panel['inbounds']) ? json_decode($panel['inbounds']) : "{}";
+        $inbounds = is_string($panel['inbounds'] ?? null) ? json_decode($panel['inbounds']) : "{}";
         $inbounds = is_array($product) && ($product['inbounds'] ?? null) != null ? json_decode($product['inbounds']) : $inbounds;
-        if ($panel['type'] != "WGDashboard") {
-            update("invoice", 'user_info', null, "username", $username);
-        }
-        update("invoice", 'uuid', null, "username", $username);
-        update("invoice", 'Status', "active", "username", $username);
+        // Apply invoice mutations only after the panel confirms the extension,
+        // so a failed extend does not leave the service marked active.
+        $markInvoiceExtended = function () use ($panel, $username): void {
+            if (!empty($username)) {
+                if ($panel['type'] != "WGDashboard") {
+                    update("invoice", 'user_info', null, "username", $username);
+                }
+                update("invoice", 'uuid', null, "username", $username);
+                update("invoice", 'Status', "active", "username", $username);
+            }
+        };
         $Method_extend = extendMethodKey($Method_extend);
         if ($Method_extend == "resetVolumeTime") {
             $reset = $this->ResetUserDataUsage($username, $panel['name_panel']);
@@ -268,6 +274,9 @@ class ManagePanel
         }
         $driver = PanelRegistry::driver($panel['type'], $this);
         if ($driver !== null && ($result = $driver->extendService(get_defined_vars())) !== BasePanelDriver::UNSUPPORTED) {
+            if (is_array($result) && ($result['status'] ?? false) != false) {
+                $markInvoiceExtended();
+            }
             return $result;
         }
         $data = array('data_limit' => $data_limit_new, 'expire' => $time_new, 'inbounds' => $inbounds, 'inbound_id' => $inbound_id);
@@ -278,6 +287,7 @@ class ManagePanel
                 'msg' => is_array($extend) ? ($extend['msg'] ?? 'Modifyuser failed') : 'Modifyuser failed'
             );
         }
+        $markInvoiceExtended();
         return $extend;
     }
     function extra_volume($username_account, $code_panel, $limit_volume_new)
@@ -311,14 +321,21 @@ class ManagePanel
         $old_limit_volume = $user_info['data_limit'];
         $new_limit = $limit_volume_new == 0 ? 0 : ($limit_volume_new * pow(1024, 3)) + $old_limit_volume;
         $inbound_id = isset($panel['inboundid']) ? $panel['inboundid'] : 1;
-        $inbounds = is_string($panel['inbounds']) ? json_decode($panel['inbounds']) : "{}";
-        if ($panel['type'] != "WGDashboard") {
-            update("invoice", 'user_info', null, "username", $username_account);
-        }
-        update("invoice", 'uuid', null, "username", $username_account);
-        update("invoice", 'Status', "active", "username", $username_account);
+        $inbounds = is_string($panel['inbounds'] ?? null) ? json_decode($panel['inbounds']) : "{}";
+        $markInvoiceExtended = function () use ($panel, $username_account): void {
+            if (!empty($username_account)) {
+                if ($panel['type'] != "WGDashboard") {
+                    update("invoice", 'user_info', null, "username", $username_account);
+                }
+                update("invoice", 'uuid', null, "username", $username_account);
+                update("invoice", 'Status', "active", "username", $username_account);
+            }
+        };
         $driver = PanelRegistry::driver($panel['type'], $this);
         if ($driver !== null && ($result = $driver->extraVolume(get_defined_vars())) !== BasePanelDriver::UNSUPPORTED) {
+            if (is_array($result) && ($result['status'] ?? false) != false) {
+                $markInvoiceExtended();
+            }
             return $result;
         }
         $data = array('data_limit' => $new_limit, 'inbounds' => $inbounds, 'inbound_id' => $inbound_id);
@@ -329,6 +346,7 @@ class ManagePanel
                 'msg' => is_array($extra_volume) ? ($extra_volume['msg'] ?? 'Modifyuser failed') : 'Modifyuser failed'
             );
         }
+        $markInvoiceExtended();
         return $extra_volume;
     }
     function extra_time($username_account, $code_panel, $limit_time_new)
@@ -363,14 +381,21 @@ class ManagePanel
         $old_limit_time = time() - $old_limit_time > 0 ? time() : $old_limit_time;
         $new_limit = $limit_time_new == 0 ? 0 : $limit_time_new * 86400 + $old_limit_time;
         $inbound_id = isset($panel['inboundid']) ? $panel['inboundid'] : 1;
-        $inbounds = is_string($panel['inbounds']) ? json_decode($panel['inbounds']) : "{}";
-        if ($panel['type'] != "WGDashboard") {
-            update("invoice", 'user_info', null, "username", $username_account);
-        }
-        update("invoice", 'uuid', null, "username", $username_account);
-        update("invoice", 'Status', "active", "username", $username_account);
+        $inbounds = is_string($panel['inbounds'] ?? null) ? json_decode($panel['inbounds']) : "{}";
+        $markInvoiceExtended = function () use ($panel, $username_account): void {
+            if (!empty($username_account)) {
+                if ($panel['type'] != "WGDashboard") {
+                    update("invoice", 'user_info', null, "username", $username_account);
+                }
+                update("invoice", 'uuid', null, "username", $username_account);
+                update("invoice", 'Status', "active", "username", $username_account);
+            }
+        };
         $driver = PanelRegistry::driver($panel['type'], $this);
         if ($driver !== null && ($result = $driver->extraTime(get_defined_vars())) !== BasePanelDriver::UNSUPPORTED) {
+            if (is_array($result) && ($result['status'] ?? false) != false) {
+                $markInvoiceExtended();
+            }
             return $result;
         }
         $data = array('expire' => $new_limit, 'inbounds' => $inbounds, 'inbound_id' => $inbound_id);
@@ -381,6 +406,7 @@ class ManagePanel
                 'msg' => is_array($extra_time) ? ($extra_time['msg'] ?? 'Modifyuser failed') : 'Modifyuser failed'
             );
         }
+        $markInvoiceExtended();
         return $extra_time;
     }
 }

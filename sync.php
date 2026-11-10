@@ -26,6 +26,12 @@
 
 declare(strict_types=1);
 
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    header('Content-Type: text/plain; charset=utf-8');
+    exit('CLI only');
+}
+
 const SYNC_VERSION = '1.0';
 
 $argvClean = array_slice($argv, 1);

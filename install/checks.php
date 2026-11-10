@@ -695,8 +695,8 @@ function mirza_install_config_values(): array
     }
 
     foreach (array_keys($values) as $key) {
-        if (preg_match('/\$' . preg_quote($key, '/') . '\s*=\s*\'((?:[^\'\\\\]|\\\\.)*)\'\s*;/', $contents, $matches)) {
-            $values[$key] = stripslashes($matches[1]);
+        if (preg_match('/\$' . preg_quote($key, '/') . '\s*=\s*(?:\'((?:[^\'\\\\]|\\\\.)*)\'|"((?:[^"\\\\]|\\\\.)*)")\s*;/', $contents, $matches)) {
+            $values[$key] = stripslashes($matches[1] !== '' ? $matches[1] : ($matches[2] ?? ''));
         }
     }
 

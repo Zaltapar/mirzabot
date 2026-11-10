@@ -21,6 +21,10 @@ while ($result = $stmt->fetch(PDO::FETCH_ASSOC)) {
             }
         foreach ($selectinvoice as $invoice){
         $get_username_Check = $ManagePanel->DataUser($invoice['Service_location'],$invoice['username']);
+        if (!is_array($get_username_Check) || ($get_username_Check['status'] ?? '') == "Unsuccessful") {
+            // Panel unreachable/unknown — do not flip the invoice state blindly.
+            continue;
+        }
         $panelSynced = true;
         if($get_username_Check['status'] == "disabled"){
         $userchengestatus = $ManagePanel->Change_status($invoice['username'],$invoice['Service_location']);

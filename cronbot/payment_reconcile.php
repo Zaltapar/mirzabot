@@ -18,8 +18,11 @@ if ($since <= 0) {
     // Never reconcile orders that predate this feature: they were handled by the
     // old code and re-crediting them would double-pay.
     @mkdir(dirname($sinceFile), 0775, true);
-    @file_put_contents($sinceFile, (string) time());
-    exit(0);
+    if (@file_put_contents($sinceFile, (string) time()) === false) {
+        error_log('payment_reconcile: could not write ' . $sinceFile . '; will retry next run');
+    }
+    // return (not exit) so the shared cron dispatcher keeps running other jobs.
+    return;
 }
 
 $cutoff = date('Y/m/d H:i:s', time() - 1800);
@@ -31,7 +34,7 @@ $stmt = $pdo->prepare(
        AND time > :since
        AND Payment_Method NOT IN ('add balance by admin', 'low balance by admin')
        AND (reconciled IS NULL OR reconciled = '')
-     ORDER BY id ASC
+     ORDER BY id DESC
      LIMIT 20"
 );
 $stmt->execute([':cutoff' => $cutoff, ':since' => $sinceDate]);
@@ -255,8 +258,18 @@ while ($order = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 );
                 continue;
             }
+            // The panel user still exists and we cannot prove the renewal was not
+            // applied (e.g. Service_time/Volume = 0 plans leave the snapshot
+            // unchanged). Never auto-refund here: refunding could give the user a
+            // free renewal. Leave it for a human.
+            $markDelivered('manual', $orderId);
+            mirzaReportCriticalError(
+                'payment-reconcile',
+                'order=' . $orderId . ' service=' . $service['id'] . ' type=' . $serviceType . ' status=' . $serviceStatus . ' user ' . $serviceUsername . ' exists on panel ' . $panelLocation . ' but the renewal state is ambiguous; manual review needed (not auto-refunded)'
+            );
+            continue;
         }
-        // Not extended (or user missing on panel) — safe to refund gateway portion.
+        // Panel user is missing — the renewal could not have been applied. Safe to refund gateway portion.
         try {
             $pdo->beginTransaction();
             $claim = $pdo->prepare(

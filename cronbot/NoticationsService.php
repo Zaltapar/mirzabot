@@ -45,6 +45,8 @@ class ServiceMonitor
             $check_send = json_decode((string) ($invoice['notifctions'] ?? ''), true);
             if (!is_array($check_send)) {
                 $check_send = ['volume' => false, 'time' => false];
+            } else {
+                $check_send += ['volume' => false, 'time' => false];
             }
             $data = $this->processInvoice($invoice);
             if (!is_array($data))
@@ -146,8 +148,11 @@ class ServiceMonitor
         ][$userData['status']];
         $remainingVolume = formatBytes($userData['data_limit'] - $userData['used_traffic']);
         if ($result) {
+            $removeResult = $this->Panel->RemoveUser($invoice['Service_location'], $username);
+            if (!is_array($removeResult) || ($removeResult['status'] ?? '') === 'Unsuccessful') {
+                return;
+            }
             update("invoice", "status", "removeTime", "username", $username);
-            $this->Panel->RemoveUser($invoice['Service_location'], $username);
             $message = sprintf($this->textBotLang['users']['notify']['serviceDeleted'], $invoice['username']);
             $reportMessage = sprintf($this->textBotLang['users']['notify']['deleteInfo'], $invoice['username'], $statusText, $daysRemaining, $remainingVolume);
             $this->send_notifactions($invoice, $user, $message, false, $invoice['bottype']);
@@ -189,8 +194,11 @@ class ServiceMonitor
         ][$userData['status']];
         $remainingVolume = formatBytes($userData['data_limit'] - $userData['used_traffic']);
         if ($result) {
+            $removeResult = $this->Panel->RemoveUser($invoice['Service_location'], $username);
+            if (!is_array($removeResult) || ($removeResult['status'] ?? '') === 'Unsuccessful') {
+                return;
+            }
             update("invoice", "status", "removevolume", "username", $username);
-            $this->Panel->RemoveUser($invoice['Service_location'], $username);
             $message = sprintf($this->textBotLang['users']['notify']['serviceDeleted2'], $username);
             $reportMessage = sprintf($this->textBotLang['users']['notify']['volumeDeleteInfo'], $username, $statusText, $daysRemaining, $remainingVolume, $userData['online_at']);
             $this->send_notifactions($invoice, $user, $message, false, $invoice['bottype']);

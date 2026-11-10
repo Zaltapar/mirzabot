@@ -10,8 +10,13 @@ if(!is_file('users.json'))return;
 
 
 $userid = json_decode(file_get_contents('users.json'));
+if (!is_array($userid)) {
+    $userid = [];
+}
+$info = [];
 if(is_file('info')){
-$info = json_decode(file_get_contents('info'),true);
+$decodedInfo = json_decode(file_get_contents('info'),true);
+$info = is_array($decodedInfo) ? $decodedInfo : [];
 }
 $count = 0;
 if(count($userid) == 0){

@@ -1806,6 +1806,15 @@ elseif ($datain == "systemsms") {
 } elseif (preg_match('/Confirm_pay_(\w+)/', $datain, $dataget) && ($adminrulecheck['rule'] == "administrator" || $adminrulecheck['rule'] == "Seller")) {
     $order_id = $dataget[1];
     $Payment_report = select("Payment_report", "*", "id_order", $order_id, "select");
+    if (!is_array($Payment_report)) {
+        telegram('answerCallbackQuery', array(
+            'callback_query_id' => $callback_query_id,
+            'text' => $textbotlang['keyboard']['transactionDeleted'],
+            'show_alert' => true,
+            'cache_time' => 5,
+        ));
+        return;
+    }
     $Confirm_pay = json_encode([
         'inline_keyboard' => [
             [
@@ -1816,15 +1825,6 @@ elseif ($datain == "systemsms") {
             ]
         ]
     ]);
-    if ($Payment_report == false) {
-        telegram('answerCallbackQuery', array(
-            'callback_query_id' => $callback_query_id,
-            'text' => $textbotlang['keyboard']['transactionDeleted'],
-            'show_alert' => true,
-            'cache_time' => 5,
-        ));
-        return;
-    }
     $currentOrder = paymentOrder($order_id);
     if (!$currentOrder['invoice'] && !$currentOrder['service']) {
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM Payment_report p WHERE p.id_user = ? AND p.payment_Status NOT IN ('paid', 'Unpaid', 'expire', 'reject') AND (EXISTS (SELECT 1 FROM invoice i WHERE i.id_payment = p.id_order) OR EXISTS (SELECT 1 FROM service_other s WHERE s.id_payment = p.id_order))");
@@ -1865,16 +1865,19 @@ elseif ($datain == "systemsms") {
         DirectPayment($order_id);
     } catch (Throwable $directPaymentError) {
         mirzaReportPaymentFailure('admin-card-confirm', $order_id, $directPaymentError);
+        if (!mirzaPaymentWasRefunded($order_id) && intval($Payment_report['price']) > 0) {
+            addBalance($Payment_report['id_user'], intval($Payment_report['price']));
+            mirzaMarkPaymentRefunded($order_id);
+        }
         $deliveryFailedText = $textbotlang['Admin']['Payment']['deliveryFailed'] ?? ($textbotlang['paymentGateway']['deliveryFailed'] ?? 'Delivery failed; the report group was notified.');
         sendmessage($from_id, $deliveryFailedText, null, 'HTML');
         return;
     }
     $pricecashback = select("PaySetting", "ValuePay", "NamePay", "chashbackcart", "select")['ValuePay'];
     $Balance_id = select("user", "*", "id", $Payment_report['id_user'], "select");
-    if ($pricecashback != "0") {
+    if ($pricecashback != "0" && !mirzaPaymentWasRefunded($order_id)) {
         $result = ($Payment_report['price'] * $pricecashback) / 100;
-        $Balance_confrim = intval($Balance_id['Balance']) + $result;
-        update("user", "Balance", $Balance_confrim, "id", $Balance_id['id']);
+        addBalance($Balance_id['id'], $result);
         $pricecashback = number_format($pricecashback);
         $text_report = sprintf($textbotlang['users']['Balance']['giftDepositAlt'], $result);
         sendmessage($Balance_id['id'], $text_report, null, 'HTML');
@@ -4184,6 +4187,15 @@ elseif ($datain == "systemsms") {
 } elseif (preg_match('/addbalamceuser_(\w+)/', $datain, $datagetr) && ($adminrulecheck['rule'] == "administrator" || $adminrulecheck['rule'] == "Seller")) {
     $id_order = $datagetr[1];
     $Payment_report = select("Payment_report", "*", "id_order", $id_order, "select");
+    if (!is_array($Payment_report)) {
+        telegram('answerCallbackQuery', array(
+            'callback_query_id' => $callback_query_id,
+            'text' => $textbotlang['keyboard']['transactionDeleted'],
+            'show_alert' => true,
+            'cache_time' => 5,
+        ));
+        return;
+    }
     update("user", "Processing_value", $id_order, "id", $from_id);
     if ($Payment_report['payment_Status'] == "paid" || $Payment_report['payment_Status'] == "reject") {
         telegram('answerCallbackQuery', array(
@@ -4195,6 +4207,9 @@ elseif ($datain == "systemsms") {
         return;
     }
     update("Payment_report", "payment_Status", "paid", "id_order", $id_order);
+    // Settled manually by an admin — make sure the reconcile cron never
+    // re-credits or refunds this payment a second time.
+    update("Payment_report", "reconciled", "manual", "id_order", $id_order);
 
     sendmessage($from_id, $textbotlang['Admin']['manageUser']['addBalanceUserDesc'], $backadmin, 'html');
     step('addbalancemanual', $from_id);
@@ -7835,7 +7850,15 @@ elseif ($text == $textbotlang['keyboard']['hidePanelForUser'] && $adminrulecheck
     Editmessagetext($from_id, $message_id, $text_inline, json_encode(['inline_keyboard' => []]));
     $id_invoice = $dataget[1];
     $nameloc = select("invoice", "*", "id_invoice", $id_invoice, "select");
+    if (!is_array($nameloc)) {
+        sendmessage($from_id, $textbotlang['Admin']['order']['renewError'], null, 'HTML');
+        return;
+    }
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
+    if (!is_array($marzban_list_get)) {
+        sendmessage($from_id, $textbotlang['Admin']['order']['renewError'], null, 'HTML');
+        return;
+    }
     $prodcut['code_product'] = "custom_volume";
     $prodcut['name_product'] = $nameloc['name_product'];
     $prodcut['price_product'] = 0;
@@ -7847,8 +7870,9 @@ elseif ($text == $textbotlang['keyboard']['hidePanelForUser'] && $adminrulecheck
     }
     deletemessage($from_id, $message_id);
     $extend = $ManagePanel->extend($marzban_list_get['Methodextend'], $prodcut['Volume_constraint'], $prodcut['Service_time'], $nameloc['username'], $prodcut['code_product'], $marzban_list_get['code_panel']);
-    if ($extend['status'] == false) {
-        $extend['msg'] = json_encode($extend['msg']);
+    if (!is_array($extend) || ($extend['status'] ?? false) == false) {
+        if (!is_array($extend)) { $extend = array('status' => false, 'msg' => 'operation failed'); }
+        $extend['msg'] = json_encode($extend['msg'] ?? 'operation failed');
         $textreports = sprintf($textbotlang['Admin']['reportgroup']['errorRenewServiceAdmin'], $marzban_list_get['name_panel'], $nameloc['username'], $extend['msg']);
         sendmessage($from_id, $textbotlang['Admin']['order']['renewErrorSupport'], null, 'HTML');
         if (strlen($setting['Channel_Report']) > 0) {
@@ -7861,7 +7885,7 @@ elseif ($text == $textbotlang['keyboard']['hidePanelForUser'] && $adminrulecheck
         }
         return;
     }
-    $stmt = $pdo->prepare("INSERT IGNORE INTO service_other (id_user, username, value, type, time, price, output) VALUES (:id_user, :username, :value, :type, :time, :price, :output)");
+    $stmt = $pdo->prepare("INSERT IGNORE INTO service_other (id_user, username, value, type, time, price, output, status) VALUES (:id_user, :username, :value, :type, :time, :price, :output, :status)");
     $dateacc = date('Y/m/d H:i:s');
     $value = $prodcut['Volume_constraint'] . "_" . $prodcut['Service_time'];
     $type = "extend_user_by_admin";
@@ -7873,6 +7897,7 @@ elseif ($text == $textbotlang['keyboard']['hidePanelForUser'] && $adminrulecheck
     $stmt->bindParam(':price', $prodcut['price_product'], PDO::PARAM_STR);
     $output_json = json_encode($extend);
     $stmt->bindParam(':output', $output_json, PDO::PARAM_STR);
+    $stmt->bindValue(':status', 'paid', PDO::PARAM_STR);
     $stmt->execute();
     update("invoice", "Status", "active", "id_invoice", $id_invoice);
     sendmessage($from_id, $textbotlang['users']['extend']['thanks'], null, 'HTML');

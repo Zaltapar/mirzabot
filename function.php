@@ -1648,14 +1648,15 @@ function DirectPayment($order_id, $image = 'images.jpg')
         }
         $extendUsername = is_array($nameloc) ? ($nameloc['username'] ?? $service_order['username']) : $service_order['username'];
         $extend = $ManagePanel->extend($marzban_list_get['Methodextend'], $prodcut['Volume_constraint'], $prodcut['Service_time'], $extendUsername, $prodcut['code_product'], $marzban_list_get['code_panel']);
-        if ($extend['status'] == false) {
+        if (!is_array($extend) || ($extend['status'] ?? false) == false) {
             update("service_other", "output", json_encode($extend), "id", $service_order['id']);
             update("service_other", "status", "failed", "id", $service_order['id']);
             addBalance($Balance_id['id'], $orderPrice);
             mirzaMarkPaymentRefunded($order_id);
             sendmessage($Balance_id['id'], $textbotlang['users']['sell']['errorConfig'], $keyboard, 'HTML');
             sendmessage($Balance_id['id'], sprintf($textbotlang['users']['Balance']['refundRenewFailed'], number_format($orderPrice)), $keyboard, 'HTML');
-            $extend['msg'] = json_encode($extend['msg']);
+            if (!is_array($extend)) { $extend = array('status' => false, 'msg' => 'operation failed'); }
+            $extend['msg'] = json_encode($extend['msg'] ?? 'operation failed');
             $textreports = sprintf($textbotlang['Admin']['reportgroup']['errorRenewServiceFn'], $marzban_list_get['name_panel'], $nameloc['username'], $extend['msg']);
             sendmessage($nameloc['id_user'], $textbotlang['users']['extend']['errorSupport'], null, 'HTML');
             if (strlen($setting['Channel_Report']) > 0) {
@@ -1743,13 +1744,14 @@ function DirectPayment($order_id, $image = 'images.jpg')
         $volume = $serviceParams['volume_value'] ?? 0;
         $marzban_list_get = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
         $extra_volume = $ManagePanel->extra_volume($nameloc['username'], $marzban_list_get['code_panel'], $volume);
-        if ($extra_volume['status'] == false) {
+        if (!is_array($extra_volume) || ($extra_volume['status'] ?? false) == false) {
             update("service_other", "output", json_encode($extra_volume), "id", $service_order['id']);
             update("service_other", "status", "failed", "id", $service_order['id']);
             addBalance($Balance_id['id'], $orderPrice);
             mirzaMarkPaymentRefunded($order_id);
             sendmessage($Balance_id['id'], sprintf($textbotlang['users']['Balance']['addedNotice5'], number_format($orderPrice)), null, 'HTML');
-            $extra_volume['msg'] = json_encode($extra_volume['msg']);
+            if (!is_array($extra_volume)) { $extra_volume = array('status' => false, 'msg' => 'operation failed'); }
+            $extra_volume['msg'] = json_encode($extra_volume['msg'] ?? 'operation failed');
             $textreports = sprintf($textbotlang['Admin']['reportgroup']['errorExtraVolumeFn'], $marzban_list_get['name_panel'], $nameloc['username'], $extra_volume['msg']);
             sendmessage($nameloc['id_user'], $textbotlang['users']['extraVolume']['serviceError'], null, 'HTML');
             if (strlen($setting['Channel_Report']) > 0) {
@@ -1803,13 +1805,14 @@ function DirectPayment($order_id, $image = 'images.jpg')
         $tmieextra = $serviceParams['day'] ?? 0;
         $marzban_list_get = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
         $extra_time = $ManagePanel->extra_time($nameloc['username'], $marzban_list_get['code_panel'], $tmieextra);
-        if ($extra_time['status'] == false) {
+        if (!is_array($extra_time) || ($extra_time['status'] ?? false) == false) {
             update("service_other", "output", json_encode($extra_time), "id", $service_order['id']);
             update("service_other", "status", "failed", "id", $service_order['id']);
             addBalance($Balance_id['id'], $orderPrice);
             mirzaMarkPaymentRefunded($order_id);
             sendmessage($Balance_id['id'], sprintf($textbotlang['users']['Balance']['addedNotice5'], number_format($orderPrice)), null, 'HTML');
-            $extra_time['msg'] = json_encode($extra_time['msg']);
+            if (!is_array($extra_time)) { $extra_time = array('status' => false, 'msg' => 'operation failed'); }
+            $extra_time['msg'] = json_encode($extra_time['msg'] ?? 'operation failed');
             $textreports = sprintf($textbotlang['Admin']['reportgroup']['errorExtraTimeFn'], $marzban_list_get['name_panel'], $nameloc['username'], $extra_time['msg']);
             sendmessage($Balance_id['id'], $textbotlang['users']['extraVolume']['serviceError'], null, 'HTML');
             if (strlen($setting['Channel_Report']) > 0) {
@@ -3995,7 +3998,7 @@ function maybeRewardReferrer(int $referrerId, int $newCount): void
     if ($time > 0) {
         $output['time'] = $ManagePanel->extra_time($username, $panel['code_panel'], $time);
     }
-    $stmt = $pdo->prepare('INSERT IGNORE INTO service_other (id_user, username, value, type, time, price, output) VALUES (:id_user, :username, :value, :type, :time, :price, :output)');
+    $stmt = $pdo->prepare('INSERT IGNORE INTO service_other (id_user, username, value, type, time, price, output, status) VALUES (:id_user, :username, :value, :type, :time, :price, :output, :status)');
     $stmt->execute([
         ':id_user' => $referrerId,
         ':username' => $username,
@@ -4004,6 +4007,7 @@ function maybeRewardReferrer(int $referrerId, int $newCount): void
         ':time' => date('Y/m/d H:i:s'),
         ':price' => 0,
         ':output' => json_encode($output),
+        ':status' => 'paid',
     ]);
     clearSelectCache('service_other');
     try {

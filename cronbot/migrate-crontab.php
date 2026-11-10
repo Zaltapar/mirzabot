@@ -3,6 +3,11 @@
 
 declare(strict_types=1);
 
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit('CLI only');
+}
+
 $opts = getopt('', ['user::', 'scan::', 'roots::', 'dry-run', 'apply', 'help']);
 if (isset($opts['help'])) {
     fwrite(STDOUT, <<<TXT

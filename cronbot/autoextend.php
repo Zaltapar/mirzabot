@@ -11,7 +11,8 @@ require_once __DIR__ . '/../function.php';
 $setting = select("setting", "*");
 $cronStatus = json_decode((string) $setting['cron_status'], true) ?: [];
 if (($cronStatus['autoextend'] ?? true) === false) {
-    exit(0);
+    // return (not exit) so the shared cron dispatcher keeps running other jobs.
+    return;
 }
 
 $ManagePanel = new ManagePanel();

@@ -165,10 +165,11 @@ class MarzneshinPanelDriver extends BasePanelDriver
         $username = $vars['username'];
         $Output = $vars['Output'];
         $UsernameData = removeuserm($Get_Data_Panel['name_panel'], $username);
-        if (isset($UsernameData['detail']) && $UsernameData['detail']) {
+        $body = is_array($UsernameData) ? json_decode((string) ($UsernameData['body'] ?? ''), true) : null;
+        if (!is_array($UsernameData) || !empty($UsernameData['error']) || (isset($UsernameData['status']) && $UsernameData['status'] >= 400) || (is_array($body) && !empty($body['detail']))) {
             $Output = array(
                 'status' => 'Unsuccessful',
-                'msg' => $UsernameData['detail']
+                'msg' => is_array($body) && !empty($body['detail']) ? $body['detail'] : (is_array($UsernameData) ? ($UsernameData['error'] ?? ('error code : ' . ($UsernameData['status'] ?? 'unknown'))) : 'remove failed')
             );
         } else {
             $Output = array(
@@ -191,13 +192,13 @@ class MarzneshinPanelDriver extends BasePanelDriver
                 'status' => false,
                 'msg' => $modify['error']
             );
-        } elseif (!empty($modify['status']) && $modify['status'] == 500) {
+        } elseif (isset($modify['status']) && is_numeric($modify['status']) && $modify['status'] >= 400) {
             return array(
                 'status' => false,
                 'msg' => 'error code : ' . $modify['status']
             );
         }
-        $modifycheck = json_decode($modify['body'], true);
+        $modifycheck = json_decode((string) ($modify['body'] ?? ''), true);
         if (!empty($modifycheck['detail'])) {
             return array(
                 'status' => false,
@@ -216,9 +217,15 @@ class MarzneshinPanelDriver extends BasePanelDriver
         $name_panel = $vars['name_panel'];
         $username = $vars['username'];
         if ($DataUserOut['status'] == "active") {
-            disableduser($name_panel, $username);
+            $res = disableduser($name_panel, $username);
         } else {
-            enableuser($name_panel, $username);
+            $res = enableuser($name_panel, $username);
+        }
+        if (!is_array($res) || !empty($res['error']) || (isset($res['status']) && is_numeric($res['status']) && $res['status'] >= 400)) {
+            return array(
+                'status' => 'Unsuccessful',
+                'msg' => is_array($res) ? ($res['error'] ?? ('error code : ' . ($res['status'] ?? 'unknown'))) : 'changeStatus failed'
+            );
         }
         $Output = array(
             'status' => 'successful',
@@ -290,9 +297,8 @@ class MarzneshinPanelDriver extends BasePanelDriver
         $username_account = $vars['username_account'];
         $panel = $vars['panel'];
         $data = array(
-            'expire_date' => $new_limit,
-            'expire_strategy' => "fixed_date",
-
+            'expire_date' => $new_limit == 0 ? null : date('c', $new_limit),
+            'expire_strategy' => $new_limit == 0 ? "never" : "fixed_date",
         );
         return $this->applyModify($username_account, $panel['name_panel'], $data);
     }

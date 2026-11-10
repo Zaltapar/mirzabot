@@ -9,8 +9,8 @@ return [
         time varchar(200) NOT NULL,
         price varchar(200) NOT NULL,
         type varchar(1000) NOT NULL,
-        status varchar(200) NOT NULL,
-        output TEXT NOT NULL,
+        status varchar(200) NOT NULL DEFAULT '',
+        output TEXT NULL,
         payable_amount varchar(20) NULL,
         id_payment varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL
         SQL,

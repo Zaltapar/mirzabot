@@ -303,7 +303,7 @@ function inv_extend_service_admin(array $data, string $method): void
         sendReport($textreports, $setting['Channel_Report'], $errorreport);
         sendJsonResponse(false, "Error in extend service", [[json_decode($extendError, true)]], 200);
     }
-    $stmt = $pdo->prepare("INSERT IGNORE INTO service_other (id_user, username, value, type, time, price, output) VALUES (:id_user, :username, :value, :type, :time, :price, :output)");
+    $stmt = $pdo->prepare("INSERT IGNORE INTO service_other (id_user, username, value, type, time, price, output, status) VALUES (:id_user, :username, :value, :type, :time, :price, :output, :status)");
     $stmt->execute([
         ':id_user' => $invoice['id_user'],
         ':username' => $invoice['username'],
@@ -312,6 +312,7 @@ function inv_extend_service_admin(array $data, string $method): void
         ':time' => date('Y/m/d H:i:s'),
         ':price' => 0,
         ':output' => json_encode($extend),
+        ':status' => 'paid',
     ]);
     update("invoice", "Status", "active", "id_invoice", $data['id_invoice']);
     sendJsonResponse(true, "Successful");

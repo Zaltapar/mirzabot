@@ -2109,6 +2109,28 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         sendmessage($from_id, $textbotlang['users']['Balance']['notEnoughBalance'], null, 'HTML');
         return;
     }
+    if ($nameloc['name_product'] == $textbotlang['common']['labels']['testService2']) {
+        update("invoice", "name_product", $prodcut['name_product'], "id_invoice", $nameloc['id_invoice']);
+        update("invoice", "price_product", $prodcut['price_product'], "id_invoice", $nameloc['id_invoice']);
+    }
+    $extend = $ManagePanel->extend($marzban_list_get['Methodextend'], $prodcut['Volume_constraint'], $prodcut['Service_time'], $nameloc['username'], $prodcut['code_product'], $marzban_list_get['code_panel']);
+    if (!is_array($extend) || ($extend['status'] ?? false) == false) {
+        addBalance($from_id, $pricelastextend);
+        if (!is_array($extend)) { $extend = array('status' => false, 'msg' => 'operation failed'); }
+        $extend['msg'] = json_encode($extend['msg'] ?? 'operation failed');
+        $textreports = sprintf($textbotlang['Admin']['reportgroup']['errorRenewService'], $marzban_list_get['name_panel'], $nameloc['username'], $extend['msg']);
+        sendmessage($from_id, $textbotlang['users']['extend']['errorSupport'], null, 'HTML');
+        if (strlen($setting['Channel_Report']) > 0) {
+            telegram('sendmessage', [
+                'chat_id' => $setting['Channel_Report'],
+                'message_thread_id' => $errorreport,
+                'text' => $textreports,
+                'parse_mode' => "HTML"
+            ]);
+        }
+        return;
+    }
+    bustPanelDataCache($marzban_list_get['name_panel'], $nameloc['username']);
     if ($datain == "confirmserdiscount") {
         $SellDiscountlimit = select("DiscountSell", "*", "codeDiscount", $partsdic[1], "select");
         if ($SellDiscountlimit != false) {
@@ -2127,27 +2149,6 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
             }
         }
     }
-    if ($nameloc['name_product'] == $textbotlang['common']['labels']['testService2']) {
-        update("invoice", "name_product", $prodcut['name_product'], "id_invoice", $nameloc['id_invoice']);
-        update("invoice", "price_product", $prodcut['price_product'], "id_invoice", $nameloc['id_invoice']);
-    }
-    $extend = $ManagePanel->extend($marzban_list_get['Methodextend'], $prodcut['Volume_constraint'], $prodcut['Service_time'], $nameloc['username'], $prodcut['code_product'], $marzban_list_get['code_panel']);
-    if ($extend['status'] == false) {
-        addBalance($from_id, $pricelastextend);
-        $extend['msg'] = json_encode($extend['msg']);
-        $textreports = sprintf($textbotlang['Admin']['reportgroup']['errorRenewService'], $marzban_list_get['name_panel'], $nameloc['username'], $extend['msg']);
-        sendmessage($from_id, $textbotlang['users']['extend']['errorSupport'], null, 'HTML');
-        if (strlen($setting['Channel_Report']) > 0) {
-            telegram('sendmessage', [
-                'chat_id' => $setting['Channel_Report'],
-                'message_thread_id' => $errorreport,
-                'text' => $textreports,
-                'parse_mode' => "HTML"
-            ]);
-        }
-        return;
-    }
-    bustPanelDataCache($marzban_list_get['name_panel'], $nameloc['username']);
     if ($cashbackextend) {
         sendmessage($from_id, sprintf($textbotlang['users']['extend']['giftCharged'], $cashbackextend), null, 'HTML');
     }
@@ -2414,9 +2415,10 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     ));
     $data_limit = intval($volume) / intval($extrapricevalue);
     $extra_volume = $ManagePanel->extra_volume($nameloc['username'], $marzban_list_get['code_panel'], $data_limit);
-    if ($extra_volume['status'] == false) {
+    if (!is_array($extra_volume) || ($extra_volume['status'] ?? false) == false) {
         addBalance($from_id, $volumepricelast);
-        $extra_volume['msg'] = json_encode($extra_volume['msg']);
+        if (!is_array($extra_volume)) { $extra_volume = array('status' => false, 'msg' => 'operation failed'); }
+        $extra_volume['msg'] = json_encode($extra_volume['msg'] ?? 'operation failed');
         $textreports = sprintf($textbotlang['Admin']['reportgroup']['errorExtraVolume'], $marzban_list_get['name_panel'], $nameloc['username'], $extra_volume['msg']);
         sendmessage($from_id, $textbotlang['users']['extraVolume']['serviceError'], null, 'HTML');
         if (strlen($setting['Channel_Report']) > 0) {
@@ -2970,9 +2972,10 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     $timeservice = ($DataUserOut['expire'] ?? 0) - time();
     $day = floor($timeservice / 86400);
     $extra_time = $ManagePanel->extra_time($nameloc['username'], $marzban_list_get['code_panel'], $extratimeday);
-    if ($extra_time['status'] == false) {
+    if (!is_array($extra_time) || ($extra_time['status'] ?? false) == false) {
         addBalance($from_id, $pricelasttime);
-        $extra_time['msg'] = json_encode($extra_time['msg']);
+        if (!is_array($extra_time)) { $extra_time = array('status' => false, 'msg' => 'operation failed'); }
+        $extra_time['msg'] = json_encode($extra_time['msg'] ?? 'operation failed');
         $textreports = sprintf($textbotlang['Admin']['reportgroup']['errorExtraTime'], $marzban_list_get['name_panel'], $nameloc['username'], $extra_time['msg']);
         sendmessage($from_id, $textbotlang['users']['extraVolume']['serviceError'], null, 'HTML');
         if (strlen($setting['Channel_Report']) > 0) {
@@ -6383,9 +6386,10 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     ]);
     $data_limit_new = (intval($volume) / intval($extrapricevalue));
     $extra_volume = $ManagePanel->extra_volume($user['Processing_value'], $marzban_list_get['code_panel'], $data_limit_new);
-    if ($extra_volume['status'] == false) {
+    if (!is_array($extra_volume) || ($extra_volume['status'] ?? false) == false) {
         addBalance($from_id, $volume);
-        $extra_volume['msg'] = json_encode($extra_volume['msg']);
+        if (!is_array($extra_volume)) { $extra_volume = array('status' => false, 'msg' => 'operation failed'); }
+        $extra_volume['msg'] = json_encode($extra_volume['msg'] ?? 'operation failed');
         $textreports = sprintf($textbotlang['Admin']['reportgroup']['errorExtraVolume2'], $user['Processing_value_one'], $user['Processing_value'], $extra_volume['msg']);
         sendmessage($from_id, $textbotlang['users']['extraVolume']['serviceError'], null, 'HTML');
         if (strlen($setting['Channel_Report']) > 0) {
@@ -7077,9 +7081,27 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
                 sendmessage($from_id, sprintf($textbotlang['users']['Discount']['discountapplied'], $user['pricediscount']), null, 'HTML');
             }
             $Balance_prim = $prodcut['price_product'] - $user['Balance'];
+            $stmt = $pdo->prepare("INSERT INTO service_other (id_user, username, value, type, time, price, status, output, payable_amount) VALUES (?, ?, ?, ?, ?, ?, 'unpaid', '', ?)");
+            $stmt->execute([
+                $from_id,
+                $usernamePanelExtends,
+                json_encode([
+                    'volumebuy' => $prodcut['Volume_constraint'],
+                    'Service_time' => $prodcut['Service_time'],
+                    'oldvolume' => $DataUserOut['data_limit'] ?? 0,
+                    'oldtime' => $DataUserOut['expire'] ?? 0,
+                    'code_product' => $prodcut['code_product'],
+                ]),
+                'extend_user',
+                date('Y/m/d H:i:s'),
+                $prodcut['price_product'],
+                $Balance_prim,
+            ]);
+            $service_order_id = $pdo->lastInsertId();
             update("user", "Processing_value", $Balance_prim, "id", $from_id);
+            update("user", "Processing_value_one", $service_order_id, "id", $from_id);
             sendmessage($from_id, $textbotlang['users']['sell']['noCredit'], $step_payment, 'HTML');
-            step('get_step_payment', $from_id);
+            step('get_step_payment_service', $from_id);
             return;
         }
     }
@@ -7093,9 +7115,10 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         return;
     }
     $extend = $ManagePanel->extend($marzban_list_get['Methodextend'], $prodcut['Volume_constraint'], $prodcut['Service_time'], $usernamePanelExtends, $prodcut['code_product'], $marzban_list_get['code_panel']);
-    if ($extend['status'] == false) {
+    if (!is_array($extend) || ($extend['status'] ?? false) == false) {
         addBalance($from_id, $prodcut['price_product']);
-        $extend['msg'] = json_encode($extend['msg']);
+        if (!is_array($extend)) { $extend = array('status' => false, 'msg' => 'operation failed'); }
+        $extend['msg'] = json_encode($extend['msg'] ?? 'operation failed');
         $textreports = sprintf($textbotlang['Admin']['reportgroup']['errorRenewService2'], $marzban_list_get['name_panel'], $usernamePanelExtends, $extend['msg']);
         sendmessage($from_id, $textbotlang['users']['extend']['errorSupport'], null, 'HTML');
         if (strlen($setting['Channel_Report']) > 0) {
@@ -7109,7 +7132,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         return;
     }
     bustPanelDataCache($marzban_list_get['name_panel'], $usernamePanelExtends);
-    $stmt = $pdo->prepare("INSERT IGNORE INTO service_other (id_user, username, value, type, time, price,output) VALUES (:id_user, :username, :value, :type, :time, :price,:output)");
+    $stmt = $pdo->prepare("INSERT IGNORE INTO service_other (id_user, username, value, type, time, price, output, status) VALUES (:id_user, :username, :value, :type, :time, :price, :output, :status)");
     $value = json_encode(array(
         "volumebuy" => $prodcut['Volume_constraint'],
         "Service_time" => $prodcut['Service_time'],
@@ -7126,7 +7149,8 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         ':type' => $type,
         ':time' => $dateacc,
         ':price' => $prodcut['price_product'],
-        ':output' => json_encode($extend)
+        ':output' => json_encode($extend),
+        ':status' => 'paid'
     ]);
     $prodcut['price_product'] = number_format($prodcut['price_product']);
     $balanceformatsell = number_format(select("user", "Balance", "id", $from_id, "select")['Balance'], 0);

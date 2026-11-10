@@ -1228,6 +1228,7 @@ function mini_service_toggle(array $data, string $method): void
     $res = $ManagePanel->Change_status($username, $panelName);
     $ok = is_array($res) && !empty($res['status']) && $res['status'] !== 'Unsuccessful' && $res['status'] !== false;
     if ($ok) {
+        update("invoice", "Status", $target === 'disabled' ? 'disablebyadmin' : 'active', "id_invoice", $invoice['id_invoice']);
         bustPanelDataCache($panelName, $username);
     }
     http_response_code($ok ? 200 : 502);
@@ -1321,13 +1322,20 @@ function mini_delete_expired(array $data, string $method): void
         echo json_encode(['status' => false, 'msg' => "Service Not Found", 'obj' => []]);
         return;
     }
-    if (!in_array($invoice['status'], ['end_of_time', 'end_of_volume'], true)) {
+    if (!in_array((string) ($invoice['Status'] ?? ''), ['end_of_time', 'end_of_volume'], true)) {
         echo json_encode(['status' => false, 'msg' => "Only expired services can be deleted", 'obj' => []]);
         return;
     }
     $panelName = (string) $invoice['Service_location'];
     $res = $ManagePanel->RemoveUser($panelName, $username);
     $removedPanel = is_array($res) && !empty($res['status']) && $res['status'] !== 'Unsuccessful' && $res['status'] !== false;
+    $notFoundOnPanel = is_array($res) && (stripos((string) ($res['msg'] ?? ''), 'not found') !== false);
+    if (!$removedPanel && !$notFoundOnPanel) {
+        // Keep the local record so the user can retry; do not lie about deletion.
+        http_response_code(502);
+        echo json_encode(['status' => false, 'msg' => is_array($res) ? ($res['msg'] ?? 'Panel removal failed') : 'Panel removal failed', 'obj' => ['panel_removed' => false]]);
+        return;
+    }
     $stmt = $pdo->prepare("DELETE FROM invoice WHERE id_invoice = ?");
     $stmt->execute([$invoice['id_invoice']]);
     bustPanelDataCache($panelName, $username);
