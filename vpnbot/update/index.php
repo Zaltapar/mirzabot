@@ -522,7 +522,7 @@ if ($user['step'] == "createusertest" || preg_match('/locationtest_(.*)/', $data
     }
     if ($marzban_list_get['sublink'] == "onsublink") {
         if ($marzban_list_get['type'] == "WGDashboard") {
-            $urlimage = "{$marzban_list_get['inboundid']}_{$dataoutput['username']}.conf";
+            $urlimage = basename(str_replace("\\", "/", "{$marzban_list_get['inboundid']}_{$dataoutput['username']}.conf"));
             file_put_contents($urlimage, $output_config_link);
             telegram('senddocument', [
                 'chat_id' => $from_id,
@@ -1193,7 +1193,7 @@ if ($text == $text_bot_var['btn_keyboard']['buy'] && $setting['active_step_note'
                 $output_config_link = $configqr;
             }
             if ($marzban_list_get['type'] == "WGDashboard") {
-                $urlimage = "{$marzban_list_get['inboundid']}_{$dataoutput['username']}.conf";
+                $urlimage = basename(str_replace("\\", "/", "{$marzban_list_get['inboundid']}_{$dataoutput['username']}.conf"));
                 file_put_contents($urlimage, $output_config_link);
                 telegram('senddocument', [
                     'chat_id' => $from_id,

@@ -206,7 +206,7 @@ include __DIR__ . '/inc/layout_head.php';
                                 <td class="cn" style="white-space:nowrap">
                                     <?= number_format((int) ($inv['price_product'] ?? 0)) ?> <span class="cf"><?= $textbotlang['panel']['dashTomanShort'] ?></span>
                                 </td>
-                                <td><span class="tag <?= $tagClass ?>"><?= $label ?></span></td>
+                                <td><span class="tag <?= $tagClass ?>"><?= htmlspecialchars((string)$label) ?></span></td>
                             </tr>
                         <?php endforeach; endif; ?>
                 </tbody>

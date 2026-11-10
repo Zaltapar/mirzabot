@@ -317,7 +317,7 @@ include __DIR__ . '/inc/layout_head.php';
                                         <td class="cf" style="white-space:nowrap">
                                             <?= safe_date($inv['time_sell'] ?? null, 'Y/m/d') ?>
                                         </td>
-                                        <td><span class="tag <?= $tagClass ?>"><?= $label ?></span></td>
+                                        <td><span class="tag <?= $tagClass ?>"><?= htmlspecialchars((string)$label) ?></span></td>
                                     </tr>
                                 <?php endforeach; endif; ?>
                         </tbody>
@@ -381,7 +381,7 @@ include __DIR__ . '/inc/layout_head.php';
                                         <td class="cf" style="white-space:nowrap">
                                             <?= safe_date($p['time'] ?? null, 'Y/m/d H:i') ?>
                                         </td>
-                                        <td><span class="tag <?= $tagClass ?>"><?= $label ?></span></td>
+                                        <td><span class="tag <?= $tagClass ?>"><?= htmlspecialchars((string)$label) ?></span></td>
                                     </tr>
                                 <?php endforeach; endif; ?>
                         </tbody>

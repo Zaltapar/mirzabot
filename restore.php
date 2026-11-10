@@ -133,13 +133,15 @@ function restore_db(string $snap, bool $skipConfirm, bool $selectionConfirmed = 
     $binary = find_binary('mysql');
     fail_if($binary === null, 'mysql client not found in PATH — import the dump manually.');
     echo '    This OVERWRITES database "' . $creds['name'] . '" with ' . basename($snap) . "\n";
-    $pass = str_replace("'", '', $creds['pass']);
+    // Never put the password on the command line (visible via `ps`): use MYSQL_PWD
+    // env var instead, and strip it from the environment afterwards.
+    $envPass = 'MYSQL_PWD=' . escapeshellarg($creds['pass']);
     $cmd = sprintf(
-        '%s --host=%s --user=%s --password=%s %s < %s 2>/dev/null',
+        '%s %s --host=%s --user=%s %s < %s 2>/dev/null',
+        $envPass,
         escapeshellarg($binary),
         escapeshellarg($creds['host']),
         escapeshellarg($creds['user']),
-        "'" . $pass . "'",
         escapeshellarg($creds['name']),
         escapeshellarg($snap)
     );

@@ -2800,7 +2800,12 @@ function qrTempPath($filename)
     if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
         $dir = sys_get_temp_dir();
     }
-    return rtrim($dir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . ltrim($filename, DIRECTORY_SEPARATOR);
+    // Strip any path components to prevent directory traversal via caller-supplied names.
+    $filename = basename(str_replace('\\', '/', (string) $filename));
+    if ($filename === '' || $filename === '.' || $filename === '..') {
+        $filename = 'qr.png';
+    }
+    return rtrim($dir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $filename;
 }
 function sanitize_recursive(array $data): array
 {
