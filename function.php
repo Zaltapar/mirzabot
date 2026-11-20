@@ -1270,6 +1270,14 @@ function addBalance($userId, $amount)
     $stmt->execute([$amount, $userId]);
     clearSelectCache('user');
 }
+function admin_order_price(array $owner, array $product): int
+{
+    $price = floatval($product['price_product']);
+    if (intval($owner['pricediscount'] ?? 0) != 0) {
+        $price = $price - ($price * $owner['pricediscount']) / 100;
+    }
+    return (int) max(0, round($price));
+}
 function cancelPendingGatewayOrders($id_user): void
 {
     global $pdo;
@@ -2679,7 +2687,7 @@ function bottext_apply_overrides(array &$base, $lang)
 }
 function extendMethodKeys()
 {
-    return ['resetVolumeTime', 'addTimeVolumeNextMonth', 'resetTimeAddVolume', 'resetVolumeAddTime', 'addTimeConvertVolume'];
+    return ['resetVolumeTime', 'addTimeVolumeNextMonth', 'resetTimeAddVolume', 'resetVolumeAddTime', 'addTimeConvertVolume', 'smartRenew'];
 }
 function extendMethodLabels()
 {
@@ -2701,6 +2709,25 @@ function extendMethodLabels()
                 $labels[trim($label)] = $key;
         }
     }
+    $legacyLabels = [
+        'اضافه شدن زمان و تبدیل حجم کل به حجم باقی مانده' => 'addTimeConvertVolume',
+        'اضافه شدن زمان و حجم به ماه بعد' => 'addTimeVolumeNextMonth',
+        'ریست زمان و اضافه کردن حجم قبلی' => 'resetTimeAddVolume',
+        'ریست شدن حجم و اضافه شدن زمان' => 'resetVolumeAddTime',
+        'Adding time and converting total volume to remaining volume' => 'addTimeConvertVolume',
+        'Adding time and volume to the next month' => 'addTimeVolumeNextMonth',
+        'Reset time and add previous volume' => 'resetTimeAddVolume',
+        'Reset volume and add time' => 'resetVolumeAddTime',
+        'Добавление времени и преобразование общего объёма в остаточный' => 'addTimeConvertVolume',
+        'Добавление времени и объёма на следующий месяц' => 'addTimeVolumeNextMonth',
+        'Сброс времени и добавление предыдущего объёма' => 'resetTimeAddVolume',
+        'Сброс объёма и добавление времени' => 'resetVolumeAddTime',
+        '添加时间并将总流量转换为剩余流量' => 'addTimeConvertVolume',
+        '将时间和流量添加到下个月' => 'addTimeVolumeNextMonth',
+        '重置时间并添加之前的流量' => 'resetTimeAddVolume',
+        '重置流量并添加时间' => 'resetVolumeAddTime',
+    ];
+    $labels += $legacyLabels;
     return $labels;
 }
 function extendMethodKey($value, $default = 'resetVolumeTime')
@@ -4026,4 +4053,53 @@ function panelHiddenForTier(array $panel, string $agentTier): bool
         return false;
     }
     return in_array($agentTier, $hideTiers, true);
+}
+
+function extend_product_keyboard(array $invoice, array $user, ?string $category, ?string $month, string $backCallback): string
+{
+    global $pdo, $textbotlang;
+    $sql = "SELECT * FROM product WHERE (Location = :loc OR Location = '/all') AND agent = :agent AND one_buy_status = '0'";
+    $params = [':loc' => $invoice['Service_location'], ':agent' => $user['agent']];
+    if ($category !== null) {
+        $sql .= " AND category = :category";
+        $params[':category'] = $category;
+    }
+    if ($month !== null && $month !== '') {
+        $sql .= " AND Service_time = :monthe";
+        $params[':monthe'] = $month;
+    }
+    $sql .= " ORDER BY display_order, id";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $showPrice = select("shopSetting", "value", "Namevalue", "statusshowprice", "select")['value'] ?? '';
+    $rows = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $hidden = json_decode((string) ($row['hide_panel'] ?? ''), true);
+        if (is_array($hidden) && in_array($invoice['Service_location'], $hidden))
+            continue;
+        $price = $row['price_product'];
+        if (intval($user['pricediscount']) != 0)
+            $price = $price - ($price * $user['pricediscount']) / 100;
+        $label = $row['name_product'];
+        if ($showPrice != "offshowprice")
+            $label .= " - " . number_format($price) . $textbotlang['common']['labels']['tomanUnit'];
+        $rows[] = [
+            'code_product' => $row['code_product'],
+            'row' => [['text' => $label, 'callback_data' => "serviceextendselect_" . $row['code_product']]],
+        ];
+    }
+    $rows = sortByUserPreference($rows, userActionCounts($invoice['id_user'], 'extend'), 'code_product');
+    $favoriteCode = favoriteActionValue($invoice['id_user'], 'extend');
+    $kb = ['inline_keyboard' => []];
+    foreach ($rows as $index => $row) {
+        if ($index === 0 && $favoriteCode !== null && (string) $row['code_product'] === (string) $favoriteCode) {
+            $row['row'][0]['text'] = '🔥 ' . $row['row'][0]['text'];
+        }
+        $kb['inline_keyboard'][] = $row['row'];
+    }
+    if ($invoice['name_product'] == $textbotlang['users']['customSellVolume']['btnVolume'] || $invoice['name_product'] == $textbotlang['users']['customSellVolume']['btnService']) {
+        $kb['inline_keyboard'][] = [['text' => $textbotlang['keyboard']['selectCurrentService'], 'callback_data' => "serviceextendselect_pre"]];
+    }
+    $kb['inline_keyboard'][] = [['text' => $textbotlang['keyboard']['backToPreviousMenu'], 'callback_data' => $backCallback]];
+    return json_encode($kb);
 }

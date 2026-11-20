@@ -215,6 +215,7 @@ class ManagePanel
         }
         $data_limit_old = $data_user['data_limit'];
         $time_old = $data_user['expire'];
+        $time_old_raw = $time_old;
         $time_old = time() - $time_old > 0 ? time() : $time_old;
         $data_limit_new = $new_limit == 0 ? 0 : $new_limit * pow(1024, 3);
         $data_limit_new_add = $new_limit == 0 ? 0 : $data_limit_old + ($new_limit * pow(1024, 3));
@@ -237,6 +238,10 @@ class ManagePanel
             }
         };
         $Method_extend = extendMethodKey($Method_extend);
+        if ($Method_extend == "smartRenew") {
+            $alreadyExpired = intval($time_old_raw) > 0 && intval($time_old_raw) < time();
+            $Method_extend = $alreadyExpired ? "resetVolumeTime" : "addTimeConvertVolume";
+        }
         if ($Method_extend == "resetVolumeTime") {
             $reset = $this->ResetUserDataUsage($username, $panel['name_panel']);
             if (!is_array($reset) || ($reset['status'] ?? false) == false) {
@@ -270,7 +275,9 @@ class ManagePanel
             $time_new = $time_new_add;
             $data_limit_last = $data_user['data_limit'] - $data_user['used_traffic'];
             $data_limit_last = $data_limit_last < 0 ? 0 : $data_limit_last;
-            $data_limit_new = $data_limit_new + $data_limit_last;
+            if ($data_limit_new != 0) {
+                $data_limit_new = $data_limit_new + $data_limit_last;
+            }
         }
         $driver = PanelRegistry::driver($panel['type'], $this);
         if ($driver !== null && ($result = $driver->extendService(get_defined_vars())) !== BasePanelDriver::UNSUPPORTED) {

@@ -19,7 +19,7 @@ class XuiSinglePanelDriver extends BasePanelDriver
         } else {
             $inbounds = $Get_Data_Panel['inbounds'];
         }
-        $data_Output = addClient($Get_Data_Panel, $usernameC, $expire, $subId, $data_limit, $inbounds, $Get_Data_Product['name_product'], $note);
+        $data_Output = addClient($Get_Data_Panel, $usernameC, $expire, $subId, $data_limit, $inbounds, $Get_Data_Product['name_product'], $note, intval($Get_Data_Product['limit_ip'] ?? 0));
         if (!empty($data_Output['error'])) {
             return array(
                 'status' => 'Unsuccessful',
@@ -81,9 +81,16 @@ class XuiSinglePanelDriver extends BasePanelDriver
             );
         }
         if (empty($user_data['obj'])) {
+            $panelMsg = (string) ($user_data['msg'] ?? '');
+            if (!empty($user_data['success']) || stripos($panelMsg, 'not found') !== false) {
+                return array(
+                    'status' => 'Unsuccessful',
+                    'msg' => "User not found"
+                );
+            }
             return array(
                 'status' => 'Unsuccessful',
-                'msg' => "User not found"
+                'msg' => $panelMsg !== '' ? $panelMsg : 'empty response'
             );
         }
         $user_data = $user_data['obj'];
@@ -125,6 +132,9 @@ class XuiSinglePanelDriver extends BasePanelDriver
             $user_data['client']['enable'] = "on_hold";
             $expire = 0;
         }
+        $resetDays = intval($user_data['client']['reset'] ?? 0);
+        $resetMode = $user_data['client']['trafficReset'] ?? 'never';
+        $autoReset = $resetDays > 0 || !in_array($resetMode, ['', 'never'], true);
         $linksub = $Get_Data_Panel['linksubx'] . "/{$user_data['client']['subId']}";
         $used_data_3xui['obj']['lastOnline'] = $used_data_3xui['obj']['lastOnline'] == 0 ? "offline" : date('Y-m-d H:i:s', $used_data_3xui['obj']['lastOnline'] / 1000);
         $links_user = outputlink($linksub);
@@ -140,6 +150,7 @@ class XuiSinglePanelDriver extends BasePanelDriver
             'expire' => $expire,
             'expiry_time' => $user_data['client']['expiryTime'],
             'online_at' => $used_data_3xui['obj']['lastOnline'],
+            'data_limit_reset' => $autoReset ? 'month' : 'no_reset',
             'used_traffic' => $used_data_3xui['obj']['up'] + $used_data_3xui['obj']['down'],
             'links' => $links_user,
             'subscription_url' => $linksub,
@@ -215,24 +226,23 @@ class XuiSinglePanelDriver extends BasePanelDriver
 
     public function modify(array $vars)
     {
-        $name_panel = $vars['name_panel'];
         $username = $vars['username'];
         $config = $vars['config'];
         $Get_Data_Panel = $vars['Get_Data_Panel'];
-        $data_user = $this->DataUser($name_panel, $username);
-        if (($data_user['status'] ?? '') == 'Unsuccessful') {
+        $current = get_clinets($username, $Get_Data_Panel);
+        $currentBody = json_decode((string) ($current['body'] ?? ''), true);
+        $client = is_array($currentBody) ? ($currentBody['obj']['client'] ?? null) : null;
+        if (!is_array($client)) {
             return array(
                 'status' => false,
-                'msg' => $data_user['msg'] ?? ''
+                'msg' => $current['error'] ?? 'User not found'
             );
         }
-        $data = array(
-            "email" => $username,
-            "totalGB" => isset($config['totalGB']) ? $config['totalGB'] : $data_user['data_limit'],
-            "expiryTime" => isset($config['expiryTime']) ? $config['expiryTime'] : $data_user['expiry_time'],
-            "tgId" => 0,
-            "enable" => isset($config['enable']) ? $config['enable'] : true,
-        );
+        $data = array_intersect_key($client, array_flip(['limitIp', 'limitHwid', 'flow', 'comment', 'tgId', 'group', 'reset']));
+        $data['email'] = $username;
+        $data['totalGB'] = $config['totalGB'] ?? $client['totalGB'];
+        $data['expiryTime'] = $config['expiryTime'] ?? $client['expiryTime'];
+        $data['enable'] = $config['enable'] ?? true;
         if (!empty($config['id']))
             $data['id'] = $config['id'];
         if (!empty($config['subId']))

@@ -1602,6 +1602,28 @@ n2',
                 ],
                 'addorder' => [
                         'stepFive' => '📌 服务已成功添加到该用户的账户。',
+                        'orderConfirm' => '📜 服务账单
+
+👤 用户：%s
+🏷 服务名称：%s
+📍 面板：%s
+🛍 产品：%s
+⏱ 时长：%s 天
+🔋 流量：%s GB
+💸 价格（含用户折扣）：%s Toman
+💰 用户余额：%s Toman',
+                        'orderPayBtn' => '✅ 创建并从用户钱包扣费',
+                        'orderFreeBtn' => '🆓 免费创建（不扣费）',
+                        'orderModePaid' => '付费',
+                        'orderModeFree' => '免费',
+                        'orderReport' => '📣 管理员创建了服务（%s）
+
+👤 用户：<code>%s</code> %s
+🏷 服务名称：<code>%s</code>
+📍 面板：%s
+🛍 产品：%s
+💸 金额：%s Toman
+🧑‍💼 管理员：<code>%s</code>',
                         'stepFour' => '📌 请发送产品名称。',
                         'stepThree' => '📌 请选择配置位置。',
                         'stepTwo' => '📌 请发送该用户的配置用户名。',
@@ -1701,6 +1723,14 @@ n2',
                         'activatedUrl' => 'https://api.telegram.org/bot%s/sendmessage?chat_id=%s&text=✅ 尊敬的用户，您的机器人已成功安装。',
                 ],
                 'algorithmExtend' => [
+                        'methodsHelp' => '📌 请选择续费方式：
+
+🔹 重置流量和时间：用量归零，产品流量和时间从今天开始；原有剩余将被清除。
+🔹 增加流量和时间：产品流量和天数加到当前流量和到期时间上；用量不重置。
+🔹 重置时间、增加流量：时间从今天开始，产品流量加到当前流量上；用量不重置。
+🔹 重置流量、增加时间：用量归零，流量等于产品流量；产品天数加到当前到期时间上。
+🔹 剩余流量结转到下月：用量归零，剩余流量加到产品流量上，天数加到当前到期时间上。
+🔹 智能续费：到期前等同于「剩余流量结转到下月」，到期后等同于「重置流量和时间」。',
                         'saveData' => '✅ 服务续费方式已成功更新',
                         'invalidMethod' => '❌ 续费方式无效；请从下方列表中选择正确的续费方式',
                 ],
@@ -1842,7 +1872,7 @@ trojan://xyz',
                         'changedData' => '✅ 更改已成功保存',
                         'setDayRemove' => '📌 请发送在到期后多少天删除已到期账户
 当前时间： ',
-                        'setVolumeRemove' => '📌 请发送在流量用尽后多少天删除账户。账户时间根据用户最后一次连接计算。此功能适用于 Marzban 面板
+                        'setVolumeRemove' => '📌 请发送在流量用尽后多少天删除账户。账户时间根据用户最后一次连接计算。此功能适用于 Marzban 和 3x-ui 面板
 当前时间： ',
                         'cannotDeleteUnlimited' => '❌ 由于流量和时间均为无限，无法删除该服务。',
                         'askOnHoldDays' => '在此部分，您必须设置：如果用户在若干天后仍未连接到其配置且处于 on_hold 状态，则向用户发送消息',
@@ -3869,8 +3899,9 @@ f,n.n2',
                 'addEducation' => '📚 添加教程',
                 'addOrder' => '🛒 添加订单',
                 'addProduct' => '🛍 添加产品',
-                'addTimeConvertVolume' => '添加时间并将总流量转换为剩余流量',
-                'addTimeVolumeNextMonth' => '将时间和流量添加到下个月',
+                'addTimeConvertVolume' => '剩余流量结转到下月',
+                'smartRenew' => '智能续费（到期前：结转剩余；到期后：重新开始）',
+                'addTimeVolumeNextMonth' => '增加流量和时间',
                 'adminDeletedService' => '🔗 一位管理员从机器人数据库中删除了一个服务。
 
 - 管理员数字 ID：‌{from_id}
@@ -4196,8 +4227,8 @@ f,n.n2',
                 'requestNotFound' => '未找到请求的申请。',
                 'requestRejected' => '✅请求已拒绝。',
                 'resetAllUsersLimit' => '🔄 重置所有用户的限制',
-                'resetTimeAddVolume' => '重置时间并添加之前的流量',
-                'resetVolumeAddTime' => '重置流量并添加时间',
+                'resetTimeAddVolume' => '重置时间、增加流量',
+                'resetVolumeAddTime' => '重置流量、增加时间',
                 'resetVolumeTime' => '重置流量和时间',
                 'searchOrder' => '🛍 搜索订单',
                 'searchUserBtn' => '🔍 搜索用户',
@@ -4656,6 +4687,7 @@ f,n.n2',
                 'productThirtyValue' => '۳۰',
                 'productTomanUnit' => '取消',
                 'productUnlimitedLabel' => '说明',
+                'productLimitIp' => '同时在线 IP 限制（0 = 不限制；x-ui 服务）',
                 'productVolumeGbSuffix' => '流量 (GB)',
                 'productZeroValue' => '۰',
                 'productsHeading' => '已登记产品',

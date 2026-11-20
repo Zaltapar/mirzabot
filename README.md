@@ -12,7 +12,7 @@
     <img src="https://img.shields.io/github/actions/workflow/status/Zaltapar/mirzabot/ci.yml?style=flat-square" alt="CI"/>
   </a>
   <img src="https://img.shields.io/badge/PHP-8.2-777BB4?style=flat-square&logo=php&logoColor=white" alt="PHP 8.2"/>
-  <img src="https://img.shields.io/badge/version-1.2-8B949E?style=flat-square" alt="Version"/>
+  <img src="https://img.shields.io/badge/version-1.3-8B949E?style=flat-square" alt="Version"/>
 </p>
 
 </div>
@@ -76,6 +76,15 @@ This enhanced edition layers a set of interactivity, UX and performance improvem
 ---
 
 ## 🆕 What's New in This Version
+
+### New in 1.3
+- **Smart renewal** — the new upstream 0.9.4 renewal method carries the remaining volume and time over when the service is still active, and starts fresh once it has expired.
+- **Renewal by category** — when general categories are enabled, renewals show categories first, matching the purchase flow.
+- **Admin order invoice** — manual orders now show product, panel, duration, volume and price before creation; the admin can charge the user's wallet or create the service for free, and the wallet is refunded automatically if the panel fails.
+- **3x-ui IP limit** — products can set a simultaneous-IP limit (`limitIp`) in the web panel.
+- **3x-ui volume cleanup** — the remove-volume cron now understands 3x-ui panels and skips clients with automatic traffic reset or no connection.
+- **Disabled-service recovery** — `php restore_disabledn.php` dry-runs invoices wrongly marked `disabledn` and restores the ones that still exist on the panel with `--apply`.
+- **Reliability fixes from upstream** — user-not-found is double-checked before disabling a service, test services are renamed only after a successful renewal, auto-confirm works with delays over an hour, x-ui usernames are URL-encoded, x-ui client fields survive renewal updates, and custom QR backgrounds survive `sync.php`.
 
 ### New in 1.2
 - **Support tickets API** — customer tickets can be listed, viewed, replied to, and closed from the admin panel (`api/tickets.php`), so support work no longer needs manual Telegram digging.
