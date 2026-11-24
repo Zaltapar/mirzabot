@@ -58,6 +58,14 @@ $aboutBotKeyboard = null;
 
 if (!in_array($from_id, $admin_ids))
     return;
+// Re-derive the acting admin's role from $from_id. Notification loops in
+// index.php used to overwrite $adminrulecheck with the last notified admin's
+// role, which could grant that role's privileges in the gates below.
+$adminrulecheck = select("admin", "*", "id_admin", $from_id, "select");
+if (!is_array($adminrulecheck) || !isset($adminrulecheck['rule'])) {
+    // An empty/failed lookup must never grant privileges.
+    $adminrulecheck = array('rule' => '');
+}
 $domainhostsEscaped = htmlspecialchars($domainhosts, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
 $miniAppInstructionText = sprintf($textbotlang['Admin']['webpanel']['miniAppHelp'], $domainhostsEscaped);
@@ -1927,11 +1935,11 @@ elseif ($datain == "systemsms") {
 } elseif ($user['step'] == "reject-dec") {
     $Payment_report = select("Payment_report", "*", "id_order", $user['Processing_value_one'], "select");
     update("Payment_report", "dec_not_confirmed", $text, "id_order", $user['Processing_value_one']);
-    $text_reject = sprintf($textbotlang['users']['Balance']['rejectedNotice'], $text, $user['Processing_value_one']);
+    $text_reject = sprintf($textbotlang['users']['Balance']['rejectedNotice'], htmlspecialchars((string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), $user['Processing_value_one']);
     sendmessage($from_id, $textbotlang['Admin']['Payment']['rejected'], $keyboardadmin, 'HTML');
     sendmessage($user['Processing_value'], $text_reject, null, 'HTML');
     step('home', $from_id);
-    $text_report = sprintf($textbotlang['Admin']['reportgroup']['paymentRejected'], $Payment_report['Payment_Method'], $from_id, $username, $Payment_report['price'], $text, $Payment_report['id_user']);
+    $text_report = sprintf($textbotlang['Admin']['reportgroup']['paymentRejected'], $Payment_report['Payment_Method'], $from_id, $username, $Payment_report['price'], htmlspecialchars((string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), $Payment_report['id_user']);
     if (strlen($setting['Channel_Report']) > 0) {
         telegram('sendmessage', [
             'chat_id' => $setting['Channel_Report'],
@@ -5226,8 +5234,13 @@ if ($datain == "settimecornremove" && $adminrulecheck['rule'] == "administrator"
             return;
         }
     } else {
-        $DataUserOut['configs'] = $DataUserOut['links'];
-        $paid = false;
+        // The panel user already exists. Preserve the administrator's explicit
+        // "pay from wallet" choice instead of silently making the order free.
+        if ($paid && !deductBalance($owner, $orderPrice)) {
+            sendmessage($from_id, $textbotlang['users']['Balance']['notEnoughBalance'], $keyboardadmin, 'HTML');
+            return;
+        }
+        $DataUserOut['configs'] = $DataUserOut['links'] ?? [];
     }
     $invoicePrice = $paid ? $orderPrice : 0;
     $date = time();

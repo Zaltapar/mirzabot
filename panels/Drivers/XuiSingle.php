@@ -37,6 +37,11 @@ class XuiSinglePanelDriver extends BasePanelDriver
                 $Output['msg'] = $data_Output['msg'];
             } else {
                 $links_user = outputlink($Get_Data_Panel['linksubx'] . "/{$subId}");
+                if (!is_string($links_user) || trim($links_user) === '') {
+                    $Output['status'] = 'Unsuccessful';
+                    $Output['msg'] = 'empty subscription response';
+                    return $Output;
+                }
                 if (isBase64($links_user)) {
                     $links_user = base64_decode($links_user);
                 }
@@ -138,6 +143,12 @@ class XuiSinglePanelDriver extends BasePanelDriver
         $linksub = $Get_Data_Panel['linksubx'] . "/{$user_data['client']['subId']}";
         $used_data_3xui['obj']['lastOnline'] = $used_data_3xui['obj']['lastOnline'] == 0 ? "offline" : date('Y-m-d H:i:s', $used_data_3xui['obj']['lastOnline'] / 1000);
         $links_user = outputlink($linksub);
+        if (!is_string($links_user) || trim($links_user) === '') {
+            return array(
+                'status' => 'Unsuccessful',
+                'msg' => 'empty subscription response'
+            );
+        }
         if (isBase64($links_user))
             $links_user = base64_decode($links_user);
         $links_user = explode("\n", trim($links_user));
@@ -181,6 +192,12 @@ class XuiSinglePanelDriver extends BasePanelDriver
             );
         } else {
             $links_user = outputlink($Get_Data_Panel['linksubx'] . "/{$subId}");
+            if (!is_string($links_user) || trim($links_user) === '') {
+                return array(
+                    'status' => 'Unsuccessful',
+                    'msg' => 'empty subscription response'
+                );
+            }
             if (isBase64($links_user))
                 $links_user = base64_decode($links_user);
             $Output = array(

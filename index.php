@@ -2832,11 +2832,11 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $Percent = -($Percent);
     $Percent = round($Percent, 2);
     $textdisorder .= sprintf($textbotlang['users']['status']['summary'], $status_var, $LastTraffic, $usedTrafficGb, $RemainingVolume, $Percent, $expirationDate, $day, $DataUserOut['subscription_url'], $lastonline, $lastupdate, $DataUserOut['sub_last_user_agent']);
-    foreach ($admin_ids as $admin) {
-        $adminrulecheck = select("admin", "*", "id_admin", $admin, "select");
-        if ($adminrulecheck['rule'] == "Seller")
+    foreach ($admin_ids as $notifyAdmin) {
+        $notifyAdminRule = select("admin", "*", "id_admin", $notifyAdmin, "select");
+        if (($notifyAdminRule['rule'] ?? '') == "Seller")
             continue;
-        sendmessage($admin, $textdisorder, $Response, 'html');
+        sendmessage($notifyAdmin, $textdisorder, $Response, 'html');
     }
     $bakinfos = json_encode([
         'inline_keyboard' => [
@@ -3575,7 +3575,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     if ($video) {
         sendvideo($departeman['idsupport'], $videoid, null);
     }
-    $textsuppoer = sprintf($textbotlang['Admin']['reportgroup']['supportMessage'], $from_id, $from_id, $timejalali, $username, $departeman['name_departman'], $text, $caption);
+    $textsuppoer = sprintf($textbotlang['Admin']['reportgroup']['supportMessage'], $from_id, $from_id, $timejalali, $username, $departeman['name_departman'], htmlspecialchars((string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), htmlspecialchars((string) $caption, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'));
     $Response = json_encode([
         'inline_keyboard' => [
             [
@@ -3646,7 +3646,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     $stmt->bindParam(':time', $time);
     $stmt->bindParam(':status', $status);
     $stmt->execute();
-    $textsuppoer = sprintf($textbotlang['Admin']['reportgroup']['supportMessage2'], $from_id, $from_id, $timejalali, $username, $trakingdetail['name_departman'], $text);
+    $textsuppoer = sprintf($textbotlang['Admin']['reportgroup']['supportMessage2'], $from_id, $from_id, $timejalali, $username, $trakingdetail['name_departman'], htmlspecialchars((string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'));
     $Response = json_encode([
         'inline_keyboard' => [
             [
@@ -6035,19 +6035,19 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
 
         $textsendrasid = sprintf($textbotlang['Admin']['reportgroup']['newPaymentBalance'], $first_name, $from_id, $from_id, $format_balance, $PaymentReport['id_order'], $username, $Paymentusercount, $format_price_cart, $caption, $text);
     }
-    foreach ($admin_ids as $id_admin) {
-        $adminrulecheck = select("admin", "*", "id_admin", $id_admin, "select");
-        if ($adminrulecheck['rule'] == "support")
+    foreach ($admin_ids as $notifyAdmin) {
+        $notifyAdminRule = select("admin", "*", "id_admin", $notifyAdmin, "select");
+        if (($notifyAdminRule['rule'] ?? '') == "support")
             continue;
         if ($photo) {
             telegram('sendphoto', [
-                'chat_id' => $id_admin,
+                'chat_id' => $notifyAdmin,
                 'photo' => $photoid,
                 'caption' => $textbotlang['users']['Balance']['receiptimage'],
                 'parse_mode' => "HTML",
             ]);
         }
-        sendmessage($id_admin, $textsendrasid, $Confirm_pay, 'HTML');
+        sendmessage($notifyAdmin, $textsendrasid, $Confirm_pay, 'HTML');
     }
     if ($get_invoice) {
         sendmessage($from_id, $textbotlang['users']['Balance']['sendReceiptAndConfig'], $keyboard, 'HTML');
@@ -6148,17 +6148,17 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
         $textsendrasid = sprintf($textbotlang['Admin']['reportgroup']['newPaymentBalance2'], $first_name, $from_id, $from_id, $format_balance, $PaymentReport['id_order'], $username, $format_price_cart);
         sendmessage($from_id, $textbotlang['users']['Balance']['sendReceipt'], $keyboard, 'HTML');
     }
-    foreach ($admin_ids as $id_admin) {
-        $adminrulecheck = select("admin", "*", "id_admin", $id_admin, "select");
-        if ($adminrulecheck['rule'] == "support")
+    foreach ($admin_ids as $notifyAdmin) {
+        $notifyAdminRule = select("admin", "*", "id_admin", $notifyAdmin, "select");
+        if (($notifyAdminRule['rule'] ?? '') == "support")
             continue;
         telegram('sendphoto', [
-            'chat_id' => $id_admin,
+            'chat_id' => $notifyAdmin,
             'photo' => $photoid,
             'caption' => $caption,
             'parse_mode' => "HTML",
         ]);
-        sendmessage($id_admin, $textsendrasid, $Confirm_pay, 'HTML');
+        sendmessage($notifyAdmin, $textsendrasid, $Confirm_pay, 'HTML');
     }
     update("Payment_report", "payment_Status", "waiting", "id_order", $PaymentReport['id_order']);
     $dateacc = date('Y/m/d H:i:s');
@@ -6464,18 +6464,18 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
             ],
         ]
     ]);
-    foreach ($admin_ids as $id_admin) {
-        $adminrulecheck = select("admin", "*", "id_admin", $id_admin, "select");
-        if ($adminrulecheck['rule'] == "Seller")
+    foreach ($admin_ids as $notifyAdmin) {
+        $notifyAdminRule = select("admin", "*", "id_admin", $notifyAdmin, "select");
+        if (($notifyAdminRule['rule'] ?? '') == "Seller")
             continue;
         if ($text) {
             $textsendadmin = sprintf($textbotlang['Admin']['messageBulk']['userMessage'], $from_id, $username, $caption . $text);
-            sendmessage($id_admin, $textsendadmin, $Response, 'HTML');
+            sendmessage($notifyAdmin, $textsendadmin, $Response, 'HTML');
         }
         if ($photo) {
             $textsendadmin = sprintf($textbotlang['Admin']['messageBulk']['userResponse'], $from_id, $username, $caption);
             telegram('sendphoto', [
-                'chat_id' => $id_admin,
+                'chat_id' => $notifyAdmin,
                 'photo' => $photoid,
                 'reply_markup' => $Response,
                 'caption' => $textsendadmin,
@@ -6950,7 +6950,7 @@ if ($text == "/start" || $datain == "start" || $text == "start") {
     sendmessage($from_id, $textbotlang['users']['note']['changednote'], $backinfoss, "html");
     step("home", $from_id);
     $timejalali = jdate('Y/m/d H:i:s');
-    $textreport = sprintf($textbotlang['Admin']['reportgroup']['noteChanged'], $invoice['username'], $invoice['note'], $text, $timejalali);
+    $textreport = sprintf($textbotlang['Admin']['reportgroup']['noteChanged'], $invoice['username'], htmlspecialchars((string) $invoice['note'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), htmlspecialchars((string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), $timejalali);
     if (strlen($setting['Channel_Report']) > 0) {
         telegram('sendmessage', [
             'chat_id' => $setting['Channel_Report'],

@@ -171,7 +171,7 @@ if (!$needComposer) {
         warn('composer not found. Run `composer install` in ' . $targetDir . ' manually, then re-run sync.');
     } else {
         $rc = 0;
-        passthru(escapeshellarg($composer) . ' install --no-interaction --no-progress', $rc);
+        passthru('cd ' . escapeshellarg($targetDir) . ' && ' . escapeshellarg($composer) . ' install --no-interaction --no-progress', $rc);
         if ($rc !== 0) {
             fail('composer install failed (exit ' . $rc . '). The new code may not work until you fix dependencies.');
         }

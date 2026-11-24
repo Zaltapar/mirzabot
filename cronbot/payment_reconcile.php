@@ -82,10 +82,14 @@ while ($order = $stmt->fetch(PDO::FETCH_ASSOC)) {
              WHERE id_user = ?
                AND Payment_Method IN ('add balance by admin', 'low balance by admin')
                AND time >= ?
-               AND time < DATE_ADD(NOW(), INTERVAL 30 MINUTE)"
+               AND time < ?"
         );
+        // Payment_report.time is VARCHAR in 'Y/m/d H:i:s' format, so the upper
+        // bound must use that exact format too (a SQL DATE_ADD would produce
+        // 'Y-m-d H:i:s' and compare false lexicographically).
         $orderWindow = date('Y/m/d H:i:s', strtotime((string) $order['time']) - 1800);
-        $adminSettled->execute([$order['id_user'], $orderWindow]);
+        $settledUpper = date('Y/m/d H:i:s', time() + 1800);
+        $adminSettled->execute([$order['id_user'], $orderWindow, $settledUpper]);
         if ((int) $adminSettled->fetchColumn() > 0) {
             $markDelivered('orphan', $orderId);
             mirzaReportCriticalError(

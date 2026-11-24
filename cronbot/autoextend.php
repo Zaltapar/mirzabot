@@ -1,4 +1,14 @@
 <?php
+const AUTOEXTEND_MAX_FAILS = 3;
+const AUTOEXTEND_MAX_WINDOW_DAYS = 30;
+const AUTOEXTEND_REPORT_THROTTLE = 259200; // 3 days
+
+// Test seam: the regression harness defines AUTOEXTEND_TEST_MODE before including
+// this file. Named functions below are still declared, but the cron bootstrap and
+// the database loop are skipped. Production runs are unaffected.
+if (defined('AUTOEXTEND_TEST_MODE')) {
+    return;
+}
 chdir(__DIR__);
 ini_set('error_log', 'error_log');
 date_default_timezone_set('Asia/Tehran');
@@ -20,7 +30,7 @@ $faLang = languagechange(dirname(__DIR__), 'fa');
 $daywarn = max(1, intval($setting['daywarn'] ?? 2));
 $windowSeconds = $daywarn * 86400;
 $now = time();
-$throttleSeconds = 3 * 86400;
+$throttleSeconds = AUTOEXTEND_REPORT_THROTTLE;
 
 $stmt = $pdo->prepare("SELECT * FROM invoice WHERE auto_extend = '1' AND Status IN ('active', 'sendedwarn', 'send_on_hold', 'end_of_time', 'end_of_volume') AND (time_cron <= :t OR time_cron IS NULL) ORDER BY time_sell ASC LIMIT 50");
 $stmt->execute([':t' => $now - 1600]);
@@ -39,10 +49,14 @@ foreach ($invoices as $invoice) {
 function autoExtendProcess($invoice, $panelObj, int $windowSeconds, int $now, int $throttleSeconds): void
 {
     global $pdo;
+    // daywarn is an admin-editable warning window (unbounded in admin.php).
+    // Reusing it raw for renewals could renew a brand-new service months early.
+    $windowSeconds = min($windowSeconds, AUTOEXTEND_MAX_WINDOW_DAYS * 86400);
+
     $panel = select("marzban_panel", "*", "name_panel", $invoice['Service_location'], "select");
     if (!$panel) {
         autoExtendNotify($invoice, 'autoRenewPanelGone', ['{username}' => $invoice['username']], $throttleSeconds);
-        autoExtendReport($invoice, 'panel removed', $invoice['Service_location']);
+        autoExtendReport($invoice, 'config error: panel removed', $invoice['Service_location'], $throttleSeconds);
         update("invoice", "auto_extend", "0", "id_invoice", $invoice['id_invoice']);
         return;
     }
@@ -56,26 +70,40 @@ function autoExtendProcess($invoice, $panelObj, int $windowSeconds, int $now, in
     }
     $live = $panelObj->DataUser($panel['name_panel'], $invoice['username']);
     if (!is_array($live) || ($live['status'] ?? '') == "Unsuccessful") {
-        if (is_array($live) && ($live['msg'] ?? '') == "User not found") {
+        $liveMsg = is_array($live) ? (string) ($live['msg'] ?? '') : '';
+        if (stripos($liveMsg, 'panel not found') !== false) {
+            // Deterministic: the panel mapping is gone, retrying cannot help.
             autoExtendNotify($invoice, 'autoRenewPanelGone', ['{username}' => $invoice['username']], $throttleSeconds);
-            autoExtendReport($invoice, 'service missing on panel', $panel['name_panel']);
+            autoExtendReport($invoice, 'config error: panel not found', $panel['name_panel'], $throttleSeconds);
+            update("invoice", "auto_extend", "0", "id_invoice", $invoice['id_invoice']);
+        } elseif (stripos($liveMsg, 'user not found') !== false) {
+            // Panels report this with differing casing ("User not found",
+            // "user not found"); match case-insensitively and stop retrying.
+            autoExtendNotify($invoice, 'autoRenewPanelGone', ['{username}' => $invoice['username']], $throttleSeconds);
+            autoExtendReport($invoice, 'config error: service missing on panel', $panel['name_panel'], $throttleSeconds);
             update("invoice", "auto_extend", "0", "id_invoice", $invoice['id_invoice']);
         } else {
+            // Transient panel/network failure: notify (throttled) but keep
+            // auto-renew enabled so a temporary outage is not fatal.
             autoExtendNotify($invoice, 'autoRenewPanelDown', ['{username}' => $invoice['username']], $throttleSeconds);
         }
         return;
     }
     // Renew when EITHER condition holds:
-    //  - the service is inside the time-expiry window, OR
-    //  - the volume is actually depleted (data_limit exhausted). This is what
-    //    was missing before: a volume-limited service that still has days of
-    //    time left never fired, because the time-based gate was the only one.
-    // Marzban marks such users "limited"; the live snapshot carries it.
+    //  - the service is inside a bounded time-expiry window, OR
+    //  - the volume is actually depleted (a positive data_limit exhausted).
+    // data_limit == 0 means unlimited traffic; it must never be treated as
+    // "used >= limit", otherwise every unlimited service renews immediately.
+    $dataLimit = $live['data_limit'] ?? null;
+    $usedTraffic = $live['used_traffic'] ?? null;
     $volumeDepleted = in_array($live['status'] ?? '', ['limited', 'expired'], true)
-        && is_numeric($live['data_limit'] ?? null)
-        && is_numeric($live['used_traffic'] ?? null)
-        && ((float) $live['used_traffic'] >= (float) $live['data_limit']);
-    $remain = !empty($live['expire']) ? $live['expire'] - $now : PHP_INT_MAX;
+        && is_numeric($dataLimit) && (float) $dataLimit > 0
+        && is_numeric($usedTraffic)
+        && ((float) $usedTraffic >= (float) $dataLimit);
+    $expireRaw = $live['expire'] ?? null;
+    // Non-numeric expire must not be subtracted: PHP 8 throws, and on older
+    // versions it coerced to 0 which looked like an immediately-expiring user.
+    $remain = is_numeric($expireRaw) ? ((float) $expireRaw - $now) : PHP_INT_MAX;
     $inTimeWindow = $remain <= $windowSeconds;
     if (!$volumeDepleted && !$inTimeWindow) {
         return;
@@ -83,13 +111,13 @@ function autoExtendProcess($invoice, $panelObj, int $windowSeconds, int $now, in
     $product = autoExtendResolveProduct($invoice, $user, $panel);
     if ($product === 'gone') {
         autoExtendNotify($invoice, 'autoRenewProductGone', ['{username}' => $invoice['username']], $throttleSeconds);
-        autoExtendReport($invoice, 'product no longer in shop', $panel['name_panel']);
+        autoExtendReport($invoice, 'config error: product no longer in shop', $panel['name_panel'], $throttleSeconds);
         update("invoice", "auto_extend", "0", "id_invoice", $invoice['id_invoice']);
         return;
     }
     if ($product === null) {
         autoExtendNotify($invoice, 'autoRenewNotFound', ['{username}' => $invoice['username']], $throttleSeconds);
-        autoExtendReport($invoice, 'could not resolve product', $panel['name_panel']);
+        autoExtendReport($invoice, 'could not resolve product', $panel['name_panel'], $throttleSeconds);
         return;
     }
     $price = (float) $product['price_product'];
@@ -105,7 +133,7 @@ function autoExtendProcess($invoice, $panelObj, int $windowSeconds, int $now, in
             '{new}' => number_format($price, 0),
         ], $throttleSeconds);
         if (!$throttled) {
-            autoExtendReport($invoice, 'price rose ' . number_format($oldPrice, 0) . ' -> ' . number_format($price, 0) . ' Toman; held by price-lock policy', $panel['name_panel']);
+            autoExtendReport($invoice, 'price rose ' . number_format($oldPrice, 0) . ' -> ' . number_format($price, 0) . ' Toman; held by price-lock policy', $panel['name_panel'], $throttleSeconds);
         }
         return;
     }
@@ -117,16 +145,22 @@ function autoExtendProcess($invoice, $panelObj, int $windowSeconds, int $now, in
         ], $throttleSeconds);
         return;
     }
-    $extend = $panelObj->extend($panel['Methodextend'], $product['Volume_constraint'], $product['Service_time'], $invoice['username'], $product['code_product'], $panel['code_panel']);
+    // Pass the already-resolved rows so ManagePanel::extend() does not repeat
+    // the panel/product lookups with potentially stale codes.
+    $extend = $panelObj->extend($panel['Methodextend'], $product['Volume_constraint'], $product['Service_time'], $invoice['username'], $product['code_product'], $panel['code_panel'], $panel, $product);
     if (!is_array($extend) || empty($extend['status'])) {
         if ($price > 0) {
             addBalance($user['id'], $price);
         }
-        $errMsg = is_array($extend) ? json_encode($extend['msg'] ?? 'unknown', JSON_UNESCAPED_UNICODE) : 'unknown';
-        autoExtendNotify($invoice, 'autoRenewExtendFailed', ['{username}' => $invoice['username']], $throttleSeconds);
-        autoExtendReport($invoice, 'panel extend failed: ' . $errMsg, $panel['name_panel']);
+        $rawMsg = is_array($extend) ? ($extend['msg'] ?? 'unknown') : 'unknown';
+        $errMsg = is_scalar($rawMsg) ? (string) $rawMsg : json_encode($rawMsg, JSON_UNESCAPED_UNICODE);
+        autoExtendHandleFailure($invoice, $errMsg, autoExtendIsConfigError($errMsg), $throttleSeconds, $panel['name_panel']);
         return;
     }
+    // A successful renewal resets the consecutive-failure bookkeeping.
+    $meta = autoExtendMeta($invoice);
+    unset($meta['renew_fail_count'], $meta['renew_fail_at']);
+    autoExtendSaveMeta($invoice, $meta);
     $priceChangedLine = '';
     if (abs((float) $invoice['price_product'] - $price) > 0.009) {
         $texts = autoExtendUserTexts($invoice);
@@ -159,7 +193,8 @@ function autoExtendProcess($invoice, $panelObj, int $windowSeconds, int $now, in
     $kbLabel = $texts['textbot']['purchasedServices'] ?? '';
     $kb = $kbLabel !== '' ? json_encode(['inline_keyboard' => [[['text' => $kbLabel, 'callback_data' => 'backorder']]]]) : null;
     sendmessage($invoice['id_user'], $msg, $kb, 'HTML', $invoice['bottype'] ?? null);
-    autoExtendReport($invoice, 'renewed at ' . number_format($price, 0), $panel['name_panel']);
+    // Successes are reported every time; only failure noise is throttled.
+    autoExtendReport($invoice, 'renewed at ' . number_format($price, 0), $panel['name_panel'], 0);
 }
 
 function autoExtendResolveProduct($invoice, $user, $panel)
@@ -178,7 +213,10 @@ function autoExtendResolveProduct($invoice, $user, $panel)
                 $row['name_product'] = $reserved['name_product'] ?? $row['name_product'];
                 return $row;
             }
-        } elseif (isset($reserved['volume'])) {
+        }
+        // A stale reserved code_product must not block the volume/days
+        // fallback: this was an elseif, so the fallback never ran.
+        if (isset($reserved['volume'])) {
             $price = autoExtendCustomPrice($panel, $agent, (int) $reserved['volume'], (int) ($reserved['days'] ?? 0));
             if ($price !== null) {
                 return [
@@ -246,24 +284,114 @@ function autoExtendUserTexts($invoice)
     return languagechange(dirname(__DIR__), $lang);
 }
 
-function autoExtendNotify($invoice, $key, array $params, int $throttleSeconds): void
+/**
+ * Bookkeeping lives inside the existing auto_extend_spec JSON column, so no new
+ * DB column or migration is needed at cron runtime. Existing spec consumers
+ * only read their own keys and ignore these extra ones.
+ */
+function autoExtendMeta($invoice): array
+{
+    $spec = json_decode((string) ($invoice['auto_extend_spec'] ?? ''), true);
+    return is_array($spec) ? $spec : [];
+}
+
+function autoExtendSaveMeta($invoice, array $meta): void
+{
+    update("invoice", "auto_extend_spec", json_encode($meta, JSON_UNESCAPED_UNICODE), "id_invoice", $invoice['id_invoice']);
+}
+
+/**
+ * Deterministic configuration problems (bad panel/product mapping) can never
+ * be fixed by retrying; everything else is a transient panel/network error.
+ */
+function autoExtendIsConfigError($msg): bool
+{
+    $text = is_scalar($msg) ? strtolower((string) $msg) : '';
+    foreach (['data not found', 'panel not found', 'product not found', 'local config error'] as $needle) {
+        if (strpos($text, $needle) !== false) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function autoExtendHandleFailure($invoice, string $errMsg, bool $configError, int $throttleSeconds, string $panelName): void
+{
+    $params = ['{username}' => $invoice['username']];
+    $meta = autoExtendMeta($invoice);
+    // Only count failures that are genuinely consecutive. A lone failure from
+    // days ago must not combine with a new one to disable auto-renew.
+    $lastFailAt = (int) ($meta['renew_fail_at'] ?? 0);
+    if ($lastFailAt > 0 && (time() - $lastFailAt) > 86400) {
+        $meta['renew_fail_count'] = 0;
+    }
+
+    if ($configError) {
+        // Deterministic: stop now, retrying a broken mapping is pointless.
+        $meta['renew_fail_count'] = AUTOEXTEND_MAX_FAILS;
+    } else {
+        $meta['renew_fail_count'] = (int) ($meta['renew_fail_count'] ?? 0) + 1;
+    }
+    $meta['renew_fail_at'] = time();
+
+    $exhausted = $configError || $meta['renew_fail_count'] >= AUTOEXTEND_MAX_FAILS;
+    if ($exhausted) {
+        $meta['renew_fail_count'] = 0;
+    }
+    autoExtendSaveMeta($invoice, $meta);
+    // Keep the local copy in sync so the throttled report does not overwrite
+    // the failure counter we just persisted.
+    $invoice['auto_extend_spec'] = json_encode($meta, JSON_UNESCAPED_UNICODE);
+
+    if ($exhausted) {
+        update("invoice", "auto_extend", "0", "id_invoice", $invoice['id_invoice']);
+        // Force exactly one final notice even if an earlier failure was just
+        // notified within the DM throttle window.
+        autoExtendNotify($invoice, 'autoRenewDisabled', $params, $throttleSeconds, true);
+        $label = $configError
+            ? 'config error: '
+            : 'renew failed after ' . AUTOEXTEND_MAX_FAILS . ' attempts: ';
+        autoExtendReport($invoice, $label . $errMsg, $panelName, $throttleSeconds);
+        return;
+    }
+
+    autoExtendNotify($invoice, 'autoRenewExtendFailed', $params, $throttleSeconds);
+    autoExtendReport(
+        $invoice,
+        'renew failed (' . (int) $meta['renew_fail_count'] . '/' . AUTOEXTEND_MAX_FAILS . '): ' . $errMsg,
+        $panelName,
+        $throttleSeconds
+    );
+}
+
+function autoExtendNotify($invoice, $key, array $params, int $throttleSeconds, bool $force = false): void
 {
     $last = (int) ($invoice['auto_extend_msg_at'] ?? 0);
-    if ($throttleSeconds > 0 && $last > 0 && (time() - $last) < $throttleSeconds) {
+    if (!$force && $throttleSeconds > 0 && $last > 0 && (time() - $last) < $throttleSeconds) {
         return;
     }
     $texts = autoExtendUserTexts($invoice);
-    $msg = strtr($texts['users']['extend'][$key] ?? '', $params);
+    $template = $texts['users']['extend'][$key] ?? '';
+    if (!is_string($template) || $template === '') {
+        // A missing locale key must never turn into an empty Telegram message.
+        $template = 'Auto-renewal for your service has changed. Please contact support.';
+    }
+    $msg = strtr($template, $params);
     sendmessage($invoice['id_user'], $msg, null, 'HTML', $invoice['bottype'] ?? null);
     if ($throttleSeconds > 0) {
         update("invoice", "auto_extend_msg_at", time(), "id_invoice", $invoice['id_invoice']);
     }
 }
 
-function autoExtendReport($invoice, $result, $panelName): void
+function autoExtendReport($invoice, $result, $panelName, int $throttleSeconds = AUTOEXTEND_REPORT_THROTTLE): void
 {
     global $setting;
     if (empty($setting['Channel_Report'])) {
+        return;
+    }
+    $meta = autoExtendMeta($invoice);
+    $last = (int) ($meta['renew_report_at'] ?? 0);
+    if ($throttleSeconds > 0 && $last > 0 && (time() - $last) < $throttleSeconds) {
         return;
     }
     $topic = select("topicid", "idreport", "report", "reportcron", "select");
@@ -274,4 +402,8 @@ function autoExtendReport($invoice, $result, $panelName): void
         'text' => $text,
         'parse_mode' => "HTML",
     ]);
+    if ($throttleSeconds > 0) {
+        $meta['renew_report_at'] = time();
+        autoExtendSaveMeta($invoice, $meta);
+    }
 }

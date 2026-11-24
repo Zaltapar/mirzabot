@@ -1,4 +1,10 @@
 <?php
+// Test seam: the regression harness defines PANELS_TEST_MODE before including
+// this file. The ManagePanel class is still declared, but the app bootstrap is
+// skipped. Production runs are unaffected.
+if (defined('PANELS_TEST_MODE')) {
+    return;
+}
 ini_set('error_log', 'error_log');
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/panels/bootstrap.php';
@@ -186,17 +192,23 @@ class ManagePanel
         }
         return array('status' => false, 'msg' => 'Panel Not Found');
     }
-    function extend($Method_extend, $new_limit, $time_day, $username, $code_product, $name_panel)
+    function extend($Method_extend, $new_limit, $time_day, $username, $code_product, $name_panel, $panelRow = null, $productRow = null)
     {
-        $panel = select("marzban_panel", "*", "code_panel", $name_panel, "select");
-        $product = select("product", "*", "code_product", $code_product, "select");
+        // Backwards compatible: every pre-existing caller passes $name_panel as
+        // a code_panel and the two rows were re-looked-up here. Auto-renewal
+        // resolves the panel (by name_panel) and the product from the invoice
+        // first and passes those rows in, so a stale/blank code_panel or a
+        // stale product code can no longer turn a valid renewal into a bogus
+        // local "data not found" result that looked like a panel API failure.
+        $panel = is_array($panelRow) ? $panelRow : select("marzban_panel", "*", "code_panel", $name_panel, "select");
+        $product = is_array($productRow) ? $productRow : select("product", "*", "code_product", $code_product, "select");
         $invoice = select("invoice", "*", "username", $username, "select");
-        if (in_array($code_product, ["custom_volume", "customvolume"], true))
+        if ($productRow === null && in_array($code_product, ["custom_volume", "customvolume"], true))
             $product = true;
         if ($panel == false || $product == false) {
             return array(
                 'status' => false,
-                'msg' => 'data not found'
+                'msg' => 'local config error: panel or product mapping missing'
             );
         }
         $data_user = $this->DataUser($panel['name_panel'], $username);

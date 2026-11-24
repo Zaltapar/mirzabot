@@ -13,6 +13,6 @@ return [
         last_run INT NOT NULL DEFAULT 0,
         last_count INT NOT NULL DEFAULT 0,
         created_at INT NOT NULL DEFAULT 0,
-        updated_at INT NOT NULL DEFAULT 0,
+        updated_at INT NOT NULL DEFAULT 0
         SQL,
 ];

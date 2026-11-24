@@ -2865,11 +2865,18 @@ function sanitize_recursive(array $data): array
 
 function check_active_btn($keyboard, $text_var)
 {
-    $trace_keyboard = json_decode($keyboard, true)['keyboard'];
+    $decoded = is_string($keyboard) ? json_decode($keyboard, true) : null;
+    if (!is_array($decoded) || !isset($decoded['keyboard']) || !is_array($decoded['keyboard'])) {
+        return false;
+    }
+    $trace_keyboard = $decoded['keyboard'];
     $status = false;
     foreach ($trace_keyboard as $key => $callback_set) {
-        foreach ($callback_set as $keyboard_key => $keyboard) {
-            if ($keyboard['text'] == $text_var) {
+        if (!is_array($callback_set)) {
+            continue;
+        }
+        foreach ($callback_set as $keyboard_key => $button) {
+            if (is_array($button) && ($button['text'] ?? null) == $text_var) {
                 $status = true;
                 break;
             }
@@ -3666,7 +3673,7 @@ function smart_fill_vars(string $template, array $user): string
     $lmt = (int) ($user['last_message_time'] ?? 0);
     $awayDays = $lmt > 0 ? (int) floor((time() - $lmt) / 86400) : 0;
     $map = [
-        '{name}' => (string) ($user['namecustom'] ?: ($user['username'] ?: ($user['id'] ?? ''))),
+        '{name}' => htmlspecialchars((string) ($user['namecustom'] ?: ($user['username'] ?: ($user['id'] ?? ''))), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
         '{username}' => (string) ($user['username'] ?? ''),
         '{balance}' => (string) ($user['Balance'] ?? '0'),
         '{score}' => (string) ($user['score'] ?? '0'),
