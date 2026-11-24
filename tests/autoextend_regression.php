@@ -312,9 +312,10 @@ function mkInvoice(array $overrides = []): array
 
 function mkLive(array $overrides = []): array
 {
+    // Default fixture is renewal-eligible under the 1-hour time threshold.
     return array_merge([
         'status' => 'active',
-        'expire' => time() + 86400,
+        'expire' => time() + 1800,
         'data_limit' => 10737418240,
         'used_traffic' => 1024,
     ], $overrides);
@@ -348,8 +349,8 @@ function persistSpec(string $spec): void
 
 function runProcess(array $invoice, int $daywarn = 2): void
 {
-    // Deliberately pass the RAW (uncapped) window: the production function is
-    // responsible for clamping it, mirroring how the cron builds it from setting.
+    // The window argument is retained for backwards compatibility; the new
+    // threshold logic relies on fixed 100MB / 1-hour constants instead.
     $window = max(1, $daywarn) * 86400;
     autoExtendProcess($invoice, new ManagePanel(), $window, time(), 3 * 86400);
 }
@@ -460,14 +461,16 @@ for ($i = 0; $i < 4; $i++) {
 }
 check('transient extend failures disable auto-renew after bounded retries', currentInvoice()['auto_extend'] === '0');
 check('exactly one final disable notification is sent', messagesContaining('autoRenewDisabled') === 1);
-check('no report mislabels failures as "panel extend failed"', reportsContaining('panel extend failed') === 0);
+check('no report uses the stale English "panel extend failed" label', reportsContaining('panel extend failed') === 0);
+check('failure reports use the Persian "تمدید ناموفق" label', reportsContaining('تمدید ناموفق') >= 1);
 check('failure reports are throttled (at most one across 4 runs)', count($GLOBALS['TEST']['reports']) <= 1);
 
 setupWorking();
 PanelRegistry::$driver->extendResult = ['status' => false, 'msg' => 'data not found'];
 runProcess(currentInvoice());
 check('deterministic config error disables auto-renew immediately', currentInvoice()['auto_extend'] === '0');
-check('deterministic config error is explicitly labelled', reportsContaining('config error') >= 1);
+check('deterministic config error is explicitly labelled in Persian', reportsContaining('خطای پیکربندی') >= 1);
+check('deterministic config error no longer uses the English "config error" label', reportsContaining('config error') === 0);
 
 setupWorking();
 PanelRegistry::$driver->live = ['status' => 'Unsuccessful', 'msg' => 'Connection timed out'];
@@ -480,14 +483,14 @@ check('transient panel outage does not disable auto-renew', currentInvoice()['au
 
 section('(c) premature renewals');
 
-setupWorking([], ['status' => 'limited', 'data_limit' => 0, 'used_traffic' => 999999999, 'expire' => time() + 100 * 86400]);
-runProcess(currentInvoice(), 2);
+setupWorking([], ['status' => 'active', 'data_limit' => 0, 'used_traffic' => 999999999, 'expire' => time() + 100 * 86400]);
+runProcess(currentInvoice());
 check('unlimited data_limit is not treated as volume depletion', extendCalls() === 0);
 
 setupWorking([], ['status' => 'active', 'expire' => 'garbage', 'data_limit' => 10737418240, 'used_traffic' => 1]);
 $threw = false;
 try {
-    runProcess(currentInvoice(), 2);
+    runProcess(currentInvoice());
 } catch (Throwable $e) {
     $threw = true;
 }
@@ -495,8 +498,8 @@ check('non-numeric expire does not throw', !$threw);
 check('non-numeric expire does not trigger a renewal', extendCalls() === 0);
 
 setupWorking([], ['status' => 'active', 'expire' => time() + 100 * 86400, 'data_limit' => 10737418240, 'used_traffic' => 1]);
-runProcess(currentInvoice(), 365);
-check('unbounded daywarn does not renew a service 100 days from expiry', extendCalls() === 0);
+runProcess(currentInvoice());
+check('a service 100 days from expiry is not renewed', extendCalls() === 0);
 
 foreach (['user not found', 'Panel Not Found'] as $notFoundMsg) {
     setupWorking();
@@ -519,7 +522,7 @@ check(
     && abs((float) ($resolved['price_product'] ?? 0) - 160000.0) < 0.01
 );
 
-setupWorking([], ['expire' => time() + 86400]);
+setupWorking([], ['expire' => time() + 1800]);
 persistSpec(json_encode(['price_lock' => 1, 'renew_fail_count' => 1]));
 PanelRegistry::$driver->extendResult = ['status' => false, 'msg' => 'timeout'];
 runProcess(currentInvoice());
@@ -564,6 +567,121 @@ check(
     'a missing notify key still sends a non-empty message',
     is_array($lastMessage) && trim((string) $lastMessage['text']) !== ''
 );
+
+/* ------------------------------------------------------------------ *
+ * (e) New renewal thresholds: 100MB volume OR 1 hour time
+ * ------------------------------------------------------------------ */
+
+section('(e) renewal thresholds (100MB / 1 hour)');
+
+check(
+    'AUTOEXTEND_VOLUME_THRESHOLD_BYTES is 104857600 (100MB)',
+    defined('AUTOEXTEND_VOLUME_THRESHOLD_BYTES') && AUTOEXTEND_VOLUME_THRESHOLD_BYTES === 104857600
+);
+check(
+    'AUTOEXTEND_TIME_THRESHOLD_SECONDS is 3600 (1 hour)',
+    defined('AUTOEXTEND_TIME_THRESHOLD_SECONDS') && AUTOEXTEND_TIME_THRESHOLD_SECONDS === 3600
+);
+
+// 1 GB limit with exactly 100MB left: renew even though the service is active
+// and its expiry is months away (volume must not require limited/expired status).
+setupWorking([], [
+    'status' => 'active',
+    'data_limit' => 1073741824,
+    'used_traffic' => 1073741824 - 104857600,
+    'expire' => time() + 100 * 86400,
+]);
+runProcess(currentInvoice());
+check('100MB remaining renews an active service with a distant expiry', extendCalls() === 1);
+
+setupWorking([], [
+    'status' => 'active',
+    'data_limit' => 1073741824,
+    'used_traffic' => 1073741824 - 104857601,
+    'expire' => time() + 100 * 86400,
+]);
+runProcess(currentInvoice());
+check('more than 100MB remaining does not renew via volume', extendCalls() === 0);
+
+setupWorking([], ['status' => 'active', 'expire' => time() + 1800, 'data_limit' => 10737418240, 'used_traffic' => 1]);
+runProcess(currentInvoice());
+check('30 minutes remaining renews the service', extendCalls() === 1);
+
+setupWorking([], ['status' => 'active', 'expire' => time() + 7200, 'data_limit' => 10737418240, 'used_traffic' => 1]);
+runProcess(currentInvoice());
+check('two hours remaining does not renew via time', extendCalls() === 0);
+
+setupWorking([], ['status' => 'active', 'expire' => time() - 60, 'data_limit' => 10737418240, 'used_traffic' => 1]);
+runProcess(currentInvoice());
+check('an already-expired service is renewed', extendCalls() === 1);
+
+/* ------------------------------------------------------------------ *
+ * (f) 5-minute schedule and 4-minute selection gate
+ * ------------------------------------------------------------------ */
+
+section('(f) cron schedule / selection gate');
+
+$jobsSrc = (string) file_get_contents(__DIR__ . '/../cronbot/jobs.php');
+check(
+    'autoextend job runs every 5 minutes',
+    (bool) preg_match("/'job'\s*=>\s*'autoextend'\s*,\s*'schedule'\s*=>\s*'\*\/5 \* \* \* \*'/", $jobsSrc)
+);
+
+$autoextendSrc2 = (string) file_get_contents(__DIR__ . '/../cronbot/autoextend.php');
+check('selection still gates on time_cron', strpos($autoextendSrc2, '(time_cron <= :t OR time_cron IS NULL)') !== false);
+check('selection uses a 4-minute window (now - 240)', strpos($autoextendSrc2, '$now - 240') !== false);
+check('the old 26-minute window (now - 1600) is gone', strpos($autoextendSrc2, '$now - 1600') === false);
+check('AUTOEXTEND_MAX_WINDOW_DAYS clamp is gone', strpos($autoextendSrc2, 'AUTOEXTEND_MAX_WINDOW_DAYS') === false);
+// run.php includes job scripts in the dispatcher's variable scope; reusing
+// $cronStatus here would overwrite the state written to storage/cron_status.json.
+check(
+    'autoextend does not clobber the dispatcher $cronStatus variable',
+    strpos($autoextendSrc2, '$cronStatus') === false
+);
+
+/* ------------------------------------------------------------------ *
+ * (g) Persian report-channel text
+ * ------------------------------------------------------------------ */
+
+section('(g) Persian report text');
+
+$hasReportHelper = function_exists('autoExtendReportTranslate');
+check(
+    'helper translates a full report line (result + suffix) to Persian',
+    $hasReportHelper
+        && autoExtendReportTranslate("🔁 [AutoExtend] renewed at 110000 — service 'alice' (panel: p1, user: 7)")
+            === "🔁 [AutoExtend] تمدید شد با مبلغ 110000 — سرویس «alice» (پنل: p1, کاربر: 7)"
+);
+check('helper translates data not found', $hasReportHelper && autoExtendReportTranslate('data not found') === 'داده یافت نشد');
+check(
+    'helper translates the local config error message',
+    $hasReportHelper
+        && autoExtendReportTranslate('local config error: panel or product mapping missing')
+            === 'خطای پیکربندی محلی: نقشه پنل یا محصول یافت نشد'
+);
+check('helper translates unknown', $hasReportHelper && autoExtendReportTranslate('unknown') === 'نامشخص');
+
+setupWorking();
+autoExtendReport(currentInvoice(), 'renewed at 110000', 'p1', 0);
+$reportText = (string) ($GLOBALS['TEST']['reports'][0]['text'] ?? '');
+check('report keeps the 🔁 [AutoExtend] prefix', strpos($reportText, '🔁 [AutoExtend]') === 0);
+check('report says "تمدید شد" instead of "renewed at"', strpos($reportText, 'تمدید شد') !== false);
+check('report keeps the dynamic price 110000', strpos($reportText, '110000') !== false);
+check('report uses the Persian context suffix', strpos($reportText, 'سرویس «alice» (پنل: p1, کاربر: 7)') !== false);
+check('report drops the English context suffix', strpos($reportText, "service 'alice'") === false);
+
+setupWorking();
+autoExtendReport(currentInvoice(), 'renew failed (2/3): unknown', 'p1', 0);
+$reportText = (string) ($GLOBALS['TEST']['reports'][0]['text'] ?? '');
+check('report keeps the dynamic attempt count 2/3', strpos($reportText, '2/3') !== false);
+check('report translates the failure label', strpos($reportText, 'تمدید ناموفق') !== false);
+check('report translates the unknown error', strpos($reportText, 'نامشخص') !== false);
+
+setupWorking();
+autoExtendReport(currentInvoice(), 'price rose 1000 -> 2000 Toman; held by price-lock policy', 'p1', 0);
+$reportText = (string) ($GLOBALS['TEST']['reports'][0]['text'] ?? '');
+check('report keeps both dynamic prices', strpos($reportText, '1000') !== false && strpos($reportText, '2000') !== false);
+check('report translates the price-rise label', strpos($reportText, 'قیمت از') !== false);
 
 /* ------------------------------------------------------------------ *
  * Result

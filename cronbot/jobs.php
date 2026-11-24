@@ -15,7 +15,8 @@ function mirza_cron_jobs(): array
         ['job' => 'plisio', 'schedule' => '*/3 * * * *', 'title' => 'پیگیری پرداخت‌های ارز دیجیتال'],
         ['job' => 'payment_expire', 'schedule' => '*/5 * * * *', 'title' => 'انقضای فاکتورهای پرداخت‌نشده'],
         ['job' => 'payment_reconcile', 'schedule' => '*/5 * * * *', 'title' => 'پیگیری پرداخت‌های موفق بدون تحویل سرویس'],
-        ['job' => 'autoextend', 'schedule' => '*/15 * * * *', 'title' => 'تمدید خودکار سرویس‌ها'],
+        // Cron schedule for autoextend is */5 * * * * (selection gate: now - 240).
+        ['job' => 'autoextend', 'schedule' => '*/5 * * * *', 'title' => 'تمدید خودکار سرویس‌ها'],
         ['job' => 'alert_balance', 'schedule' => '*/2 * * * *', 'title' => 'هشدار کمبود موجودی کیف پول'],
         ['job' => 'optimize_order', 'schedule' => '*/30 * * * *', 'title' => 'پاکسازی فاکتورهای رها شده'],
         ['job' => 'statusday', 'schedule' => '*/15 * * * *', 'title' => 'گزارش وضعیت روزانه'],

@@ -1,6 +1,7 @@
 <?php
 const AUTOEXTEND_MAX_FAILS = 3;
-const AUTOEXTEND_MAX_WINDOW_DAYS = 30;
+const AUTOEXTEND_VOLUME_THRESHOLD_BYTES = 104857600; // 100MB of traffic left
+const AUTOEXTEND_TIME_THRESHOLD_SECONDS = 3600; // 1 hour to expiry
 const AUTOEXTEND_REPORT_THROTTLE = 259200; // 3 days
 
 // Test seam: the regression harness defines AUTOEXTEND_TEST_MODE before including
@@ -19,28 +20,34 @@ require_once __DIR__ . '/../panels.php';
 require_once __DIR__ . '/../function.php';
 
 $setting = select("setting", "*");
-$cronStatus = json_decode((string) $setting['cron_status'], true) ?: [];
-if (($cronStatus['autoextend'] ?? true) === false) {
+// This script is included in the dispatcher's variable scope, so never reuse
+// its own status variable name here: run.php persists that state to
+// storage/cron_status.json in its finally block.
+$autoextendToggle = json_decode((string) $setting['cron_status'], true) ?: [];
+if (($autoextendToggle['autoextend'] ?? true) === false) {
     // return (not exit) so the shared cron dispatcher keeps running other jobs.
     return;
 }
 
 $ManagePanel = new ManagePanel();
 $faLang = languagechange(dirname(__DIR__), 'fa');
-$daywarn = max(1, intval($setting['daywarn'] ?? 2));
-$windowSeconds = $daywarn * 86400;
 $now = time();
 $throttleSeconds = AUTOEXTEND_REPORT_THROTTLE;
 
+// The selection gate must be shorter than the 5-minute cron cadence, otherwise
+// every other run would skip services that were just processed. This column is
+// shared with NoticationsService, so the narrower window stays local to this job.
 $stmt = $pdo->prepare("SELECT * FROM invoice WHERE auto_extend = '1' AND Status IN ('active', 'sendedwarn', 'send_on_hold', 'end_of_time', 'end_of_volume') AND (time_cron <= :t OR time_cron IS NULL) ORDER BY time_sell ASC LIMIT 50");
-$stmt->execute([':t' => $now - 1600]);
+$stmt->execute([':t' => $now - 240]);
 $invoices = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach ($invoices as $invoice) {
     update("invoice", "time_cron", $now, "id_invoice", $invoice['id_invoice']);
     clearSelectCache('invoice');
     try {
-        autoExtendProcess($invoice, $ManagePanel, $windowSeconds, $now, $throttleSeconds);
+        // Legacy window argument: retained for the regression harness only;
+        // eligibility now uses the fixed threshold constants below.
+        autoExtendProcess($invoice, $ManagePanel, 0, $now, $throttleSeconds);
     } catch (Throwable $e) {
         error_log('mirza autoextend: invoice ' . $invoice['id_invoice'] . ': ' . $e->getMessage());
     }
@@ -49,9 +56,9 @@ foreach ($invoices as $invoice) {
 function autoExtendProcess($invoice, $panelObj, int $windowSeconds, int $now, int $throttleSeconds): void
 {
     global $pdo;
-    // daywarn is an admin-editable warning window (unbounded in admin.php).
-    // Reusing it raw for renewals could renew a brand-new service months early.
-    $windowSeconds = min($windowSeconds, AUTOEXTEND_MAX_WINDOW_DAYS * 86400);
+    // $windowSeconds is retained only for signature compatibility with the
+    // regression harness. The old daywarn window clamp is gone; eligibility is
+    // decided by the fixed thresholds below.
 
     $panel = select("marzban_panel", "*", "name_panel", $invoice['Service_location'], "select");
     if (!$panel) {
@@ -90,22 +97,20 @@ function autoExtendProcess($invoice, $panelObj, int $windowSeconds, int $now, in
         return;
     }
     // Renew when EITHER condition holds:
-    //  - the service is inside a bounded time-expiry window, OR
-    //  - the volume is actually depleted (a positive data_limit exhausted).
-    // data_limit == 0 means unlimited traffic; it must never be treated as
-    // "used >= limit", otherwise every unlimited service renews immediately.
+    //  - at most 100MB of traffic is left on a positive (non-unlimited) limit,
+    //    regardless of the service status (it can still be 'active'), OR
+    //  - the service expires within 1 hour (already-expired values included).
     $dataLimit = $live['data_limit'] ?? null;
     $usedTraffic = $live['used_traffic'] ?? null;
-    $volumeDepleted = in_array($live['status'] ?? '', ['limited', 'expired'], true)
-        && is_numeric($dataLimit) && (float) $dataLimit > 0
+    $lowVolume = is_numeric($dataLimit) && (float) $dataLimit > 0
         && is_numeric($usedTraffic)
-        && ((float) $usedTraffic >= (float) $dataLimit);
+        && ((float) $dataLimit - (float) $usedTraffic) <= AUTOEXTEND_VOLUME_THRESHOLD_BYTES;
     $expireRaw = $live['expire'] ?? null;
-    // Non-numeric expire must not be subtracted: PHP 8 throws, and on older
-    // versions it coerced to 0 which looked like an immediately-expiring user.
-    $remain = is_numeric($expireRaw) ? ((float) $expireRaw - $now) : PHP_INT_MAX;
-    $inTimeWindow = $remain <= $windowSeconds;
-    if (!$volumeDepleted && !$inTimeWindow) {
+    // Non-numeric/missing expire must not be subtracted: PHP 8 throws on
+    // arithmetic with non-numeric strings, and 0 would look permanently expired.
+    $lowTime = is_numeric($expireRaw)
+        && ((float) $expireRaw - $now) <= AUTOEXTEND_TIME_THRESHOLD_SECONDS;
+    if (!$lowVolume && !$lowTime) {
         return;
     }
     $product = autoExtendResolveProduct($invoice, $user, $panel);
@@ -395,7 +400,10 @@ function autoExtendReport($invoice, $result, $panelName, int $throttleSeconds = 
         return;
     }
     $topic = select("topicid", "idreport", "report", "reportcron", "select");
-    $text = "🔁 [AutoExtend] " . $result . " — service '" . $invoice['username'] . "' (panel: " . $panelName . ", user: " . $invoice['id_user'] . ")";
+    // Build the line in English first, then translate it in one pass so the
+    // result label and the trailing context suffix stay consistent in Persian.
+    $english = "🔁 [AutoExtend] " . $result . " — service '" . $invoice['username'] . "' (panel: " . $panelName . ", user: " . $invoice['id_user'] . ")";
+    $text = autoExtendReportTranslate($english);
     telegram('sendmessage', [
         'chat_id' => $setting['Channel_Report'],
         'message_thread_id' => $topic['idreport'] ?? 0,
@@ -406,4 +414,39 @@ function autoExtendReport($invoice, $result, $panelName, int $throttleSeconds = 
         $meta['renew_report_at'] = time();
         autoExtendSaveMeta($invoice, $meta);
     }
+}
+
+/**
+ * Translate a report-channel line into Persian. The 🔁 [AutoExtend] prefix is
+ * intentionally left untouched, and dynamic values (prices, attempt counts,
+ * username, panel and user id) pass through unchanged. strtr() matches the
+ * longest key first, so specific labels win over their shorter prefixes.
+ */
+function autoExtendReportTranslate(string $text): string
+{
+    $map = [
+        'config error: panel removed' => 'خطای پیکربندی: پنل حذف شد',
+        'config error: panel not found' => 'خطای پیکربندی: پنل یافت نشد',
+        'config error: service missing on panel' => 'خطای پیکربندی: سرویس در پنل یافت نشد',
+        'config error: product no longer in shop' => 'خطای پیکربندی: محصول دیگر در فروشگاه موجود نیست',
+        'local config error: panel or product mapping missing' => 'خطای پیکربندی محلی: نقشه پنل یا محصول یافت نشد',
+        'local config error' => 'خطای پیکربندی محلی',
+        'config error: ' => 'خطای پیکربندی: ',
+        'could not resolve product' => 'شناسایی محصول امکانپذیر نبود',
+        'price rose ' => 'قیمت از ',
+        ' Toman; held by price-lock policy' => ' تومان افزایش یافت؛ تمدید طبق سیاست قفل قیمت متوقف شد',
+        ' -> ' => ' به ',
+        'renewed at ' => 'تمدید شد با مبلغ ',
+        'renew failed after ' => 'تمدید ناموفق پس از ',
+        ' attempts: ' => ' تلاش: ',
+        'renew failed (' => 'تمدید ناموفق (',
+        'data not found' => 'داده یافت نشد',
+        'panel not found' => 'پنل یافت نشد',
+        'product not found' => 'محصول یافت نشد',
+        'unknown' => 'نامشخص',
+        " — service '" => " — سرویس «",
+        "' (panel: " => "» (پنل: ",
+        ", user: " => ", کاربر: ",
+    ];
+    return strtr($text, $map);
 }
