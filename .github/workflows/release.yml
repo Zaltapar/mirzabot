@@ -57,6 +57,9 @@ jobs:
           FILE: ${{ steps.bundle.outputs.file }}
         run: |
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --title "$TAG" --generate-notes
+            # A sibling release workflow can create the release between our
+            # view and create calls. That is a success, not a failure.
+            gh release create "$TAG" --title "$TAG" --generate-notes || \
+              gh release view "$TAG" >/dev/null 2>&1
           fi
           gh release upload "$TAG" "$FILE" --clobber
